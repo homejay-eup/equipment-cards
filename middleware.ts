@@ -25,14 +25,20 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 重新整理 session（重要：不可移除）
-  const { data: { user } } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
   // 放行登入與 OAuth callback 路由
   if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
     return supabaseResponse
+  }
+
+  // 取得目前登入狀態，出錯時視為未登入
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // getUser 失敗 → 視為未登入，轉到登入頁
   }
 
   // 未登入 → 轉到登入頁
