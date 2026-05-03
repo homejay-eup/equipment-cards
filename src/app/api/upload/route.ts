@@ -1,23 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
-// 伺服器端初始化（不暴露 API Secret 給前端）
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-})
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+  return cloudinary
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+async function requireAuth() {
+  const client = createSupabaseServerClient()
+  const { data: { user } } = await client.auth.getUser()
+  return user
+}
 
 // ── POST /api/upload ──────────────────────────────────────────
 // Body: { equipment_id: string, type: 'main' | 'detail' }
 // 回傳簽名參數，前端直接 POST 到 Cloudinary（避免檔案經過 Vercel）
 export async function POST(req: NextRequest) {
+  if (!await requireAuth()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { equipment_id, type } = await req.json()
 
@@ -34,7 +48,7 @@ export async function POST(req: NextRequest) {
     const public_id = `${folder}/${equipment_id}_${type}`
 
     const paramsToSign = { folder, public_id, timestamp }
-    const signature = cloudinary.utils.api_sign_request(
+    const signature = getCloudinary().utils.api_sign_request(
       paramsToSign,
       process.env.CLOUDINARY_API_SECRET!,
     )
@@ -63,12 +77,17 @@ export async function POST(req: NextRequest) {
 //   url: string,
 // }
 export async function PATCH(req: NextRequest) {
+  if (!await requireAuth()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { equipment_id, type, public_id, url } = await req.json()
 
     if (!equipment_id || !type || !public_id || !url) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+
+    const supabase = getSupabase()
 
     if (type === 'main') {
       const { error } = await supabase

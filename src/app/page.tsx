@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
+import UserMenu from '@/components/UserMenu'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -21,7 +23,11 @@ async function getEquipmentCards(): Promise<EquipmentCard[]> {
 }
 
 export default async function HomePage() {
-  const cards = await getEquipmentCards()
+  const supabase = createSupabaseServerClient()
+  const [cards, { data: { user } }] = await Promise.all([
+    getEquipmentCards(),
+    supabase.auth.getUser(),
+  ])
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -31,6 +37,7 @@ export default async function HomePage() {
             <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
             <p className="text-sm text-gray-500 mt-0.5">共 {cards.length} 筆料卡</p>
           </div>
+          {user?.email && <UserMenu email={user.email} />}
         </div>
       </header>
 

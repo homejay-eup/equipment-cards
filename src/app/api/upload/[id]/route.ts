@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-})
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+  return cloudinary
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+async function requireAuth() {
+  const client = createSupabaseServerClient()
+  const { data: { user } } = await client.auth.getUser()
+  return user
+}
 
 // ── DELETE /api/upload/[id] ───────────────────────────────────
 // [id] = URL-encoded Cloudinary public_id
@@ -25,6 +37,9 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  if (!await requireAuth()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const public_id     = decodeURIComponent(params.id)
     const { searchParams } = req.nextUrl
@@ -38,8 +53,9 @@ export async function DELETE(
       )
     }
 
+    const supabase = getSupabase()
     // 1. 從 Cloudinary 刪除
-    const result = await cloudinary.uploader.destroy(public_id)
+    const result = await getCloudinary().uploader.destroy(public_id)
     if (result.result !== 'ok' && result.result !== 'not found') {
       return NextResponse.json(
         { error: `Cloudinary delete failed: ${result.result}` },
