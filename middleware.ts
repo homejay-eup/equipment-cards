@@ -1,64 +1,29 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+// Supabase session cookie 前綴（projectRef = ntapfguwmuufnlafroxs）
+const SESSION_COOKIE = 'sb-ntapfguwmuufnlafroxs-auth-token'
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 放行登入與 OAuth callback 路由
   if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
-    return supabaseResponse
+    return NextResponse.next()
   }
 
-  // 取得目前登入狀態，出錯時視為未登入
-  let user = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
-  } catch {
-    // getUser 失敗 → 視為未登入，轉到登入頁
-  }
+  // 檢查 Supabase session cookie（支援分段 cookie .0 .1）
+  const hasSession =
+    request.cookies.has(SESSION_COOKIE) ||
+    request.cookies.has(`${SESSION_COOKIE}.0`) ||
+    request.cookies.has(`${SESSION_COOKIE}.1`)
 
-  // 未登入 → 轉到登入頁
-  if (!user) {
+  if (!hasSession) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // 選填：限制 email 網域（設定 ALLOWED_EMAIL_DOMAIN=eup.com.tw）
-  const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN
-  if (allowedDomain && user.email && !user.email.endsWith(`@${allowedDomain}`)) {
-    await supabase.auth.signOut()
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('error', 'unauthorized')
-    return NextResponse.redirect(url)
-  }
-
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {
