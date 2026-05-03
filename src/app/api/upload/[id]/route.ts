@@ -1,0 +1,85 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { v2 as cloudinary } from 'cloudinary'
+import { createClient } from '@supabase/supabase-js'
+
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
+
+// ── DELETE /api/upload/[id] ───────────────────────────────────
+// [id] = URL-encoded Cloudinary public_id
+//        e.g. equipment-cards%2F1000003_main
+// Query:
+//   ?equipment_id=1000003   必填
+//   &type=main|detail       必填
+//
+// 流程：先刪 Cloudinary 圖片，再更新 Supabase
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const public_id     = decodeURIComponent(params.id)
+    const { searchParams } = req.nextUrl
+    const equipment_id  = searchParams.get('equipment_id')
+    const type          = searchParams.get('type') // 'main' | 'detail'
+
+    if (!equipment_id || !type) {
+      return NextResponse.json(
+        { error: 'equipment_id and type are required as query params' },
+        { status: 400 },
+      )
+    }
+
+    // 1. 從 Cloudinary 刪除
+    const result = await cloudinary.uploader.destroy(public_id)
+    if (result.result !== 'ok' && result.result !== 'not found') {
+      return NextResponse.json(
+        { error: `Cloudinary delete failed: ${result.result}` },
+        { status: 502 },
+      )
+    }
+
+    // 2. 更新 Supabase
+    if (type === 'main') {
+      const { error } = await supabase
+        .from('equipment_cards')
+        .update({ main_photo: null, main_photo_public_id: null })
+        .eq('equipment_id', equipment_id)
+
+      if (error) throw error
+    } else {
+      // detail：從陣列中移除對應 public_id
+      const { data, error: fetchError } = await supabase
+        .from('equipment_cards')
+        .select('detail_photos')
+        .eq('equipment_id', equipment_id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const updated = (data?.detail_photos ?? []).filter(
+        (p: { public_id: string }) => p.public_id !== public_id,
+      )
+
+      const { error } = await supabase
+        .from('equipment_cards')
+        .update({ detail_photos: updated })
+        .eq('equipment_id', equipment_id)
+
+      if (error) throw error
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[upload/delete] error', err)
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+  }
+}
