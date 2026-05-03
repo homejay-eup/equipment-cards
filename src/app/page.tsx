@@ -1,9 +1,9 @@
+import { Suspense } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
-  // Server Component：用 service_role key 繞過 RLS（不會暴露給瀏覽器）
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -33,7 +33,15 @@ export default async function HomePage() {
           </div>
         </div>
       </header>
-      <PhotoWall initialCards={cards} />
+
+      {/* useSearchParams() 需要 Suspense 包裝 */}
+      <Suspense fallback={
+        <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
+          載入中…
+        </div>
+      }>
+        <PhotoWall initialCards={cards} />
+      </Suspense>
     </main>
   )
 }
