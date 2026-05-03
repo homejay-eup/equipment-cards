@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
@@ -24,10 +25,11 @@ async function getEquipmentCards(): Promise<EquipmentCard[]> {
 
 export default async function HomePage() {
   const supabase = createSupabaseServerClient()
-  const [cards, { data: { user } }] = await Promise.all([
-    getEquipmentCards(),
-    supabase.auth.getUser(),
-  ])
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  const cards = await getEquipmentCards()
 
   return (
     <main className="min-h-screen bg-gray-50">
