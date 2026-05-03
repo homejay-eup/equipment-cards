@@ -17,6 +17,8 @@
 | Step 4：Next.js 專案 + 照片牆 UI | ✅ 完成 | 卡片網格 + Lightbox |
 | Step 5：查詢、篩選、模糊搜尋 | ✅ 完成 | Fuse.js + 分類 + 狀態 + URL 同步 |
 | Step 6：Vercel 部署 + GitHub | ✅ 完成 | 自動部署，push 即上線 |
+| Step 7：登入驗證（Auth） | ✅ 完成 | Supabase Auth + Google OAuth，限 @eup.com.tw |
+| Step 8：管理員後台 | ✅ 完成 | 新增 / 編輯 / 刪除料卡 + 照片上傳 UI |
 
 ## 🔑 服務帳號與網址
 
@@ -31,6 +33,7 @@
 
 - **前端**：Next.js 14 + Tailwind CSS + shadcn/ui + Fuse.js
 - **資料庫**：Supabase（PostgreSQL）
+- **認證**：Supabase Auth + Google OAuth（@supabase/ssr）
 - **照片儲存**：Cloudinary（免費 25 GB）
 - **部署**：Vercel Hobby（GitHub 自動部署）
 
@@ -112,6 +115,7 @@ git push
 ```
 設備料卡/                              ← Next.js 14 專案根目錄
 ├── CLAUDE.md                          ← 本文件
+├── middleware.ts                      ← 路由保護（cookie 檢查，第一道防線）
 ├── .env.local                         ← 環境變數（勿 commit）
 ├── .env.local.example                 ← 環境變數範本
 ├── next.config.mjs                    ← Cloudinary image domain 白名單
@@ -119,17 +123,25 @@ git push
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx                 ← Root layout（Inter 字型）
-│   │   ├── page.tsx                   ← 首頁：Server Component + Suspense
+│   │   ├── page.tsx                   ← 首頁：驗證 session + 查詢角色
 │   │   ├── globals.css                ← Tailwind v3 + shadcn CSS 變數
-│   │   └── api/upload/                ← 照片上傳/刪除 API routes
+│   │   ├── login/page.tsx             ← 登入頁（Google OAuth 按鈕）
+│   │   ├── auth/callback/route.ts     ← OAuth 回調：取得 session cookie
+│   │   └── api/
+│   │       ├── upload/                ← 照片上傳/刪除 API routes
+│   │       └── cards/                 ← 料卡 CRUD API routes
 │   ├── components/
 │   │   ├── PhotoWall.tsx              ← 搜尋 + 分類篩選 + Grid（Fuse.js）
-│   │   ├── EquipmentCardItem.tsx      ← 單張卡片縮圖元件
+│   │   ├── EquipmentCardItem.tsx      ← 單張卡片縮圖元件（含管理員 hover 按鈕）
 │   │   ├── CardDetailDialog.tsx       ← 細節 Lightbox（照片輪播）
+│   │   ├── CardFormDialog.tsx         ← 新增／編輯料卡 Dialog（管理員用）
+│   │   ├── UserMenu.tsx               ← Header 右上角：email + 登出
 │   │   └── ui/                        ← shadcn/ui 元件
 │   ├── hooks/usePhotoUpload.ts        ← 照片上傳 hook
 │   ├── lib/
-│   │   ├── supabase.ts                ← Supabase client
+│   │   ├── supabase-server.ts         ← Server Component / API Route 用 client
+│   │   ├── supabase-browser.ts        ← 瀏覽器端用 client（登出用）
+│   │   ├── admin.ts                   ← requireAdmin() / getUserRole()
 │   │   └── utils.ts                   ← cn() helper
 │   └── types/equipment.ts             ← EquipmentCard TypeScript 型別
 ├── 設備線材_照片Jason/                ← 分類用資料夾（category/tags 來源）
@@ -141,9 +153,9 @@ git push
 
 ## 🔮 未來可擴充方向
 
-- [ ] 管理員後台：新增 / 編輯 / 刪除料卡
-- [ ] 照片上傳 UI（目前只有 API）
+- [x] 管理員後台：新增 / 編輯 / 刪除料卡（✅ 2026-05-03 完成）
+- [x] 照片上傳 UI（✅ 2026-05-03 完成）
+- [x] Supabase Auth 登入（限定公司成員）（✅ 2026-05-03 完成）
 - [ ] 廠商篩選器
 - [ ] 匯出 PDF / Excel 清單
-- [ ] Supabase Auth 登入（限定公司成員）
 - [ ] 手機版 UI 優化
