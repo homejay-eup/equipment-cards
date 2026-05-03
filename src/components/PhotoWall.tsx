@@ -13,7 +13,7 @@ interface Props {
   initialCards: EquipmentCard[]
 }
 
-const CATEGORIES = ['全部', '主機', '天線', '支架', '螢幕', '線材', '配件']
+const CATEGORIES = ['全部', '主機', '鏡頭', '螢幕', '天線', '儲存媒體', '線材', '配件', '耗材', '工具', '國外設備']
 
 const STATUS_OPTIONS = [
   { value: 'all',          label: '全部狀態' },
