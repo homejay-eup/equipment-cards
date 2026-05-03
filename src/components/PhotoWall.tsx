@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Fuse from 'fuse.js'
 import { EquipmentCard } from '@/types/equipment'
 import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
-import { Search, X, ArrowUpDown } from 'lucide-react'
+import CardFormDialog from '@/components/CardFormDialog'
+import { Search, X, ArrowUpDown, Plus } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
+  isAdmin: boolean
 }
 
 const CATEGORIES = ['全部', '主機', '鏡頭', '螢幕', '天線', '儲存媒體', '線材', '配件', '耗材', '工具', '國外設備']
@@ -26,7 +28,7 @@ const SORT_OPTIONS = [
   { value: 'name', label: '品名排序' },
 ]
 
-export default function PhotoWall({ initialCards }: Props) {
+export default function PhotoWall({ initialCards, isAdmin }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -36,7 +38,12 @@ export default function PhotoWall({ initialCards }: Props) {
   const [sortBy,   setSortBy]   = useState(() => searchParams.get('sort')   ?? 'id')
   const [selected, setSelected] = useState<EquipmentCard | null>(null)
 
-  // 同步篩選條件到 URL（方便分享）
+  // 管理員用：新增 / 編輯 dialog
+  const [formMode,    setFormMode]    = useState<'create' | 'edit'>('create')
+  const [formOpen,    setFormOpen]    = useState(false)
+  const [editingCard, setEditingCard] = useState<EquipmentCard | undefined>(undefined)
+
+  // 同步篩選條件到 URL
   useEffect(() => {
     const params = new URLSearchParams()
     if (query)              params.set('q',      query)
@@ -47,7 +54,6 @@ export default function PhotoWall({ initialCards }: Props) {
     router.replace(qs ? `?${qs}` : '/', { scroll: false })
   }, [query, category, status, sortBy, router])
 
-  // Fuse.js 模糊搜尋設定
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
       { name: 'equipment_id', weight: 2 },
@@ -56,28 +62,19 @@ export default function PhotoWall({ initialCards }: Props) {
       { name: 'tags',         weight: 1 },
       { name: 'notes',        weight: 0.5 },
     ],
-    threshold: 0.4,   // 0 = 完全比對，1 = 全部通過；0.4 可容許少量錯字
+    threshold: 0.4,
     includeScore: true,
     minMatchCharLength: 1,
   }), [initialCards])
 
   const filtered = useMemo(() => {
-    // 1. 模糊搜尋（有關鍵字）或全部
     let result: EquipmentCard[] = query.trim()
       ? fuse.search(query.trim()).map(r => r.item)
       : [...initialCards]
 
-    // 2. 分類篩選
-    if (category !== '全部') {
-      result = result.filter(c => c.category === category)
-    }
+    if (category !== '全部') result = result.filter(c => c.category === category)
+    if (status   !== 'all')  result = result.filter(c => c.status === status)
 
-    // 3. 狀態篩選
-    if (status !== 'all') {
-      result = result.filter(c => c.status === status)
-    }
-
-    // 4. 排序（無搜尋時；有搜尋時 Fuse 已按相關度排）
     if (!query.trim()) {
       result.sort((a, b) =>
         sortBy === 'name'
@@ -85,18 +82,34 @@ export default function PhotoWall({ initialCards }: Props) {
           : a.equipment_id.localeCompare(b.equipment_id)
       )
     }
-
     return result
   }, [initialCards, query, category, status, sortBy, fuse])
 
   const hasActiveFilters = !!(query || category !== '全部' || status !== 'all')
+  const clearFilters = () => { setQuery(''); setCategory('全部'); setStatus('all'); setSortBy('id') }
 
-  const clearFilters = () => {
-    setQuery('')
-    setCategory('全部')
-    setStatus('all')
-    setSortBy('id')
+  function openCreate() {
+    setEditingCard(undefined)
+    setFormMode('create')
+    setFormOpen(true)
   }
+
+  function openEdit(card: EquipmentCard) {
+    setEditingCard(card)
+    setFormMode('edit')
+    setFormOpen(true)
+  }
+
+  const handleDelete = useCallback(async (card: EquipmentCard) => {
+    if (!confirm(`確定要刪除「${card.name}」？\n此操作無法還原，Cloudinary 照片也會一併刪除。`)) return
+    try {
+      const res = await fetch(`/api/cards/${card.equipment_id}`, { method: 'DELETE' })
+      if (!res.ok) { alert('刪除失敗，請重試'); return }
+      router.refresh()
+    } catch {
+      alert('刪除失敗，請重試')
+    }
+  }, [router])
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -138,7 +151,6 @@ export default function PhotoWall({ initialCards }: Props) {
 
       {/* ── 篩選列 ── */}
       <div className="flex gap-2 flex-wrap items-center mb-4">
-        {/* 分類 */}
         {CATEGORIES.map(cat => (
           <button
             key={cat}
@@ -152,10 +164,7 @@ export default function PhotoWall({ initialCards }: Props) {
             {cat}
           </button>
         ))}
-
         <span className="w-px h-5 bg-gray-300 mx-1" />
-
-        {/* 狀態 */}
         {STATUS_OPTIONS.map(opt => (
           <button
             key={opt.value}
@@ -173,8 +182,6 @@ export default function PhotoWall({ initialCards }: Props) {
             {opt.label}
           </button>
         ))}
-
-        {/* 清除篩選 */}
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
@@ -189,11 +196,7 @@ export default function PhotoWall({ initialCards }: Props) {
       {/* ── 結果數量 ── */}
       <p className="text-sm text-gray-500 mb-4">
         顯示 {filtered.length} / {initialCards.length} 筆
-        {query && (
-          <span className="ml-1.5 text-blue-500">
-            — 模糊搜尋「{query}」
-          </span>
-        )}
+        {query && <span className="ml-1.5 text-blue-500">— 模糊搜尋「{query}」</span>}
       </p>
 
       {/* ── 網格 ── */}
@@ -202,10 +205,7 @@ export default function PhotoWall({ initialCards }: Props) {
           <p className="text-lg">找不到符合的料卡</p>
           <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
           {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="mt-3 text-blue-500 text-sm underline hover:text-blue-700"
-            >
+            <button onClick={clearFilters} className="mt-3 text-blue-500 text-sm underline hover:text-blue-700">
               清除所有篩選
             </button>
           )}
@@ -217,6 +217,9 @@ export default function PhotoWall({ initialCards }: Props) {
               key={card.equipment_id}
               card={card}
               onClick={() => setSelected(card)}
+              isAdmin={isAdmin}
+              onEdit={() => openEdit(card)}
+              onDelete={() => handleDelete(card)}
             />
           ))}
         </div>
@@ -229,6 +232,27 @@ export default function PhotoWall({ initialCards }: Props) {
           open={!!selected}
           onClose={() => setSelected(null)}
         />
+      )}
+
+      {/* ── 新增 / 編輯 Dialog ── */}
+      {isAdmin && (
+        <>
+          {/* 新增按鈕（固定右下角） */}
+          <button
+            onClick={openCreate}
+            className="fixed bottom-6 right-6 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors z-40"
+          >
+            <Plus className="h-5 w-5" />
+            新增料卡
+          </button>
+
+          <CardFormDialog
+            mode={formMode}
+            card={editingCard}
+            open={formOpen}
+            onClose={() => setFormOpen(false)}
+          />
+        </>
       )}
     </div>
   )

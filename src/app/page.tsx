@@ -5,6 +5,7 @@ import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import UserMenu from '@/components/UserMenu'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getUserRole } from '@/lib/admin'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -29,7 +30,11 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const cards = await getEquipmentCards()
+  const [cards, role] = await Promise.all([
+    getEquipmentCards(),
+    getUserRole(),
+  ])
+  const isAdmin = role === 'admin'
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -39,7 +44,12 @@ export default async function HomePage() {
             <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
             <p className="text-sm text-gray-500 mt-0.5">共 {cards.length} 筆料卡</p>
           </div>
-          {user?.email && <UserMenu email={user.email} />}
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
+            )}
+            {user?.email && <UserMenu email={user.email} />}
+          </div>
         </div>
       </header>
 
@@ -49,7 +59,7 @@ export default async function HomePage() {
           載入中…
         </div>
       }>
-        <PhotoWall initialCards={cards} />
+        <PhotoWall initialCards={cards} isAdmin={isAdmin} />
       </Suspense>
     </main>
   )

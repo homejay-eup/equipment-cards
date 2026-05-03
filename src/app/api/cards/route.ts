@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin'
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+// ── POST /api/cards ───────────────────────────────────────────
+// 新增料卡（管理員）
+export async function POST(req: NextRequest) {
+  if (!await requireAdmin()) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const body = await req.json()
+    const { equipment_id, name, category, vendor, status, tags, notes } = body
+
+    if (!equipment_id || !name) {
+      return NextResponse.json({ error: '料號和品名為必填' }, { status: 400 })
+    }
+
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('equipment_cards')
+      .insert({
+        equipment_id: equipment_id.trim(),
+        name: name.trim(),
+        category: category || null,
+        vendor: vendor?.trim() || null,
+        status: status ?? 'active',
+        tags: Array.isArray(tags) ? tags : [],
+        notes: notes?.trim() || null,
+        detail_photos: [],
+      })
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: '料號已存在' }, { status: 409 })
+      }
+      throw error
+    }
+
+    return NextResponse.json(data)
+  } catch (err) {
+    console.error('[cards] create error', err)
+    return NextResponse.json({ error: '建立失敗' }, { status: 500 })
+  }
+}
