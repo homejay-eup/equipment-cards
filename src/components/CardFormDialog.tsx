@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, Settings } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings } from '@/types/equipment'
 
 interface Props {
@@ -22,6 +23,11 @@ interface FormState {
   status: string
   tags: string
   notes: string
+}
+
+interface PendingDetail {
+  file: File
+  preview: string
 }
 
 export default function CardFormDialog({ mode, card, open, onClose, settings }: Props) {
@@ -46,11 +52,15 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [detailPhotos, setDetailPhotos]         = useState<DetailPhoto[]>(card?.detail_photos ?? [])
   const [mainPhotoFile, setMainPhotoFile]       = useState<File | null>(null)
   const [mainPhotoPreview, setMainPhotoPreview] = useState<string | null>(null)
+  // create mode only: detail photos staged locally before card exists
+  const [pendingDetails, setPendingDetails]     = useState<PendingDetail[]>([])
 
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [photoError, setPhotoError]   = useState<string | null>(null)
+  // track any photo change so we can warn before closing
+  const [hasPhotoChanges, setHasPhotoChanges] = useState(false)
 
   useEffect(() => {
     setForm({
@@ -67,8 +77,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setDetailPhotos(card?.detail_photos ?? [])
     setMainPhotoFile(null)
     setMainPhotoPreview(null)
+    setPendingDetails([])
     setError(null)
     setPhotoError(null)
+    setHasPhotoChanges(false)
   }, [card, open])
 
   if (!open) return null
@@ -79,6 +91,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
   function parseTags(raw: string): string[] {
     return raw.split(/[,，]/).map(t => t.trim()).filter(Boolean)
+  }
+
+  function handleClose() {
+    if (hasPhotoChanges) {
+      if (!window.confirm('照片已有異動且即時生效，關閉後無法還原，確定取消？')) return
+    }
+    onClose()
   }
 
   async function uploadPhoto(file: File, equipmentId: string, type: string) {
@@ -131,12 +150,30 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? '建立失敗'); return }
 
+      const equipId = form.equipment_id.trim()
+
       if (mainPhotoFile) {
         setUploading(true)
         try {
-          await uploadPhoto(mainPhotoFile, form.equipment_id.trim(), 'main')
+          await uploadPhoto(mainPhotoFile, equipId, 'main')
         } catch (e) {
-          setError(`料卡已建立，但照片上傳失敗：${e instanceof Error ? e.message : ''}`)
+          setError(`料卡已建立，但主照片上傳失敗：${e instanceof Error ? e.message : ''}`)
+          router.refresh()
+          return
+        } finally {
+          setUploading(false)
+        }
+      }
+
+      if (pendingDetails.length > 0) {
+        setUploading(true)
+        try {
+          const base = Date.now()
+          for (let i = 0; i < pendingDetails.length; i++) {
+            await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
+          }
+        } catch (e) {
+          setError(`料卡已建立，但細節照片上傳失敗：${e instanceof Error ? e.message : ''}`)
           router.refresh()
           return
         } finally {
@@ -190,6 +227,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const result = await uploadPhoto(file, card!.equipment_id, 'main')
       setMainPhoto(result.url)
       setMainPhotoId(result.public_id)
+      setHasPhotoChanges(true)
     } catch (e) {
       setPhotoError(e instanceof Error ? e.message : '上傳失敗')
     } finally {
@@ -212,6 +250,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       )
       setMainPhoto(null)
       setMainPhotoId(null)
+      setHasPhotoChanges(true)
     } catch {
       setPhotoError('刪除失敗')
     } finally {
@@ -223,8 +262,18 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     const files = e.target.files
     if (!files?.length) return
     e.target.value = ''
-    const equipId = mode === 'edit' ? card!.equipment_id : form.equipment_id.trim()
-    if (!equipId) { setPhotoError('請先填入料號'); return }
+
+    if (mode === 'create') {
+      // Stage locally; card doesn't exist in DB yet
+      const equipId = form.equipment_id.trim()
+      if (!equipId) { setPhotoError('請先填入料號'); return }
+      const newItems: PendingDetail[] = Array.from(files).map(f => ({
+        file: f,
+        preview: URL.createObjectURL(f),
+      }))
+      setPendingDetails(prev => [...prev, ...newItems])
+      return
+    }
 
     setUploading(true)
     setPhotoError(null)
@@ -232,8 +281,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const base = Date.now()
       for (let i = 0; i < files.length; i++) {
         const type   = `detail_${base}_${i}`
-        const result = await uploadPhoto(files[i], equipId, type)
+        const result = await uploadPhoto(files[i], card!.equipment_id, type)
         setDetailPhotos(prev => [...prev, result])
+        setHasPhotoChanges(true)
       }
     } catch (e) {
       setPhotoError(e instanceof Error ? e.message : '上傳失敗')
@@ -242,8 +292,15 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     }
   }
 
+  function handleDeletePendingDetail(index: number) {
+    setPendingDetails(prev => {
+      URL.revokeObjectURL(prev[index].preview)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
   async function handleDeleteDetail(publicId: string) {
-    const equipId = mode === 'edit' ? card!.equipment_id : form.equipment_id.trim()
+    const equipId = card!.equipment_id
     setUploading(true)
     try {
       await fetch(
@@ -251,6 +308,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         { method: 'DELETE' },
       )
       setDetailPhotos(prev => prev.filter(p => p.public_id !== publicId))
+      setHasPhotoChanges(true)
     } catch {
       setPhotoError('刪除失敗')
     } finally {
@@ -269,7 +327,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           <h2 className="text-lg font-semibold text-gray-900">
             {mode === 'create' ? '新增料卡' : '編輯料卡'}
           </h2>
-          <button onClick={onClose} disabled={isBusy}
+          <button onClick={handleClose} disabled={isBusy}
             className="text-gray-400 hover:text-gray-600 disabled:opacity-40">
             <X className="h-5 w-5" />
           </button>
@@ -309,7 +367,14 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           {/* 分類 + 狀態 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">分類</label>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+                分類
+                <Link href="/admin/settings" target="_blank"
+                  title="管理分類選項"
+                  className="text-gray-400 hover:text-blue-500 transition-colors ml-1">
+                  <Settings className="h-3.5 w-3.5" />
+                </Link>
+              </label>
               <select value={form.category} onChange={e => set('category', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
                 <option value="">— 未分類 —</option>
@@ -317,7 +382,14 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">狀態</label>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+                狀態
+                <Link href="/admin/settings" target="_blank"
+                  title="管理狀態選項"
+                  className="text-gray-400 hover:text-blue-500 transition-colors ml-1">
+                  <Settings className="h-3.5 w-3.5" />
+                </Link>
+              </label>
               <select value={form.status} onChange={e => set('status', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
                 {settings.statuses.map(s => <option key={s} value={s}>{s}</option>)}
@@ -396,11 +468,25 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">細節照片</label>
             <div className="flex flex-wrap gap-2">
+              {/* uploaded detail photos (edit mode) */}
               {detailPhotos.map(photo => (
                 <div key={photo.public_id}
                   className="relative group w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
                   <Image src={photo.url} alt="細節照片" fill className="object-cover" />
                   <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
+                    disabled={isBusy}
+                    className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {/* staged detail photos (create mode only) */}
+              {pendingDetails.map((item, idx) => (
+                <div key={idx}
+                  className="relative group w-20 h-20 rounded-lg overflow-hidden border border-blue-200 bg-blue-50 flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => handleDeletePendingDetail(idx)}
                     disabled={isBusy}
                     className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
                     <Trash2 className="h-4 w-4" />
@@ -425,7 +511,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
-          <button onClick={onClose} disabled={isBusy}
+          <button onClick={handleClose} disabled={isBusy}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-40">
             取消
           </button>
