@@ -7,7 +7,8 @@ import PhotoWall from '@/components/PhotoWall'
 import UserMenu from '@/components/UserMenu'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRole } from '@/lib/admin'
-import { Users } from 'lucide-react'
+import { getSettings } from '@/lib/settings'
+import { Users, Settings } from 'lucide-react'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -32,9 +33,10 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const [cards, role] = await Promise.all([
+  const [cards, role, settings] = await Promise.all([
     getEquipmentCards(),
     getUserRole(),
+    getSettings(),
   ])
   const isAdmin = role === 'admin'
 
@@ -50,12 +52,15 @@ export default async function HomePage() {
             {isAdmin && (
               <>
                 <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
-                <Link
-                  href="/admin/users"
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors"
-                >
+                <Link href="/admin/users"
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">帳號管理</span>
+                </Link>
+                <Link href="/admin/settings"
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">選項設定</span>
                 </Link>
               </>
             )}
@@ -64,13 +69,12 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* useSearchParams() 需要 Suspense 包裝 */}
       <Suspense fallback={
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
           載入中…
         </div>
       }>
-        <PhotoWall initialCards={cards} isAdmin={isAdmin} />
+        <PhotoWall initialCards={cards} isAdmin={isAdmin} settings={settings} />
       </Suspense>
     </main>
   )

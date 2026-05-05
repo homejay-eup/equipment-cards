@@ -11,10 +11,10 @@ interface Props {
   card: EquipmentCard
   open: boolean
   onClose: () => void
+  activeStatus: string  // settings.statuses[0]，用於判斷 badge 顏色
 }
 
-export default function CardDetailDialog({ card, open, onClose }: Props) {
-  // photos = [main, ...details]
+export default function CardDetailDialog({ card, open, onClose, activeStatus }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖' }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}` })),
@@ -23,6 +23,8 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
 
   const prev = () => setPhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length)
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
+
+  const isActive = card.status === activeStatus || card.status === 'active'
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -45,7 +47,6 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
                   />
                 </div>
 
-                {/* 左右切換 */}
                 {allPhotos.length > 1 && (
                   <>
                     <button
@@ -61,7 +62,6 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
                       <ChevronRight className="h-5 w-5" />
                     </button>
 
-                    {/* 指示點 */}
                     <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                       {allPhotos.map((_, i) => (
                         <button
@@ -76,7 +76,6 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
                   </>
                 )}
 
-                {/* 照片標籤 */}
                 <span className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
                   {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
                 </span>
@@ -87,7 +86,6 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
               </div>
             )}
 
-            {/* 縮圖列 */}
             {allPhotos.length > 1 && (
               <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800">
                 {allPhotos.map((photo, i) => (
@@ -107,59 +105,43 @@ export default function CardDetailDialog({ card, open, onClose }: Props) {
 
           {/* 右側：資訊區 */}
           <div className="flex flex-col flex-1 overflow-y-auto">
-            <DialogHeader className="px-5 pt-5 pb-3 border-b">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs text-gray-400 font-mono">{card.equipment_id}</p>
-                  <DialogTitle className="text-base font-bold text-gray-900 mt-0.5 leading-snug">
-                    {card.name}
-                  </DialogTitle>
-                </div>
-                <Badge
-                  variant={card.status === 'active' ? 'default' : 'destructive'}
-                  className="flex-shrink-0 mt-1"
-                >
-                  {card.status === 'active' ? '現役' : '停產'}
+            {/* pr-8 避免 badge 與 shadcn 內建的 × 關閉按鈕重疊 */}
+            <DialogHeader className="px-5 pt-5 pb-3 border-b pr-10">
+              <p className="text-xs text-gray-400 font-mono">{card.equipment_id}</p>
+              <DialogTitle className="text-base font-bold text-gray-900 mt-0.5 leading-snug">
+                {card.name}
+              </DialogTitle>
+              <div className="mt-1.5">
+                <Badge variant={isActive ? 'default' : 'secondary'}>
+                  {card.status}
                 </Badge>
               </div>
             </DialogHeader>
 
             <div className="px-5 py-4 space-y-4 flex-1">
-              {/* 分類 / 廠商 */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                {card.category && (
-                  <InfoRow label="分類" value={card.category} />
-                )}
-                {card.vendor && (
-                  <InfoRow label="廠商" value={card.vendor} />
-                )}
+                {card.category && <InfoRow label="分類" value={card.category} />}
+                {card.vendor   && <InfoRow label="廠商" value={card.vendor} />}
               </div>
 
-              {/* 標籤 */}
               {card.tags.length > 0 && (
                 <div>
                   <p className="text-xs text-gray-400 mb-1.5">標籤</p>
                   <div className="flex flex-wrap gap-1.5">
                     {card.tags.map(tag => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
+                      <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* 備註 */}
               {card.notes && (
                 <div>
                   <p className="text-xs text-gray-400 mb-1">備註</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {card.notes}
-                  </p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                 </div>
               )}
 
-              {/* 照片數量 */}
               <div className="pt-2 border-t text-xs text-gray-400 space-y-0.5">
                 <p>主照片：{card.main_photo ? '1 張' : '無'}</p>
                 <p>細節照片：{card.detail_photos.length} 張</p>

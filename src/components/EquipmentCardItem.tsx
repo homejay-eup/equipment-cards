@@ -11,9 +11,12 @@ interface Props {
   isAdmin?: boolean
   onEdit?: () => void
   onDelete?: () => void
+  activeStatus: string  // settings.statuses[0]，非此狀態的縮圖會顯示覆蓋標籤
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus }: Props) {
+  const isInactive = card.status !== activeStatus && card.status !== 'active'
+
   return (
     <div className="group relative">
       <button
@@ -35,9 +38,11 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
               <ImageOff className="h-8 w-8" />
             </div>
           )}
-          {card.status === 'discontinued' && (
+          {isInactive && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <span className="text-white text-xs font-bold bg-red-600 px-2 py-0.5 rounded">停產</span>
+              <span className="text-white text-xs font-bold bg-red-600 px-2 py-0.5 rounded">
+                {card.status}
+              </span>
             </div>
           )}
           {card.detail_photos.length > 0 && (
