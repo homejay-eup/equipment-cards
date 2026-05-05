@@ -259,15 +259,17 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   async function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files?.length) return
+    // Copy to plain array BEFORE resetting value — some browsers clear the
+    // FileList in-place when value='' is set, leaving a stale live reference.
+    const fileArray = Array.from(e.target.files ?? [])
     e.target.value = ''
+    if (!fileArray.length) return
 
     if (mode === 'create') {
       // Stage locally; card doesn't exist in DB yet
       const equipId = form.equipment_id.trim()
       if (!equipId) { setPhotoError('請先填入料號'); return }
-      const newItems: PendingDetail[] = Array.from(files).map(f => ({
+      const newItems: PendingDetail[] = fileArray.map(f => ({
         file: f,
         preview: URL.createObjectURL(f),
       }))
@@ -279,9 +281,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setPhotoError(null)
     try {
       const base = Date.now()
-      for (let i = 0; i < files.length; i++) {
+      for (let i = 0; i < fileArray.length; i++) {
         const type   = `detail_${base}_${i}`
-        const result = await uploadPhoto(files[i], card!.equipment_id, type)
+        const result = await uploadPhoto(fileArray[i], card!.equipment_id, type)
         setDetailPhotos(prev => [...prev, result])
         setHasPhotoChanges(true)
       }
