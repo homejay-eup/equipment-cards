@@ -1,11 +1,13 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import UserMenu from '@/components/UserMenu'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRole } from '@/lib/admin'
+import { Users } from 'lucide-react'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -46,7 +48,16 @@ export default async function HomePage() {
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (
-              <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
+              <>
+                <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
+                <Link
+                  href="/admin/users"
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="hidden sm:inline">帳號管理</span>
+                </Link>
+              </>
             )}
             {user?.email && <UserMenu email={user.email} />}
           </div>
