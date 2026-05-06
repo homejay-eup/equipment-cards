@@ -72,17 +72,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                         <ChevronRight className="h-5 w-5" />
                       </button>
 
-                      <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                        {allPhotos.map((_, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setPhotoIndex(i)}
-                            className={`w-2 h-2 rounded-full transition-colors ${
-                              i === photoIndex ? 'bg-white' : 'bg-white/40'
-                            }`}
-                          />
-                        ))}
-                      </div>
                     </>
                   )}
 
