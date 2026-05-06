@@ -50,17 +50,19 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [mainPhoto, setMainPhoto]               = useState<string | null>(card?.main_photo ?? null)
   const [mainPhotoId, setMainPhotoId]           = useState<string | null>(card?.main_photo_public_id ?? null)
   const [detailPhotos, setDetailPhotos]         = useState<DetailPhoto[]>(card?.detail_photos ?? [])
+  // staged new main photo (both modes)
   const [mainPhotoFile, setMainPhotoFile]       = useState<File | null>(null)
   const [mainPhotoPreview, setMainPhotoPreview] = useState<string | null>(null)
-  // create mode only: detail photos staged locally before card exists
+  // staged new detail photos (both modes)
   const [pendingDetails, setPendingDetails]     = useState<PendingDetail[]>([])
+  // edit mode: existing photos staged for deletion on save
+  const [deleteMainPending, setDeleteMainPending]   = useState(false)
+  const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
 
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [photoError, setPhotoError]   = useState<string | null>(null)
-  // track any photo change so we can warn before closing
-  const [hasPhotoChanges, setHasPhotoChanges] = useState(false)
 
   useEffect(() => {
     setForm({
@@ -78,9 +80,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setMainPhotoFile(null)
     setMainPhotoPreview(null)
     setPendingDetails([])
+    setDeleteMainPending(false)
+    setDeleteDetailIds(new Set())
     setError(null)
     setPhotoError(null)
-    setHasPhotoChanges(false)
   }, [card, open])
 
   if (!open) return null
@@ -94,9 +97,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   function handleClose() {
-    if (hasPhotoChanges) {
-      if (!window.confirm('照片已有異動且即時生效，關閉後無法還原，確定取消？')) return
-    }
+    // Revoke any locally staged object URLs to avoid memory leaks
+    if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
+    pendingDetails.forEach(p => URL.revokeObjectURL(p.preview))
     onClose()
   }
 
@@ -195,12 +198,75 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setSaving(true)
     setError(null)
     try {
+      // 1. Patch text fields
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, tags: parseTags(form.tags) }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
+
+      const equipId = card!.equipment_id
+
+      // 2. Delete existing main photo if marked for deletion (and no replacement staged)
+      if (deleteMainPending && mainPhotoId && !mainPhotoFile) {
+        setUploading(true)
+        try {
+          await fetch(
+            `/api/upload/${encodeURIComponent(mainPhotoId)}?equipment_id=${equipId}&type=main`,
+            { method: 'DELETE' },
+          )
+        } catch { /* non-fatal */ } finally {
+          setUploading(false)
+        }
+      }
+
+      // 3. Upload staged main photo
+      if (mainPhotoFile) {
+        setUploading(true)
+        try {
+          await uploadPhoto(mainPhotoFile, equipId, 'main')
+        } catch (e) {
+          setError(`主照片上傳失敗：${e instanceof Error ? e.message : ''}`)
+          router.refresh()
+          return
+        } finally {
+          setUploading(false)
+        }
+      }
+
+      // 4. Delete marked detail photos
+      if (deleteDetailIds.size > 0) {
+        setUploading(true)
+        try {
+          for (const publicId of deleteDetailIds) {
+            await fetch(
+              `/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=detail`,
+              { method: 'DELETE' },
+            )
+          }
+        } catch { /* non-fatal */ } finally {
+          setUploading(false)
+        }
+      }
+
+      // 5. Upload staged detail photos
+      if (pendingDetails.length > 0) {
+        setUploading(true)
+        try {
+          const base = Date.now()
+          for (let i = 0; i < pendingDetails.length; i++) {
+            await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
+          }
+        } catch (e) {
+          setError(`細節照片上傳失敗：${e instanceof Error ? e.message : ''}`)
+          router.refresh()
+          return
+        } finally {
+          setUploading(false)
+        }
+      }
+
       router.refresh()
       onClose()
     } catch {
@@ -210,55 +276,30 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     }
   }
 
-  async function handleMainPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleMainPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-
-    if (mode === 'create') {
-      setMainPhotoFile(file)
-      setMainPhotoPreview(URL.createObjectURL(file))
-      return
-    }
-
-    setUploading(true)
-    setPhotoError(null)
-    try {
-      const result = await uploadPhoto(file, card!.equipment_id, 'main')
-      setMainPhoto(result.url)
-      setMainPhotoId(result.public_id)
-      setHasPhotoChanges(true)
-    } catch (e) {
-      setPhotoError(e instanceof Error ? e.message : '上傳失敗')
-    } finally {
-      setUploading(false)
-    }
+    if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
+    setMainPhotoFile(file)
+    setMainPhotoPreview(URL.createObjectURL(file))
+    // If user had marked the existing photo for deletion, the new upload replaces it
+    setDeleteMainPending(false)
   }
 
-  async function handleDeleteMain() {
-    if (mode === 'create') {
+  function handleDeleteMain() {
+    if (mainPhotoPreview) {
+      // Delete the staged (not-yet-uploaded) file
+      URL.revokeObjectURL(mainPhotoPreview)
       setMainPhotoFile(null)
       setMainPhotoPreview(null)
-      return
-    }
-    if (!mainPhotoId) return
-    setUploading(true)
-    try {
-      await fetch(
-        `/api/upload/${encodeURIComponent(mainPhotoId)}?equipment_id=${card!.equipment_id}&type=main`,
-        { method: 'DELETE' },
-      )
-      setMainPhoto(null)
-      setMainPhotoId(null)
-      setHasPhotoChanges(true)
-    } catch {
-      setPhotoError('刪除失敗')
-    } finally {
-      setUploading(false)
+    } else {
+      // Mark the existing DB photo for deletion on save
+      setDeleteMainPending(true)
     }
   }
 
-  async function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
     // Copy to plain array BEFORE resetting value — some browsers clear the
     // FileList in-place when value='' is set, leaving a stale live reference.
     const fileArray = Array.from(e.target.files ?? [])
@@ -266,32 +307,15 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     if (!fileArray.length) return
 
     if (mode === 'create') {
-      // Stage locally; card doesn't exist in DB yet
       const equipId = form.equipment_id.trim()
       if (!equipId) { setPhotoError('請先填入料號'); return }
-      const newItems: PendingDetail[] = fileArray.map(f => ({
-        file: f,
-        preview: URL.createObjectURL(f),
-      }))
-      setPendingDetails(prev => [...prev, ...newItems])
-      return
     }
 
-    setUploading(true)
-    setPhotoError(null)
-    try {
-      const base = Date.now()
-      for (let i = 0; i < fileArray.length; i++) {
-        const type   = `detail_${base}_${i}`
-        const result = await uploadPhoto(fileArray[i], card!.equipment_id, type)
-        setDetailPhotos(prev => [...prev, result])
-        setHasPhotoChanges(true)
-      }
-    } catch (e) {
-      setPhotoError(e instanceof Error ? e.message : '上傳失敗')
-    } finally {
-      setUploading(false)
-    }
+    const newItems: PendingDetail[] = fileArray.map(f => ({
+      file: f,
+      preview: URL.createObjectURL(f),
+    }))
+    setPendingDetails(prev => [...prev, ...newItems])
   }
 
   function handleDeletePendingDetail(index: number) {
@@ -301,25 +325,16 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     })
   }
 
-  async function handleDeleteDetail(publicId: string) {
-    const equipId = card!.equipment_id
-    setUploading(true)
-    try {
-      await fetch(
-        `/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=detail`,
-        { method: 'DELETE' },
-      )
-      setDetailPhotos(prev => prev.filter(p => p.public_id !== publicId))
-      setHasPhotoChanges(true)
-    } catch {
-      setPhotoError('刪除失敗')
-    } finally {
-      setUploading(false)
-    }
+  function handleDeleteDetail(publicId: string) {
+    // Mark for deletion on save; remove from visible list immediately
+    setDeleteDetailIds(prev => new Set([...prev, publicId]))
   }
 
   const isBusy = saving || uploading
-  const currentMainPhoto = mode === 'create' ? mainPhotoPreview : mainPhoto
+  // Show staged preview if available, otherwise show existing (unless marked for delete)
+  const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
+  // Only show existing details not marked for deletion
+  const visibleDetails = detailPhotos.filter(p => !deleteDetailIds.has(p.public_id))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -470,8 +485,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">細節照片</label>
             <div className="flex flex-wrap gap-2">
-              {/* uploaded detail photos (edit mode) */}
-              {detailPhotos.map(photo => (
+              {/* existing detail photos (edit mode) — excluding ones marked for deletion */}
+              {visibleDetails.map(photo => (
                 <div key={photo.public_id}
                   className="relative group w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
                   <Image src={photo.url} alt="細節照片" fill className="object-cover" />
@@ -482,7 +497,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                   </button>
                 </div>
               ))}
-              {/* staged detail photos (create mode only) */}
+              {/* staged detail photos (not yet uploaded) */}
               {pendingDetails.map((item, idx) => (
                 <div key={idx}
                   className="relative group w-20 h-20 rounded-lg overflow-hidden border border-blue-200 bg-blue-50 flex-shrink-0">
