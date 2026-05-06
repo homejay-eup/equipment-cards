@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2 } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -20,6 +20,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}` })),
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [expanded, setExpanded] = useState(false)
 
   const prev = () => setPhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length)
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
@@ -28,7 +29,16 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-3xl w-full p-0 overflow-hidden">
+      <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[95vw]' : 'max-w-3xl'}`}>
+        {/* 放大／縮小按鈕（疊在右上 × 左側） */}
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="absolute top-3 right-10 z-50 text-gray-400 hover:text-gray-700 transition-colors"
+          aria-label={expanded ? '縮小視窗' : '放大視窗'}
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+
         <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
 
           {/* 左側：照片區 */}
@@ -101,14 +111,19 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                 ))}
               </div>
             )}
+
+            {/* 品號 + 品名：照片正下方 */}
+            <div className="bg-gray-900 px-4 py-3 border-t border-gray-700">
+              <p className="text-xs text-gray-400 font-mono leading-none">{card.equipment_id}</p>
+              <p className="text-sm font-bold text-white mt-1 leading-snug">{card.name}</p>
+            </div>
           </div>
 
           {/* 右側：資訊區 */}
           <div className="flex flex-col flex-1 overflow-y-auto">
-            {/* pr-8 避免 badge 與 shadcn 內建的 × 關閉按鈕重疊 */}
-            <DialogHeader className="px-5 pt-5 pb-3 border-b pr-10">
-              <p className="text-xs text-gray-400 font-mono">{card.equipment_id}</p>
-              <DialogTitle className="text-base font-bold text-gray-900 mt-0.5 leading-snug">
+            {/* pr-14 避免 maximize 按鈕與 shadcn × 重疊 */}
+            <DialogHeader className="px-5 pt-5 pb-3 border-b pr-14">
+              <DialogTitle className="text-base font-bold text-gray-900 leading-snug">
                 {card.name}
               </DialogTitle>
               <div className="mt-1.5">
