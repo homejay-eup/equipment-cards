@@ -113,7 +113,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
           <div className="flex flex-col flex-1 overflow-y-auto">
             {/* pr-14 避免 maximize 按鈕與 shadcn × 重疊 */}
             <DialogHeader className="px-5 pt-5 pb-3 border-b pr-14">
-              <DialogTitle className="text-base font-bold text-gray-900 leading-snug">
+              <p className="text-xs text-gray-400 font-mono">{card.equipment_id}</p>
+              <DialogTitle className="text-base font-bold text-gray-900 mt-0.5 leading-snug">
                 {card.name}
               </DialogTitle>
               <div className="mt-1.5">
