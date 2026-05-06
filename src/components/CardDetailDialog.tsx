@@ -42,62 +42,63 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
         <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
 
           {/* 左側：照片區 */}
-          <div className="relative bg-gray-900 md:w-1/2 flex-shrink-0">
-            {allPhotos.length > 0 ? (
-              <>
-                <div className="relative aspect-square">
+          <div className="bg-gray-900 md:w-1/2 flex-shrink-0 flex flex-col">
+            {/* 照片：flex-1 填滿剩餘高度，不用 aspect-square 避免放大時撐出畫面 */}
+            <div className="relative flex-1 min-h-[200px]">
+              {allPhotos.length > 0 ? (
+                <>
                   <Image
                     key={allPhotos[photoIndex].url}
                     src={allPhotos[photoIndex].url}
                     alt={card.name}
                     fill
-                    sizes="(max-width: 768px) 100vw, 400px"
+                    sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-contain"
                     priority
                   />
+
+                  {allPhotos.length > 1 && (
+                    <>
+                      <button
+                        onClick={prev}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={next}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+
+                      <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                        {allPhotos.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setPhotoIndex(i)}
+                            className={`w-2 h-2 rounded-full transition-colors ${
+                              i === photoIndex ? 'bg-white' : 'bg-white/40'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <span className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                    {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
+                  </span>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                  <ImageOff className="h-12 w-12" />
                 </div>
-
-                {allPhotos.length > 1 && (
-                  <>
-                    <button
-                      onClick={prev}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={next}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-
-                    <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                      {allPhotos.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setPhotoIndex(i)}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            i === photoIndex ? 'bg-white' : 'bg-white/40'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                <span className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
-                  {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
-                </span>
-              </>
-            ) : (
-              <div className="aspect-square flex items-center justify-center text-gray-500">
-                <ImageOff className="h-12 w-12" />
-              </div>
-            )}
+              )}
+            </div>
 
             {allPhotos.length > 1 && (
-              <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800">
+              <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
                 {allPhotos.map((photo, i) => (
                   <button
                     key={i}
@@ -112,8 +113,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
               </div>
             )}
 
-            {/* 品號 + 品名：照片正下方 */}
-            <div className="bg-gray-900 px-4 py-3 border-t border-gray-700">
+            {/* 品號 + 品名：照片正下方，置中 */}
+            <div className="bg-gray-900 px-4 py-3 border-t border-gray-700 text-center flex-shrink-0">
               <p className="text-xs text-gray-400 font-mono leading-none">{card.equipment_id}</p>
               <p className="text-sm font-bold text-white mt-1 leading-snug">{card.name}</p>
             </div>
