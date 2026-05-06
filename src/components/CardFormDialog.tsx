@@ -339,7 +339,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   function toggleSelectDetail(publicId: string) {
     setSelectedDetailIds(prev => {
       const next = new Set(prev)
-      next.has(publicId) ? next.delete(publicId) : next.add(publicId)
+      if (next.has(publicId)) { next.delete(publicId) } else { next.add(publicId) }
       return next
     })
   }
@@ -347,7 +347,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   function toggleSelectPending(idx: number) {
     setSelectedPendingIdxs(prev => {
       const next = new Set(prev)
-      next.has(idx) ? next.delete(idx) : next.add(idx)
+      if (next.has(idx)) { next.delete(idx) } else { next.add(idx) }
       return next
     })
   }
