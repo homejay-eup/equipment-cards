@@ -74,24 +74,24 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </button>
 
-      {/* 管理員操作按鈕（hover 顯示） */}
+      {/* 管理員：編輯（左上）、刪除（右上）分開放，避免誤點 */}
       {isAdmin && (
-        <div className="absolute top-1.5 left-1.5 hidden group-hover:flex gap-1 z-10">
+        <>
           <button
             onClick={e => { e.stopPropagation(); onEdit?.() }}
-            className="bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-blue-600 hover:bg-white transition-colors"
+            className="absolute top-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-blue-600 hover:bg-white transition-colors z-10"
             title="編輯"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={e => { e.stopPropagation(); onDelete?.() }}
-            className="bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-red-600 hover:bg-white transition-colors"
+            className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-red-600 hover:bg-white transition-colors z-10"
             title="刪除"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
-        </div>
+        </>
       )}
     </div>
   )

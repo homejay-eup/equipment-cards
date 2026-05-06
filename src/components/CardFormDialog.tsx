@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, Settings } from 'lucide-react'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, Settings, CheckSquare, Square } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings } from '@/types/equipment'
 
 interface Props {
@@ -63,6 +63,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [photoError, setPhotoError]   = useState<string | null>(null)
+  // 細節照片選取模式
+  const [selectMode, setSelectMode]               = useState(false)
+  const [selectedDetailIds, setSelectedDetailIds] = useState<Set<string>>(new Set())
+  const [selectedPendingIdxs, setSelectedPendingIdxs] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     setForm({
@@ -84,6 +88,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setDeleteDetailIds(new Set())
     setError(null)
     setPhotoError(null)
+    setSelectMode(false)
+    setSelectedDetailIds(new Set())
+    setSelectedPendingIdxs(new Set())
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
@@ -326,9 +333,37 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   function handleDeleteDetail(publicId: string) {
-    // Mark for deletion on save; remove from visible list immediately
     setDeleteDetailIds(prev => new Set([...Array.from(prev), publicId]))
   }
+
+  function toggleSelectDetail(publicId: string) {
+    setSelectedDetailIds(prev => {
+      const next = new Set(prev)
+      next.has(publicId) ? next.delete(publicId) : next.add(publicId)
+      return next
+    })
+  }
+
+  function toggleSelectPending(idx: number) {
+    setSelectedPendingIdxs(prev => {
+      const next = new Set(prev)
+      next.has(idx) ? next.delete(idx) : next.add(idx)
+      return next
+    })
+  }
+
+  function handleBatchDelete() {
+    // 批次刪除：existing photos
+    selectedDetailIds.forEach(id => handleDeleteDetail(id))
+    // 批次刪除：pending photos（index 由大到小，避免移除後 index 偏移）
+    const sortedIdxs = Array.from(selectedPendingIdxs).sort((a, b) => b - a)
+    sortedIdxs.forEach(idx => handleDeletePendingDetail(idx))
+    setSelectedDetailIds(new Set())
+    setSelectedPendingIdxs(new Set())
+    setSelectMode(false)
+  }
+
+  const totalSelected = selectedDetailIds.size + selectedPendingIdxs.size
 
   const isBusy = saving || uploading
   // Show staged preview if available, otherwise show existing (unless marked for delete)
@@ -483,38 +518,107 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
           {/* 細節照片 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">細節照片</label>
-            <div className="flex flex-wrap gap-2">
-              {/* existing detail photos (edit mode) — excluding ones marked for deletion */}
-              {visibleDetails.map(photo => (
-                <div key={photo.public_id}
-                  className="relative group w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
-                  <Image src={photo.url} alt="細節照片" fill className="object-cover" />
-                  <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
-                    disabled={isBusy}
-                    className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {/* staged detail photos (not yet uploaded) */}
-              {pendingDetails.map((item, idx) => (
-                <div key={idx}
-                  className="relative group w-20 h-20 rounded-lg overflow-hidden border border-blue-200 bg-blue-50 flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => handleDeletePendingDetail(idx)}
-                    disabled={isBusy}
-                    className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button type="button" onClick={() => detailFileRef.current?.click()} disabled={isBusy}
-                className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-40">
-                <Plus className="h-5 w-5" />
-              </button>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">細節照片</label>
+              {(visibleDetails.length > 0 || pendingDetails.length > 0) && (
+                <button type="button" onClick={() => {
+                  setSelectMode(v => !v)
+                  setSelectedDetailIds(new Set())
+                  setSelectedPendingIdxs(new Set())
+                }} disabled={isBusy}
+                  className="text-xs text-gray-500 hover:text-blue-600 disabled:opacity-40 transition-colors">
+                  {selectMode ? '取消選取' : '選取'}
+                </button>
+              )}
             </div>
+
+            <div className="flex flex-wrap gap-2">
+              {/* existing detail photos */}
+              {visibleDetails.map(photo => {
+                const isSelected = selectedDetailIds.has(photo.public_id)
+                return (
+                  <div key={photo.public_id}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${
+                      selectMode
+                        ? isSelected ? 'border-red-400 cursor-pointer' : 'border-gray-200 cursor-pointer'
+                        : 'border-gray-200'
+                    } bg-gray-50`}
+                    onClick={selectMode ? () => toggleSelectDetail(photo.public_id) : undefined}
+                  >
+                    <Image src={photo.url} alt="細節照片" fill className="object-cover" />
+                    {selectMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-red-400/20' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-red-500 drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* staged detail photos (not yet uploaded) */}
+              {pendingDetails.map((item, idx) => {
+                const isSelected = selectedPendingIdxs.has(idx)
+                return (
+                  <div key={idx}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${
+                      selectMode
+                        ? isSelected ? 'border-red-400 cursor-pointer' : 'border-blue-200 cursor-pointer'
+                        : 'border-blue-200'
+                    } bg-blue-50`}
+                    onClick={selectMode ? () => toggleSelectPending(idx) : undefined}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
+                    {selectMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-red-400/20' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-red-500 drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleDeletePendingDetail(idx)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* 新增按鈕（選取模式時隱藏） */}
+              {!selectMode && (
+                <button type="button" onClick={() => detailFileRef.current?.click()} disabled={isBusy}
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-40">
+                  <Plus className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {/* 選取模式 action bar */}
+            {selectMode && (
+              <div className="mt-3 flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-600">
+                  已選 <span className="font-semibold text-gray-900">{totalSelected}</span> 張
+                </span>
+                <button type="button" onClick={handleBatchDelete}
+                  disabled={isBusy || totalSelected === 0}
+                  className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  刪除選取
+                </button>
+              </div>
+            )}
+
             <input ref={detailFileRef} type="file" accept="image/*" multiple className="hidden"
               onChange={handleAddDetail} />
           </div>
