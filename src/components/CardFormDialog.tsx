@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import Link from 'next/link'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, Settings, CheckSquare, Square } from 'lucide-react'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings } from '@/types/equipment'
+import SettingsPopover from '@/components/SettingsPopover'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -36,6 +36,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const detailFileRef = useRef<HTMLInputElement>(null)
 
   const defaultStatus = settings.statuses[0] ?? '現役'
+
+  // 本地可寫的 settings，讓 Popover 更新後下拉選單立即反映（不依賴 parent re-fetch）
+  const [localSettings, setLocalSettings] = useState<AppSettings>(settings)
 
   const [form, setForm] = useState<FormState>({
     equipment_id: card?.equipment_id ?? '',
@@ -69,6 +72,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [selectedPendingIdxs, setSelectedPendingIdxs] = useState<Set<number>>(new Set())
 
   useEffect(() => {
+    setLocalSettings(settings)
     setForm({
       equipment_id: card?.equipment_id ?? '',
       name:         card?.name ?? '',
@@ -421,30 +425,32 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             <div>
               <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
                 分類
-                <Link href="/admin/settings" target="_blank"
-                  title="管理分類選項"
-                  className="text-gray-400 hover:text-blue-500 transition-colors ml-1">
-                  <Settings className="h-3.5 w-3.5" />
-                </Link>
+                <SettingsPopover
+                  settingKey="categories"
+                  items={localSettings.categories}
+                  onSaved={cats => setLocalSettings(prev => ({ ...prev, categories: cats }))}
+                  disabled={isBusy}
+                />
               </label>
               <select value={form.category} onChange={e => set('category', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
                 <option value="">— 未分類 —</option>
-                {settings.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                {localSettings.categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
                 狀態
-                <Link href="/admin/settings" target="_blank"
-                  title="管理狀態選項"
-                  className="text-gray-400 hover:text-blue-500 transition-colors ml-1">
-                  <Settings className="h-3.5 w-3.5" />
-                </Link>
+                <SettingsPopover
+                  settingKey="statuses"
+                  items={localSettings.statuses}
+                  onSaved={stats => setLocalSettings(prev => ({ ...prev, statuses: stats }))}
+                  disabled={isBusy}
+                />
               </label>
               <select value={form.status} onChange={e => set('status', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-                {settings.statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                {localSettings.statuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
