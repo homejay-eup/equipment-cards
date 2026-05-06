@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Badge } from '@/components/ui/badge'
-import { ImageOff, Pencil, Trash2 } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -11,17 +11,29 @@ interface Props {
   isAdmin?: boolean
   onEdit?: () => void
   onDelete?: () => void
-  activeStatus: string  // settings.statuses[0]，非此狀態的縮圖會顯示覆蓋標籤
+  activeStatus: string
+  selectMode?: boolean
+  isSelected?: boolean
+  onSelect?: () => void
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
+
+  function handleClick() {
+    if (selectMode) { onSelect?.(); return }
+    onClick()
+  }
 
   return (
     <div className="group relative">
       <button
-        onClick={onClick}
-        className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md hover:border-blue-300 transition-all text-left w-full"
+        onClick={handleClick}
+        className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all text-left w-full ${
+          selectMode && isSelected
+            ? 'border-red-400 ring-2 ring-red-300'
+            : 'border-gray-200 hover:border-blue-300'
+        }`}
       >
         {/* 縮圖區 */}
         <div className="relative aspect-square bg-gray-100 overflow-hidden">
@@ -74,8 +86,18 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </button>
 
-      {/* 管理員：編輯（左上）、刪除（右上）分開放，避免誤點 */}
-      {isAdmin && (
+      {/* 選取模式：右上角 checkbox */}
+      {selectMode && (
+        <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none">
+          {isSelected
+            ? <CheckSquare className="h-5 w-5 text-red-500 drop-shadow" />
+            : <Square className="h-5 w-5 text-white drop-shadow" />
+          }
+        </div>
+      )}
+
+      {/* 管理員：編輯（左上）、刪除（右上），選取模式時隱藏 */}
+      {isAdmin && !selectMode && (
         <>
           <button
             onClick={e => { e.stopPropagation(); onEdit?.() }}

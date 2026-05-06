@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
-import { Search, X, ArrowUpDown, Plus } from 'lucide-react'
+import { Search, X, ArrowUpDown, Plus, Trash2, Loader2 } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -36,6 +36,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
   const [formMode,    setFormMode]    = useState<'create' | 'edit'>('create')
   const [formOpen,    setFormOpen]    = useState(false)
   const [editingCard, setEditingCard] = useState<EquipmentCard | undefined>(undefined)
+
+  const [selectMode,   setSelectMode]   = useState(false)
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -95,6 +99,52 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
     }
   }, [router])
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.equipment_id)))
+    }
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleBatchDelete = useCallback(async () => {
+    const count = selectedIds.size
+    const names = filtered
+      .filter(c => selectedIds.has(c.equipment_id))
+      .map(c => `${c.equipment_id} ${c.name}`)
+      .join('\n')
+    if (!confirm(`確定要刪除以下 ${count} 筆料卡？\n\n${names}\n\n此操作無法還原。`)) return
+    setBatchDeleting(true)
+    try {
+      const results = await Promise.allSettled(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/cards/${id}`, { method: 'DELETE' })
+        )
+      )
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
+      if (failed > 0) alert(`${count - failed} 筆刪除成功，${failed} 筆失敗`)
+      exitSelectMode()
+      router.refresh()
+    } catch {
+      alert('刪除失敗，請重試')
+    } finally {
+      setBatchDeleting(false)
+    }
+  }, [selectedIds, filtered, router])
+
   const categories = ['全部', ...settings.categories]
   const statusOptions = [
     { value: 'all', label: '全部狀態' },
@@ -106,6 +156,18 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
 
       {/* 搜尋列 */}
       <div className="flex gap-2 mb-3">
+        {isAdmin && (
+          <button
+            onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+            className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors flex-shrink-0 ${
+              selectMode
+                ? 'bg-gray-800 text-white border-gray-800'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {selectMode ? '取消選取' : '選取'}
+          </button>
+        )}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input className="pl-9 pr-9" placeholder="搜尋料號、品名、廠商、備註…（支援模糊比對）"
@@ -190,6 +252,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
               onEdit={() => openEdit(card)}
               onDelete={() => handleDelete(card)}
               activeStatus={activeStatus}
+              selectMode={selectMode}
+              isSelected={selectedIds.has(card.equipment_id)}
+              onSelect={() => toggleSelect(card.equipment_id)}
             />
           ))}
         </div>
@@ -208,6 +273,29 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
       {/* 新增 / 編輯 Dialog */}
       {isAdmin && (
         <>
+          {/* 批次刪除 action bar */}
+          {selectMode && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white border border-gray-200 rounded-2xl shadow-xl px-5 py-3">
+              <button onClick={toggleSelectAll} className="text-sm text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
+                {selectedIds.size === filtered.length ? '取消全選' : `全選（${filtered.length}）`}
+              </button>
+              <span className="text-sm text-gray-700">
+                已選 <span className="font-semibold">{selectedIds.size}</span> 張
+              </span>
+              <button
+                onClick={handleBatchDelete}
+                disabled={batchDeleting || selectedIds.size === 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors"
+              >
+                {batchDeleting
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Trash2 className="h-4 w-4" />
+                }
+                刪除選取
+              </button>
+            </div>
+          )}
+
           <button onClick={openCreate}
             className="fixed bottom-6 right-6 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors z-40">
             <Plus className="h-5 w-5" />
