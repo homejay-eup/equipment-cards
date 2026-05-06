@@ -84,7 +84,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setDeleteDetailIds(new Set())
     setError(null)
     setPhotoError(null)
-  }, [card, open])
+  }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
 
@@ -239,7 +239,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       if (deleteDetailIds.size > 0) {
         setUploading(true)
         try {
-          for (const publicId of deleteDetailIds) {
+          for (const publicId of Array.from(deleteDetailIds)) {
             await fetch(
               `/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=detail`,
               { method: 'DELETE' },
@@ -327,7 +327,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
   function handleDeleteDetail(publicId: string) {
     // Mark for deletion on save; remove from visible list immediately
-    setDeleteDetailIds(prev => new Set([...prev, publicId]))
+    setDeleteDetailIds(prev => new Set([...Array.from(prev), publicId]))
   }
 
   const isBusy = saving || uploading
