@@ -31,12 +31,26 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { name, category, vendor, status, tags, notes } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes } = body
 
     const supabase = getSupabase()
+
+    // 若料號有變動，先確認新料號不重複
+    if (newId && newId.trim() !== params.id) {
+      const { data: existing } = await supabase
+        .from('equipment_cards')
+        .select('equipment_id')
+        .eq('equipment_id', newId.trim())
+        .maybeSingle()
+      if (existing) {
+        return NextResponse.json({ error: '料號已存在' }, { status: 409 })
+      }
+    }
+
     const { data, error } = await supabase
       .from('equipment_cards')
       .update({
+        ...(newId && newId.trim() !== params.id ? { equipment_id: newId.trim() } : {}),
         name: name?.trim(),
         category: category || null,
         vendor: vendor?.trim() || null,

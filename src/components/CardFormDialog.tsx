@@ -206,10 +206,11 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
   async function handleUpdate() {
     if (!form.name.trim()) { setError('品名為必填'); return }
+    if (!form.equipment_id.trim()) { setError('料號為必填'); return }
     setSaving(true)
     setError(null)
     try {
-      // 1. Patch text fields
+      // 1. Patch text fields（含可能更新的 equipment_id）
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -217,7 +218,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
 
-      const equipId = card!.equipment_id
+      // 料號可能已更新，後續照片操作使用新料號
+      const equipId = form.equipment_id.trim()
 
       // 2. Delete existing main photo if marked for deletion (and no replacement staged)
       if (deleteMainPending && mainPhotoId && !mainPhotoFile) {
@@ -404,7 +406,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             </label>
             <input type="text" value={form.equipment_id}
               onChange={e => set('equipment_id', e.target.value)}
-              disabled={mode === 'edit'} placeholder="例：1000003"
+              placeholder="例：1000003"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
             />
           </div>
