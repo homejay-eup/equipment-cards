@@ -8,7 +8,7 @@ import UserMenu from '@/components/UserMenu'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRole } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
-import { Users, Settings } from 'lucide-react'
+import { Users } from 'lucide-react'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -56,11 +56,6 @@ export default async function HomePage() {
                   className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">帳號管理</span>
-                </Link>
-                <Link href="/admin/settings"
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
-                  <Settings className="h-4 w-4" />
-                  <span className="hidden sm:inline">選項設定</span>
                 </Link>
               </>
             )}
