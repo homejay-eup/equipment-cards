@@ -44,6 +44,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
         {expanded ? (
           /* ── 放大模式：照片填滿，品號/品名置中在下方 ── */
           <div className="bg-gray-900 flex flex-col" style={{ height: 'min(90vh, 90vw)' }}>
+            {/* 縮圖列（上方） */}
+            {allPhotos.length > 1 && (
+              <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
+                {allPhotos.map((photo, i) => (
+                  <button key={i} onClick={() => setPhotoIndex(i)}
+                    className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                    <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* 照片區 */}
             <div className="relative flex-1 min-h-0">
               {allPhotos.length > 0 ? (
@@ -78,18 +90,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
               )}
             </div>
 
-            {/* 縮圖列 */}
-            {allPhotos.length > 1 && (
-              <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
-                {allPhotos.map((photo, i) => (
-                  <button key={i} onClick={() => setPhotoIndex(i)}
-                    className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                    <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* 品號 + 品名 */}
             <div className="bg-gray-900 px-4 py-3 border-t border-gray-700 text-center flex-shrink-0">
               <p className="text-xs text-gray-400 font-mono leading-none">{card.equipment_id}</p>
@@ -102,6 +102,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
 
             {/* 左側：照片區 */}
             <div className="bg-gray-900 md:w-1/2 flex-shrink-0 flex flex-col">
+              {/* 縮圖列（上方） */}
+              {allPhotos.length > 1 && (
+                <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
+                  {allPhotos.map((photo, i) => (
+                    <button key={i} onClick={() => setPhotoIndex(i)}
+                      className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                      <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="relative flex-1 min-h-[200px]">
                 {allPhotos.length > 0 ? (
                   <>
@@ -134,17 +146,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                   </div>
                 )}
               </div>
-
-              {allPhotos.length > 1 && (
-                <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
-                  {allPhotos.map((photo, i) => (
-                    <button key={i} onClick={() => setPhotoIndex(i)}
-                      className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                      <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
 
               {/* 品號 + 品名 */}
               <div className="bg-gray-900 px-4 py-3 border-t border-gray-700 text-center flex-shrink-0">
