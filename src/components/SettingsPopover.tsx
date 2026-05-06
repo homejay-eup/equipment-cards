@@ -1,25 +1,23 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Settings, X, Plus, Loader2 } from 'lucide-react'
+import { Settings, X, Plus } from 'lucide-react'
 
 interface Props {
   settingKey: 'categories' | 'statuses'
   items: string[]
-  onSaved: (newItems: string[]) => void
+  /** 按「確認」後回傳最新清單（不呼叫 API，由 CardFormDialog 統一儲存） */
+  onConfirm: (newItems: string[]) => void
   disabled?: boolean
 }
 
-export default function SettingsPopover({ settingKey, items, onSaved, disabled }: Props) {
-  const [open, setOpen]     = useState(false)
-  const [draft, setDraft]   = useState<string[]>([])
-  const [input, setInput]   = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState<string | null>(null)
+export default function SettingsPopover({ settingKey, items, onConfirm, disabled }: Props) {
+  const [open, setOpen]   = useState(false)
+  const [draft, setDraft] = useState<string[]>([])
+  const [input, setInput] = useState('')
 
-  const btnRef     = useRef<HTMLButtonElement>(null)
-  const panelRef   = useRef<HTMLDivElement>(null)
-  // fixed 位置，避免被父元素 overflow:auto 裁切
+  const btnRef   = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   function openPopover() {
@@ -29,17 +27,15 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
     }
     setDraft([...items])
     setInput('')
-    setError(null)
     setOpen(true)
   }
 
-  // 點外面關閉（不儲存）
   useEffect(() => {
     if (!open) return
     function handler(e: MouseEvent) {
       if (
         panelRef.current && !panelRef.current.contains(e.target as Node) &&
-        btnRef.current  && !btnRef.current.contains(e.target as Node)
+        btnRef.current   && !btnRef.current.contains(e.target as Node)
       ) {
         setOpen(false)
       }
@@ -59,23 +55,9 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
     setDraft(prev => prev.filter(i => i !== item))
   }
 
-  async function handleSave() {
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/settings', {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ key: settingKey, value: draft }),
-      })
-      if (!res.ok) { setError('儲存失敗'); return }
-      onSaved(draft)
-      setOpen(false)
-    } catch {
-      setError('儲存失敗')
-    } finally {
-      setSaving(false)
-    }
+  function handleConfirm() {
+    onConfirm(draft)
+    setOpen(false)
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(items)
@@ -101,13 +83,13 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
         >
           <p className="text-xs font-medium text-gray-500">
             {settingKey === 'categories' ? '分類選項' : '狀態選項'}
+            <span className="ml-1 text-gray-400 font-normal">（存檔時一起儲存）</span>
           </p>
 
           <ul className="space-y-1 max-h-48 overflow-y-auto">
             {draft.map((item, idx) => (
               <li key={item} className="flex items-center gap-1">
                 <span className="text-sm text-gray-800 truncate flex-1">{item}</span>
-                {/* 狀態第一項（預設）不可刪 */}
                 {!(settingKey === 'statuses' && idx === 0) && (
                   <button
                     type="button"
@@ -121,7 +103,6 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
             ))}
           </ul>
 
-          {/* 新增輸入列 */}
           <div className="flex gap-1 pt-1 border-t border-gray-100">
             <input
               type="text"
@@ -142,9 +123,6 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
             </button>
           </div>
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
-
-          {/* 儲存 / 取消 */}
           <div className="flex gap-2 pt-1 border-t border-gray-100">
             <button
               type="button"
@@ -155,12 +133,11 @@ export default function SettingsPopover({ settingKey, items, onSaved, disabled }
             </button>
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-blue-600 text-white rounded-md py-1 hover:bg-blue-700 disabled:opacity-40 transition-colors"
+              onClick={handleConfirm}
+              disabled={!dirty}
+              className="flex-1 text-xs font-medium bg-blue-600 text-white rounded-md py-1 hover:bg-blue-700 disabled:opacity-40 transition-colors"
             >
-              {saving && <Loader2 className="h-3 w-3 animate-spin" />}
-              儲存
+              確認
             </button>
           </div>
         </div>

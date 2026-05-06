@@ -195,6 +195,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         }
       }
 
+      await flushSettings()
       router.refresh()
       onClose()
     } catch {
@@ -278,6 +279,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         }
       }
 
+      await flushSettings()
       router.refresh()
       onClose()
     } catch {
@@ -369,6 +371,30 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
   const totalSelected = selectedDetailIds.size + selectedPendingIdxs.size
 
+  /** settings 有變動時一併寫入 DB，失敗只 console，不阻斷料卡儲存 */
+  async function flushSettings() {
+    const tasks: Promise<void>[] = []
+    if (JSON.stringify(localSettings.categories) !== JSON.stringify(settings.categories)) {
+      tasks.push(
+        fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'categories', value: localSettings.categories }),
+        }).then(() => undefined).catch(console.error)
+      )
+    }
+    if (JSON.stringify(localSettings.statuses) !== JSON.stringify(settings.statuses)) {
+      tasks.push(
+        fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'statuses', value: localSettings.statuses }),
+        }).then(() => undefined).catch(console.error)
+      )
+    }
+    await Promise.all(tasks)
+  }
+
   const isBusy = saving || uploading
   // Show staged preview if available, otherwise show existing (unless marked for delete)
   const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
@@ -428,7 +454,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                 <SettingsPopover
                   settingKey="categories"
                   items={localSettings.categories}
-                  onSaved={cats => setLocalSettings(prev => ({ ...prev, categories: cats }))}
+                  onConfirm={cats => setLocalSettings(prev => ({ ...prev, categories: cats }))}
                   disabled={isBusy}
                 />
               </label>
@@ -444,7 +470,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                 <SettingsPopover
                   settingKey="statuses"
                   items={localSettings.statuses}
-                  onSaved={stats => setLocalSettings(prev => ({ ...prev, statuses: stats }))}
+                  onConfirm={stats => setLocalSettings(prev => ({ ...prev, statuses: stats }))}
                   disabled={isBusy}
                 />
               </label>
