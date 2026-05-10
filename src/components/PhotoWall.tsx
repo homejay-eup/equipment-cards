@@ -295,7 +295,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
           <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-colors ${
+              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none ${
                 selectMode
                   ? 'bg-gray-800 hover:bg-gray-900 text-white'
                   : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
@@ -305,7 +305,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
               {selectMode ? '取消選取' : '批次選取'}
             </button>
             <button onClick={openCreate}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors">
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
               <Plus className="h-5 w-5" />
               新增料卡
             </button>
