@@ -46,7 +46,9 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
-            <p className="text-sm text-gray-500 mt-0.5">共 {cards.length} 筆料卡</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              共 {cards.filter(c => c.main_photo).length} 張主圖與 {cards.reduce((sum, c) => sum + c.detail_photos.length, 0)} 張細節
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (

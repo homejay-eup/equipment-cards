@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
-import { Search, X, ArrowUpDown, Plus, Trash2, Loader2 } from 'lucide-react'
+import { Search, X, ArrowUpDown, Plus, Trash2, Loader2, CheckSquare } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -152,125 +152,120 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
   ]
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <>
+      {/* 凍結搜尋 + 篩選列（sticky，緊貼主導覽列下方） */}
+      <div className="sticky top-[82px] z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 pt-3 pb-2">
+          {/* 搜尋列 */}
+          <div className="flex gap-2 mb-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input className="pl-9 pr-9" placeholder="搜尋料號、品名、廠商、備註…（支援模糊比對）"
+                value={query} onChange={e => setQuery(e.target.value)} />
+              {query && (
+                <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setQuery('')}>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                className="pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
 
-      {/* 搜尋列 */}
-      <div className="flex gap-2 mb-3">
-        {isAdmin && (
-          <button
-            onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-            className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors flex-shrink-0 ${
-              selectMode
-                ? 'bg-gray-800 text-white border-gray-800'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            {selectMode ? '取消選取' : '選取'}
-          </button>
-        )}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input className="pl-9 pr-9" placeholder="搜尋料號、品名、廠商、備註…（支援模糊比對）"
-            value={query} onChange={e => setQuery(e.target.value)} />
-          {query && (
-            <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              onClick={() => setQuery('')}>
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        <div className="relative">
-          <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            className="pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
-            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          {/* 篩選列 */}
+          <div className="flex gap-2 flex-wrap items-center pb-1">
+            {categories.map(cat => (
+              <button key={cat} onClick={() => setCategory(cat)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  category === cat
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}>
+                {cat}
+              </button>
+            ))}
+            <span className="w-px h-5 bg-gray-300 mx-1" />
+            {statusOptions.map(opt => (
+              <button key={opt.value} onClick={() => setStatus(opt.value)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  status === opt.value
+                    ? opt.value === activeStatus
+                      ? 'bg-green-600 text-white border-green-600'
+                      : opt.value === 'all'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-red-500 text-white border-red-500'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}>
+                {opt.label}
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button onClick={clearFilters}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-gray-500 border border-gray-300 hover:border-red-400 hover:text-red-500 transition-colors">
+                <X className="h-3 w-3" />
+                清除篩選
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 篩選列 */}
-      <div className="flex gap-2 flex-wrap items-center mb-4">
-        {categories.map(cat => (
-          <button key={cat} onClick={() => setCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              category === cat
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-            }`}>
-            {cat}
-          </button>
-        ))}
-        <span className="w-px h-5 bg-gray-300 mx-1" />
-        {statusOptions.map(opt => (
-          <button key={opt.value} onClick={() => setStatus(opt.value)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              status === opt.value
-                ? opt.value === activeStatus
-                  ? 'bg-green-600 text-white border-green-600'
-                  : opt.value === 'all'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-red-500 text-white border-red-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-            }`}>
-            {opt.label}
-          </button>
-        ))}
-        {hasActiveFilters && (
-          <button onClick={clearFilters}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-gray-500 border border-gray-300 hover:border-red-400 hover:text-red-500 transition-colors">
-            <X className="h-3 w-3" />
-            清除篩選
-          </button>
+      {/* 主內容區 */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
+        {/* 結果數量 */}
+        <p className="text-sm text-gray-500 mb-4">
+          顯示 {filtered.length} / {initialCards.length} 筆
+          {query && <span className="ml-1.5 text-blue-500">— 模糊搜尋「{query}」</span>}
+        </p>
+
+        {/* 網格 */}
+        {filtered.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">
+            <p className="text-lg">找不到符合的料卡</p>
+            <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="mt-3 text-blue-500 text-sm underline hover:text-blue-700">
+                清除所有篩選
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {filtered.map(card => (
+              <EquipmentCardItem
+                key={card.equipment_id}
+                card={card}
+                onClick={() => setSelected(card)}
+                isAdmin={isAdmin}
+                onEdit={() => openEdit(card)}
+                onDelete={() => handleDelete(card)}
+                activeStatus={activeStatus}
+                selectMode={selectMode}
+                isSelected={selectedIds.has(card.equipment_id)}
+                onSelect={() => toggleSelect(card.equipment_id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 細節 Dialog */}
+        {selected && (
+          <CardDetailDialog
+            card={selected}
+            open={!!selected}
+            onClose={() => setSelected(null)}
+            activeStatus={activeStatus}
+          />
         )}
       </div>
 
-      {/* 結果數量 */}
-      <p className="text-sm text-gray-500 mb-4">
-        顯示 {filtered.length} / {initialCards.length} 筆
-        {query && <span className="ml-1.5 text-blue-500">— 模糊搜尋「{query}」</span>}
-      </p>
-
-      {/* 網格 */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-lg">找不到符合的料卡</p>
-          <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="mt-3 text-blue-500 text-sm underline hover:text-blue-700">
-              清除所有篩選
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {filtered.map(card => (
-            <EquipmentCardItem
-              key={card.equipment_id}
-              card={card}
-              onClick={() => setSelected(card)}
-              isAdmin={isAdmin}
-              onEdit={() => openEdit(card)}
-              onDelete={() => handleDelete(card)}
-              activeStatus={activeStatus}
-              selectMode={selectMode}
-              isSelected={selectedIds.has(card.equipment_id)}
-              onSelect={() => toggleSelect(card.equipment_id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* 細節 Dialog */}
-      {selected && (
-        <CardDetailDialog
-          card={selected}
-          open={!!selected}
-          onClose={() => setSelected(null)}
-          activeStatus={activeStatus}
-        />
-      )}
-
-      {/* 新增 / 編輯 Dialog */}
+      {/* 管理員浮動按鈕區 */}
       {isAdmin && (
         <>
           {/* 批次刪除 action bar */}
@@ -296,11 +291,26 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
             </div>
           )}
 
-          <button onClick={openCreate}
-            className="fixed bottom-6 right-6 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors z-40">
-            <Plus className="h-5 w-5" />
-            新增料卡
-          </button>
+          {/* 批次選取 + 新增料卡 */}
+          <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
+            <button
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-colors ${
+                selectMode
+                  ? 'bg-gray-800 hover:bg-gray-900 text-white'
+                  : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+              }`}
+            >
+              <CheckSquare className="h-5 w-5" />
+              {selectMode ? '取消選取' : '批次選取'}
+            </button>
+            <button onClick={openCreate}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors">
+              <Plus className="h-5 w-5" />
+              新增料卡
+            </button>
+          </div>
+
           <CardFormDialog
             mode={formMode}
             card={editingCard}
@@ -310,6 +320,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
           />
         </>
       )}
-    </div>
+    </>
   )
 }
