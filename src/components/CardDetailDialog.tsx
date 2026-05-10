@@ -35,7 +35,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
         {/* 放大／縮小按鈕 */}
         <button
           onClick={() => setExpanded(v => !v)}
-          className="absolute top-3 right-10 z-50 text-gray-400 hover:text-gray-700 transition-colors"
+          className="absolute top-3 right-11 z-50 rounded-full bg-white/90 backdrop-blur-sm p-1.5 shadow text-gray-600 opacity-90 hover:opacity-100 hover:text-gray-900 transition-opacity"
           aria-label={expanded ? '縮小視窗' : '放大視窗'}
         >
           {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

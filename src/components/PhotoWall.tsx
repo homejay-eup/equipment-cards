@@ -154,7 +154,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
   return (
     <>
       {/* 凍結搜尋 + 篩選列（sticky，緊貼主導覽列下方） */}
-      <div className="sticky top-[82px] z-10 bg-white border-b border-gray-200 shadow-sm">
+      <div className="sticky top-[82px] z-30 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 pt-3 pb-2">
           {/* 搜尋列 */}
           <div className="flex gap-2 mb-2">
