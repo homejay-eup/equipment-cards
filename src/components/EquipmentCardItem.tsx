@@ -28,7 +28,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
     <div className="group relative">
       <button
         onClick={handleClick}
-        className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all text-left w-full ${
+        className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all text-left w-full focus:outline-none ${
           selectMode && isSelected
             ? 'border-red-400 ring-2 ring-red-300'
             : 'border-gray-200 hover:border-blue-300'
