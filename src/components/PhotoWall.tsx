@@ -2,18 +2,22 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import Fuse from 'fuse.js'
 import { EquipmentCard, AppSettings } from '@/types/equipment'
 import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
-import { Search, X, ArrowUpDown, Plus, Trash2, Loader2, CheckSquare } from 'lucide-react'
+import UserMenu from '@/components/UserMenu'
+import BatchImportDialog from '@/components/BatchImportDialog'
+import { Search, X, ArrowUpDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
   isAdmin: boolean
   settings: AppSettings
+  userEmail: string
 }
 
 const SORT_OPTIONS = [
@@ -21,7 +25,7 @@ const SORT_OPTIONS = [
   { value: 'name', label: '品名排序' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -40,6 +44,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
   const [selectMode,   setSelectMode]   = useState(false)
   const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -151,11 +156,36 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
     ...settings.statuses.map(s => ({ value: s, label: s })),
   ]
 
+  const mainPhotosCount = initialCards.filter(c => c.main_photo).length
+  const detailPhotosCount = initialCards.reduce((sum, c) => sum + c.detail_photos.length, 0)
+
   return (
     <>
-      {/* 凍結搜尋 + 篩選列（sticky，緊貼主導覽列下方） */}
-      <div className="sticky top-[82px] z-30 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 pt-3 pb-2">
+      {/* 單一凍結列：標題列 + 搜尋 + 篩選 */}
+      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+        {/* 標題列 */}
+        <div className="max-w-7xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
+            <p className="text-sm text-gray-500 mt-0.5 leading-snug">
+              共 {mainPhotosCount} 張主圖<br />與 {detailPhotosCount} 張細節
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <>
+                <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
+                <Link href="/admin/users"
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
+                  <Users className="h-4 w-4" />
+                  <span className="hidden sm:inline">帳號管理</span>
+                </Link>
+              </>
+            )}
+            {userEmail && <UserMenu email={userEmail} />}
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
           {/* 搜尋列 */}
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
@@ -291,7 +321,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
             </div>
           )}
 
-          {/* 批次選取 + 新增料卡 */}
+          {/* 批次選取 + 批次匯入 + 新增料卡 */}
           <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
@@ -303,6 +333,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
             >
               <CheckSquare className="h-5 w-5" />
               {selectMode ? '取消選取' : '批次選取'}
+            </button>
+            <button onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
+              <FileUp className="h-5 w-5" />
+              批次匯入
             </button>
             <button onClick={openCreate}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
@@ -316,6 +351,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings }: Props) {
             card={editingCard}
             open={formOpen}
             onClose={() => setFormOpen(false)}
+            settings={settings}
+          />
+          <BatchImportDialog
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
             settings={settings}
           />
         </>

@@ -1,14 +1,11 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
-import UserMenu from '@/components/UserMenu'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRole } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
-import { Users } from 'lucide-react'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -42,36 +39,17 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <header className="bg-white sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
-            <p className="text-sm text-gray-500 mt-0.5 leading-snug">
-              共 {cards.filter(c => c.main_photo).length} 張主圖<br />與 {cards.reduce((sum, c) => sum + c.detail_photos.length, 0)} 張細節
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <>
-                <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
-                <Link href="/admin/users"
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
-                  <Users className="h-4 w-4" />
-                  <span className="hidden sm:inline">帳號管理</span>
-                </Link>
-              </>
-            )}
-            {user?.email && <UserMenu email={user.email} />}
-          </div>
-        </div>
-      </header>
-
       <Suspense fallback={
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
           載入中…
         </div>
       }>
-        <PhotoWall initialCards={cards} isAdmin={isAdmin} settings={settings} />
+        <PhotoWall
+          initialCards={cards}
+          isAdmin={isAdmin}
+          settings={settings}
+          userEmail={user?.email ?? ''}
+        />
       </Suspense>
     </main>
   )
