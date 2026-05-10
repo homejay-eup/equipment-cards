@@ -49,8 +49,6 @@ function parseCSV(text: string): string[][] {
   return rows
 }
 
-const HEADERS = ['equipment_id', 'name', 'category', 'vendor', 'status', 'tags', 'notes']
-
 function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
   const raw = parseCSV(text)
   if (raw.length === 0) return []
