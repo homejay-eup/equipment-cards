@@ -59,3 +59,9 @@
     text-wrap: balance;
   }
 }
+
+/* 滑鼠點擊時不顯示 focus 外框，鍵盤 Tab 導覽時保留 */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
