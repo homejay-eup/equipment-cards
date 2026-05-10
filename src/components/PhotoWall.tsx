@@ -300,7 +300,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
         <>
           {/* 批次刪除 action bar */}
           {selectMode && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white border border-gray-200 rounded-2xl shadow-xl px-5 py-3">
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white border border-gray-200 rounded-2xl shadow-xl px-5 py-3">
               <button onClick={toggleSelectAll} className="text-sm text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
                 {selectedIds.size === filtered.length ? '取消全選' : `全選（${filtered.length}）`}
               </button>
