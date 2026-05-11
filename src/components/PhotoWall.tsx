@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Fuse from 'fuse.js'
@@ -11,7 +11,7 @@ import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -48,6 +48,17 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!sortOpen) return
+    const close = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [sortOpen])
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -174,21 +185,21 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   return (
     <>
       {/* 單一凍結列：標題列 + 搜尋 + 篩選 */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+      <div className="sticky top-0 z-40 bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] shadow-sm">
         {/* 標題列 */}
         <div className="max-w-7xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">設備料卡管理系統</h1>
-            <p className="text-sm text-gray-500 mt-0.5 leading-snug">
+            <h1 className="text-xl font-bold text-[#7a5230]">設備料卡管理系統</h1>
+            <p className="text-sm text-[#a08060] mt-0.5 leading-snug">
               共 {mainPhotosCount} 張主圖<br />與 {detailPhotosCount} 張細節
             </p>
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (
               <>
-                <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full">管理員</span>
+                <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
                 <Link href="/admin/users"
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors">
+                  className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">帳號管理</span>
                 </Link>
@@ -212,14 +223,39 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
               )}
             </div>
             <div className="flex items-center gap-1">
-              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-                className="pl-3 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
-                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              {/* 自訂排序下拉 */}
+              <div ref={sortRef} className="relative">
+                <button
+                  onClick={() => setSortOpen(v => !v)}
+                  className={`flex items-center gap-2 pl-3 pr-2.5 py-2 border rounded-md text-sm bg-white text-[#6b4f38] cursor-pointer transition-colors focus:outline-none whitespace-nowrap ${
+                    sortOpen
+                      ? 'border-[#c49a72] text-[#7a5230] glow-wood'
+                      : 'border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                  }`}
+                >
+                  {SORT_OPTIONS.find(o => o.value === sortBy)?.label}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${sortOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {sortOpen && (
+                  <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-[8px] shadow-md overflow-hidden z-50 min-w-full">
+                    {SORT_OPTIONS.map(o => (
+                      <button key={o.value}
+                        onClick={() => { setSortBy(o.value); setSortOpen(false) }}
+                        className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
+                          sortBy === o.value
+                            ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
+                            : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+                        }`}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
                 title={sortDir === 'asc' ? '升冪（點擊切換降冪）' : '降冪（點擊切換升冪）'}
-                className="flex items-center justify-center w-9 h-9 border border-gray-300 rounded-md bg-white text-gray-600 hover:text-blue-600 hover:border-blue-400 transition-colors focus:outline-none"
+                className="flex items-center justify-center w-9 h-9 border border-[#e8ddd0] rounded-md bg-white text-[#a08060] hover:text-[#7a5230] hover:border-[rgba(122,82,48,.3)] transition-colors focus:outline-none"
               >
                 {sortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
               </button>
@@ -232,39 +268,35 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
               <button key={cat} onClick={() => setCategory(cat)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                   category === cat
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] glow-wood'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}>
                 {cat}
               </button>
             ))}
-            <span className="w-px h-5 bg-gray-300 mx-1" />
+            <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             {statusOptions.map(opt => (
               <button key={opt.value} onClick={() => setStatus(opt.value)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                   status === opt.value
-                    ? opt.value === activeStatus
-                      ? 'bg-green-600 text-white border-green-600'
-                      : opt.value === 'all'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-red-500 text-white border-red-500'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] glow-wood'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}>
                 {opt.label}
               </button>
             ))}
-            <span className="w-px h-5 bg-gray-300 mx-1" />
+            <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             <button onClick={() => setIsNewFilter(v => !v)}
-              className={`px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-colors ${
+              className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-colors ${
                 isNewFilter
-                  ? 'bg-red-600 text-white border-red-600'
-                  : 'bg-white text-red-500 border-red-300 hover:border-red-500'
+                  ? 'bg-[#b5451b] text-white border-[#b5451b]'
+                  : 'bg-white text-[#b5451b] border-[rgba(181,69,27,.35)] hover:border-[#b5451b]'
               }`}>
               NEW
             </button>
             {hasActiveFilters && (
               <button onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-gray-500 border border-gray-300 hover:border-red-400 hover:text-red-500 transition-colors">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-[#a08060] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230] transition-colors">
                 <X className="h-3 w-3" />
                 清除篩選
               </button>
@@ -276,9 +308,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       {/* 主內容區 */}
       <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
         {/* 結果數量 */}
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-[#a08060] mb-4">
           顯示 {filtered.length} / {initialCards.length} 筆
-          {query && <span className="ml-1.5 text-blue-500">— 模糊搜尋「{query}」</span>}
+          {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
         </p>
 
         {/* 網格 */}
@@ -328,17 +360,17 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
         <>
           {/* 批次刪除 action bar */}
           {selectMode && (
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white border border-gray-200 rounded-2xl shadow-xl px-5 py-3">
-              <button onClick={toggleSelectAll} className="text-sm text-gray-500 hover:text-gray-800 transition-colors whitespace-nowrap">
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#faf6f0] border border-[rgba(122,82,48,.32)] rounded-2xl shadow-xl px-5 py-3 glow-wood">
+              <button onClick={toggleSelectAll} className="text-sm text-[#a08060] hover:text-[#7a5230] transition-colors whitespace-nowrap">
                 {selectedIds.size === filtered.length ? '取消全選' : `全選（${filtered.length}）`}
               </button>
-              <span className="text-sm text-gray-700">
-                已選 <span className="font-semibold">{selectedIds.size}</span> 張
+              <span className="text-sm text-[#6b4f38]">
+                已選 <span className="font-semibold text-[#7a5230]">{selectedIds.size}</span> 張
               </span>
               <button
                 onClick={handleBatchDelete}
                 disabled={batchDeleting || selectedIds.size === 0}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#b5451b] hover:bg-[#9a3a16] text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors"
               >
                 {batchDeleting
                   ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -355,20 +387,20 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
               className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none ${
                 selectMode
-                  ? 'bg-gray-800 hover:bg-gray-900 text-white'
-                  : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                  ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white glow-wood'
+                  : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)]'
               }`}
             >
               <CheckSquare className="h-5 w-5" />
               {selectMode ? '取消選取' : '批次選取'}
             </button>
             <button onClick={() => setImportOpen(true)}
-              className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
+              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
               <FileUp className="h-5 w-5" />
               批次匯入
             </button>
             <button onClick={openCreate}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
+              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none glow-wood">
               <Plus className="h-5 w-5" />
               新增料卡
             </button>

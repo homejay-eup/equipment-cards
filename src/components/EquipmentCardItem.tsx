@@ -31,12 +31,12 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         onClick={handleClick}
         className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition-all text-left w-full focus:outline-none ${
           selectMode && isSelected
-            ? 'border-red-400 ring-2 ring-red-300'
-            : 'border-gray-200 hover:border-blue-300'
+            ? 'border-[#7a5230] ring-2 ring-[#c49a72]'
+            : 'border-[rgba(122,82,48,.12)] hover:border-[#c49a72]'
         }`}
       >
         {/* 縮圖區 */}
-        <div className="relative aspect-square bg-gray-100 overflow-hidden">
+        <div className="relative aspect-square bg-[#e8ddd0] overflow-hidden">
           {card.main_photo ? (
             <Image
               src={card.main_photo}
@@ -46,24 +46,24 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
               className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <div className="w-full h-full flex items-center justify-center text-[#c49a72]">
               <ImageOff className="h-8 w-8" />
             </div>
           )}
           {isInactive && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <span className="text-white text-xs font-bold bg-red-600 px-2 py-0.5 rounded">
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+              <span className="text-white text-xs font-bold bg-[#8a7060] px-2 py-0.5 rounded">
                 {card.status}
               </span>
             </div>
           )}
           {isNew && !isInactive && (
-            <span className="absolute top-2 left-2 z-[5] text-[10px] font-bold tracking-widest text-white bg-red-600 px-1.5 py-0.5 rounded shadow-sm">
+            <span className="badge-new-pulse absolute top-2 left-2 z-[5] text-[10px] font-bold tracking-widest text-white bg-[#b5451b] px-1.5 py-0.5 rounded shadow-sm">
               NEW
             </span>
           )}
           {card.detail_photos.length > 0 && (
-            <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+            <span className="absolute bottom-1.5 right-1.5 bg-[rgba(255,249,244,.88)] text-[#7a5230] border border-[rgba(122,82,48,.25)] text-[10px] px-1.5 py-0.5 rounded-full">
               +{card.detail_photos.length}
             </span>
           )}
@@ -71,10 +71,10 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
 
         {/* 資訊區 */}
         <div className="p-2.5">
-          <p className="text-[11px] text-gray-400 font-mono truncate">{card.equipment_id}</p>
-          <p className="text-sm font-medium text-gray-800 mt-0.5 line-clamp-2 leading-tight">{card.name}</p>
+          <p className="text-[11px] text-[#a08060] font-mono truncate">{card.equipment_id}</p>
+          <p className="text-sm font-medium text-[#2c1e12] mt-0.5 line-clamp-2 leading-tight">{card.name}</p>
           {card.vendor && (
-            <p className="text-xs text-gray-500 mt-1 truncate">{card.vendor}</p>
+            <p className="text-xs text-[#6b4f38] mt-1 truncate">{card.vendor}</p>
           )}
         </div>
       </button>
@@ -94,14 +94,14 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         <>
           <button
             onClick={e => { e.stopPropagation(); onEdit?.() }}
-            className="absolute top-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-blue-600 hover:bg-white transition-colors z-10"
+            className="absolute top-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
             title="編輯"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={e => { e.stopPropagation(); onDelete?.() }}
-            className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-gray-600 hover:text-red-600 hover:bg-white transition-colors z-10"
+            className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
             title="刪除"
           >
             <Trash2 className="h-3.5 w-3.5" />

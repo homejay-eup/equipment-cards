@@ -49,7 +49,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
               <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
                 {allPhotos.map((photo, i) => (
                   <button key={i} onClick={() => setPhotoIndex(i)}
-                    className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                    className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
                     <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
                   </button>
                 ))}
@@ -107,7 +107,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                 <div className="flex gap-1.5 p-2 overflow-x-auto bg-gray-800 flex-shrink-0">
                   {allPhotos.map((photo, i) => (
                     <button key={i} onClick={() => setPhotoIndex(i)}
-                      className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-blue-400' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                      className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
                       <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
                     </button>
                   ))}
@@ -162,7 +162,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                   {card.name}
                 </DialogTitle>
                 <div className="mt-1.5">
-                  <Badge variant={isActive ? 'default' : 'secondary'}>
+                  <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
                     {card.status}
                   </Badge>
                 </div>
