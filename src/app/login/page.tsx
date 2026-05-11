@@ -1,12 +1,23 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+
+function isInAppBrowser() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return /FBAN|FBAV|Line\/|Instagram|Twitter\/|wv\)|GSA\/|MicroMessenger|LinkedInApp/i.test(ua)
+}
 
 function LoginForm() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
+  const [webView, setWebView] = useState(false)
+
+  useEffect(() => {
+    setWebView(isInAppBrowser())
+  }, [])
 
   async function signInWithGoogle() {
     const supabase = createSupabaseBrowserClient()
@@ -33,6 +44,14 @@ function LoginForm() {
           <p className="text-sm text-[#a08060] mt-1">請使用公司 Google 帳號登入</p>
         </div>
 
+        {webView && (
+          <div className="mb-4 text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-4 py-3 leading-relaxed">
+            <p className="font-semibold mb-0.5">請用瀏覽器開啟</p>
+            目前在 App 內建瀏覽器，Google 登入不支援此環境。<br />
+            請複製網址，改用 <strong>Chrome</strong> 或 <strong>Safari</strong> 開啟。
+          </div>
+        )}
+
         {error === 'unauthorized' && (
           <div className="mb-4 text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-4 py-3">
             此帳號無存取權限，請使用公司 (@eup.com.tw) 帳號登入。
@@ -41,13 +60,16 @@ function LoginForm() {
 
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-[#faf6f0] border border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3 text-sm font-medium text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:border-[rgba(122,82,48,.4)] hover:shadow-[0_0_10px_rgba(122,82,48,.18)] active:bg-[rgba(122,82,48,.1)] transition-all"
+          disabled={webView}
+          className="w-full flex items-center justify-center gap-3 bg-[#faf6f0] border border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3 text-sm font-medium text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:border-[rgba(122,82,48,.4)] hover:shadow-[0_0_10px_rgba(122,82,48,.18)] active:bg-[rgba(122,82,48,.1)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <GoogleIcon />
           使用 Google 帳號登入
         </button>
 
-        <p className="mt-4 text-center text-xs text-[#c0a882]">僅限 @eup.com.tw 帳號</p>
+        <p className="mt-4 text-center text-xs text-[#c0a882]">
+          僅限 @eup.com.tw 帳號 ・ 請用 Chrome 或 Safari 開啟
+        </p>
       </div>
     </div>
   )
