@@ -14,6 +14,7 @@ export interface EquipmentCard {
   main_photo: string | null
   main_photo_public_id: string | null
   detail_photos: DetailPhoto[]
+  is_new: boolean
   created_at: string
   updated_at: string
 }

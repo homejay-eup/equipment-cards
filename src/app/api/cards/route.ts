@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { equipment_id, name, category, vendor, status, tags, notes } = body
+    const { equipment_id, name, category, vendor, status, tags, notes, is_new } = body
 
     if (!equipment_id || !name) {
       return NextResponse.json({ error: '料號和品名為必填' }, { status: 400 })
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
         status: status ?? 'active',
         tags: Array.isArray(tags) ? tags : [],
         notes: notes?.trim() || null,
+        is_new: is_new !== false,
         detail_photos: [],
       })
       .select()

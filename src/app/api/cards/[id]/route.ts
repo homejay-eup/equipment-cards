@@ -31,7 +31,7 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new } = body
 
     const supabase = getSupabase()
 
@@ -57,6 +57,7 @@ export async function PATCH(
         status,
         tags: Array.isArray(tags) ? tags : [],
         notes: notes?.trim() || null,
+        ...(typeof is_new === 'boolean' ? { is_new } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('equipment_id', params.id)

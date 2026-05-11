@@ -11,7 +11,7 @@ import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
-import { Search, X, ArrowUpDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -23,6 +23,7 @@ interface Props {
 const SORT_OPTIONS = [
   { value: 'id',   label: '料號排序' },
   { value: 'name', label: '品名排序' },
+  { value: 'date', label: '新增日期' },
 ]
 
 export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }: Props) {
@@ -35,6 +36,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   const [category, setCategory] = useState(() => searchParams.get('cat')    ?? '全部')
   const [status,   setStatus]   = useState(() => searchParams.get('status') ?? 'all')
   const [sortBy,   setSortBy]   = useState(() => searchParams.get('sort')   ?? 'id')
+  const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>(() => (searchParams.get('dir') ?? 'asc') as 'asc' | 'desc')
+  const [isNewFilter, setIsNewFilter] = useState(() => searchParams.get('new') === '1')
   const [selected, setSelected] = useState<EquipmentCard | null>(null)
 
   const [formMode,    setFormMode]    = useState<'create' | 'edit'>('create')
@@ -52,9 +55,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     if (category !== '全部') params.set('cat',    category)
     if (status   !== 'all') params.set('status', status)
     if (sortBy   !== 'id')  params.set('sort',   sortBy)
+    if (sortDir  !== 'asc') params.set('dir',    sortDir)
+    if (isNewFilter)        params.set('new',    '1')
     const qs = params.toString()
     router.replace(qs ? `?${qs}` : '/', { scroll: false })
-  }, [query, category, status, sortBy, router])
+  }, [query, category, status, sortBy, sortDir, isNewFilter, router])
 
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
@@ -76,19 +81,26 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
     if (category !== '全部') result = result.filter(c => c.category === category)
     if (status   !== 'all')  result = result.filter(c => c.status === status)
+    if (isNewFilter)         result = result.filter(c => c.is_new)
 
     if (!query.trim()) {
-      result.sort((a, b) =>
-        sortBy === 'name'
-          ? a.name.localeCompare(b.name, 'zh-TW')
-          : a.equipment_id.localeCompare(b.equipment_id)
-      )
+      result.sort((a, b) => {
+        let cmp = 0
+        if (sortBy === 'name') {
+          cmp = a.name.localeCompare(b.name, 'zh-TW')
+        } else if (sortBy === 'date') {
+          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        } else {
+          cmp = a.equipment_id.localeCompare(b.equipment_id)
+        }
+        return sortDir === 'desc' ? -cmp : cmp
+      })
     }
     return result
-  }, [initialCards, query, category, status, sortBy, fuse])
+  }, [initialCards, query, category, status, sortBy, sortDir, isNewFilter, fuse])
 
-  const hasActiveFilters = !!(query || category !== '全部' || status !== 'all')
-  const clearFilters = () => { setQuery(''); setCategory('全部'); setStatus('all'); setSortBy('id') }
+  const hasActiveFilters = !!(query || category !== '全部' || status !== 'all' || isNewFilter)
+  const clearFilters = () => { setQuery(''); setCategory('全部'); setStatus('all'); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
 
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
@@ -199,12 +211,18 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 </button>
               )}
             </div>
-            <div className="relative">
-              <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <div className="flex items-center gap-1">
               <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-                className="pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                className="pl-3 pr-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
                 {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+              <button
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                title={sortDir === 'asc' ? '升冪（點擊切換降冪）' : '降冪（點擊切換升冪）'}
+                className="flex items-center justify-center w-9 h-9 border border-gray-300 rounded-md bg-white text-gray-600 hover:text-blue-600 hover:border-blue-400 transition-colors focus:outline-none"
+              >
+                {sortDir === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -235,6 +253,15 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 {opt.label}
               </button>
             ))}
+            <span className="w-px h-5 bg-gray-300 mx-1" />
+            <button onClick={() => setIsNewFilter(v => !v)}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-colors ${
+                isNewFilter
+                  ? 'bg-red-600 text-white border-red-600'
+                  : 'bg-white text-red-500 border-red-300 hover:border-red-500'
+              }`}>
+              NEW
+            </button>
             {hasActiveFilters && (
               <button onClick={clearFilters}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-gray-500 border border-gray-300 hover:border-red-400 hover:text-red-500 transition-colors">
@@ -279,6 +306,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 selectMode={selectMode}
                 isSelected={selectedIds.has(card.equipment_id)}
                 onSelect={() => toggleSelect(card.equipment_id)}
+                isNew={card.is_new}
               />
             ))}
           </div>

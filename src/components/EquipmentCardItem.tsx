@@ -14,9 +14,10 @@ interface Props {
   selectMode?: boolean
   isSelected?: boolean
   onSelect?: () => void
+  isNew?: boolean
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -55,6 +56,11 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
                 {card.status}
               </span>
             </div>
+          )}
+          {isNew && !isInactive && (
+            <span className="absolute top-2 left-2 z-[5] text-[10px] font-bold tracking-widest text-white bg-red-600 px-1.5 py-0.5 rounded shadow-sm">
+              NEW
+            </span>
           )}
           {card.detail_photos.length > 0 && (
             <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">

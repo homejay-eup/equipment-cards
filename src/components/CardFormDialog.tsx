@@ -50,6 +50,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     notes:        card?.notes ?? '',
   })
 
+  const [isNew, setIsNew] = useState<boolean>(card?.is_new ?? true)
+
   const [mainPhoto, setMainPhoto]               = useState<string | null>(card?.main_photo ?? null)
   const [mainPhotoId, setMainPhotoId]           = useState<string | null>(card?.main_photo_public_id ?? null)
   const [detailPhotos, setDetailPhotos]         = useState<DetailPhoto[]>(card?.detail_photos ?? [])
@@ -82,6 +84,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       tags:         card?.tags.join(', ') ?? '',
       notes:        card?.notes ?? '',
     })
+    setIsNew(card?.is_new ?? true)
     setMainPhoto(card?.main_photo ?? null)
     setMainPhotoId(card?.main_photo_public_id ?? null)
     setDetailPhotos(card?.detail_photos ?? [])
@@ -159,7 +162,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const res = await fetch('/api/cards', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags) }),
+        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? '建立失敗'); return }
@@ -214,7 +217,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags) }),
+        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
 
@@ -484,6 +487,28 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               rows={2} placeholder="補充說明…"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
+          </div>
+
+          {/* NEW 標記 */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <span className="text-sm font-medium text-gray-700">標記為新品</span>
+              <span className="ml-2 text-[10px] font-bold tracking-widest text-white bg-red-600 px-1.5 py-0.5 rounded shadow-sm">
+                NEW
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsNew(v => !v)}
+              disabled={isBusy}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none disabled:opacity-40 ${
+                isNew ? 'bg-red-500' : 'bg-gray-200'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                isNew ? 'translate-x-4' : 'translate-x-0.5'
+              }`} />
+            </button>
           </div>
 
           {/* 照片錯誤提示（就近顯示） */}
