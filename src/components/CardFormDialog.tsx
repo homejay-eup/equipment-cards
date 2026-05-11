@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square } from 'lucide-react'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
 
@@ -30,6 +30,75 @@ interface PendingDetail {
   preview: string
 }
 
+// 自訂下拉元件（供分類、狀態共用）
+function FieldSelect({
+  value, options, placeholder = '— 未選 —', onChange, disabled,
+}: {
+  value: string
+  options: string[]
+  placeholder?: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(v => !v)}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 border rounded-lg text-sm bg-[#faf6f0] text-[#2c1e12] transition-all focus:outline-none disabled:opacity-50 ${
+          open
+            ? 'border-[#c49a72] shadow-[0_0_8px_rgba(122,82,48,.25)]'
+            : 'border-[#e8ddd0] hover:border-[rgba(122,82,48,.35)]'
+        }`}
+      >
+        <span className={value ? 'text-[#2c1e12]' : 'text-[#a08060]'}>
+          {value || placeholder}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-[#a08060] transition-transform duration-150 flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 max-h-52 overflow-y-auto">
+          {placeholder && (
+            <button type="button"
+              onClick={() => { onChange(''); setOpen(false) }}
+              className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
+                !value ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]' : 'text-[#a08060] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+              }`}>
+              {placeholder}
+            </button>
+          )}
+          {options.map(o => (
+            <button key={o} type="button"
+              onClick={() => { onChange(o); setOpen(false) }}
+              className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
+                value === o
+                  ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
+                  : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+              }`}>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 共用 input class
+const inputCls = 'w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all'
+
 export default function CardFormDialog({ mode, card, open, onClose, settings }: Props) {
   const router = useRouter()
   const mainFileRef   = useRef<HTMLInputElement>(null)
@@ -37,7 +106,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
   const defaultStatus = settings.statuses[0] ?? '現役'
 
-  // 本地可寫的 settings，讓 Popover 更新後下拉選單立即反映（不依賴 parent re-fetch）
   const [localSettings, setLocalSettings] = useState<AppSettings>(settings)
 
   const [form, setForm] = useState<FormState>({
@@ -55,12 +123,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [mainPhoto, setMainPhoto]               = useState<string | null>(card?.main_photo ?? null)
   const [mainPhotoId, setMainPhotoId]           = useState<string | null>(card?.main_photo_public_id ?? null)
   const [detailPhotos, setDetailPhotos]         = useState<DetailPhoto[]>(card?.detail_photos ?? [])
-  // staged new main photo (both modes)
   const [mainPhotoFile, setMainPhotoFile]       = useState<File | null>(null)
   const [mainPhotoPreview, setMainPhotoPreview] = useState<string | null>(null)
-  // staged new detail photos (both modes)
   const [pendingDetails, setPendingDetails]     = useState<PendingDetail[]>([])
-  // edit mode: existing photos staged for deletion on save
   const [deleteMainPending, setDeleteMainPending]   = useState(false)
   const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
 
@@ -68,7 +133,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [photoError, setPhotoError]   = useState<string | null>(null)
-  // 細節照片選取模式
   const [selectMode, setSelectMode]               = useState(false)
   const [selectedDetailIds, setSelectedDetailIds] = useState<Set<string>>(new Set())
   const [selectedPendingIdxs, setSelectedPendingIdxs] = useState<Set<number>>(new Set())
@@ -111,7 +175,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   function handleClose() {
-    // Revoke any locally staged object URLs to avoid memory leaks
     if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
     pendingDetails.forEach(p => URL.revokeObjectURL(p.preview))
     onClose()
@@ -171,15 +234,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
       if (mainPhotoFile) {
         setUploading(true)
-        try {
-          await uploadPhoto(mainPhotoFile, equipId, 'main')
-        } catch (e) {
-          setError(`料卡已建立，但主照片上傳失敗：${e instanceof Error ? e.message : ''}`)
-          router.refresh()
-          return
-        } finally {
-          setUploading(false)
-        }
+        try { await uploadPhoto(mainPhotoFile, equipId, 'main') }
+        catch (e) { setError(`料卡已建立，但主照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
       }
 
       if (pendingDetails.length > 0) {
@@ -189,13 +246,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           for (let i = 0; i < pendingDetails.length; i++) {
             await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
           }
-        } catch (e) {
-          setError(`料卡已建立，但細節照片上傳失敗：${e instanceof Error ? e.message : ''}`)
-          router.refresh()
-          return
-        } finally {
-          setUploading(false)
-        }
+        } catch (e) { setError(`料卡已建立，但細節照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
       }
 
       router.refresh()
@@ -213,7 +265,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setSaving(true)
     setError(null)
     try {
-      // 1. Patch text fields（含可能更新的 equipment_id）
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -221,52 +272,30 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
 
-      // 料號可能已更新，後續照片操作使用新料號
       const equipId = form.equipment_id.trim()
 
-      // 2. Delete existing main photo if marked for deletion (and no replacement staged)
       if (deleteMainPending && mainPhotoId && !mainPhotoFile) {
         setUploading(true)
-        try {
-          await fetch(
-            `/api/upload/${encodeURIComponent(mainPhotoId)}?equipment_id=${equipId}&type=main`,
-            { method: 'DELETE' },
-          )
-        } catch { /* non-fatal */ } finally {
-          setUploading(false)
-        }
+        try { await fetch(`/api/upload/${encodeURIComponent(mainPhotoId)}?equipment_id=${equipId}&type=main`, { method: 'DELETE' }) }
+        catch { /* non-fatal */ } finally { setUploading(false) }
       }
 
-      // 3. Upload staged main photo
       if (mainPhotoFile) {
         setUploading(true)
-        try {
-          await uploadPhoto(mainPhotoFile, equipId, 'main')
-        } catch (e) {
-          setError(`主照片上傳失敗：${e instanceof Error ? e.message : ''}`)
-          router.refresh()
-          return
-        } finally {
-          setUploading(false)
-        }
+        try { await uploadPhoto(mainPhotoFile, equipId, 'main') }
+        catch (e) { setError(`主照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
       }
 
-      // 4. Delete marked detail photos
       if (deleteDetailIds.size > 0) {
         setUploading(true)
         try {
           for (const publicId of Array.from(deleteDetailIds)) {
-            await fetch(
-              `/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=detail`,
-              { method: 'DELETE' },
-            )
+            await fetch(`/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=detail`, { method: 'DELETE' })
           }
-        } catch { /* non-fatal */ } finally {
-          setUploading(false)
-        }
+        } catch { /* non-fatal */ } finally { setUploading(false) }
       }
 
-      // 5. Upload staged detail photos
       if (pendingDetails.length > 0) {
         setUploading(true)
         try {
@@ -274,13 +303,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           for (let i = 0; i < pendingDetails.length; i++) {
             await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
           }
-        } catch (e) {
-          setError(`細節照片上傳失敗：${e instanceof Error ? e.message : ''}`)
-          router.refresh()
-          return
-        } finally {
-          setUploading(false)
-        }
+        } catch (e) { setError(`細節照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
       }
 
       router.refresh()
@@ -299,46 +323,33 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
     setMainPhotoFile(file)
     setMainPhotoPreview(URL.createObjectURL(file))
-    // If user had marked the existing photo for deletion, the new upload replaces it
     setDeleteMainPending(false)
   }
 
   function handleDeleteMain() {
     if (mainPhotoPreview) {
-      // Delete the staged (not-yet-uploaded) file
       URL.revokeObjectURL(mainPhotoPreview)
       setMainPhotoFile(null)
       setMainPhotoPreview(null)
     } else {
-      // Mark the existing DB photo for deletion on save
       setDeleteMainPending(true)
     }
   }
 
   function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
-    // Copy to plain array BEFORE resetting value — some browsers clear the
-    // FileList in-place when value='' is set, leaving a stale live reference.
     const fileArray = Array.from(e.target.files ?? [])
     e.target.value = ''
     if (!fileArray.length) return
-
     if (mode === 'create') {
       const equipId = form.equipment_id.trim()
       if (!equipId) { setPhotoError('請先填入料號'); return }
     }
-
-    const newItems: PendingDetail[] = fileArray.map(f => ({
-      file: f,
-      preview: URL.createObjectURL(f),
-    }))
+    const newItems: PendingDetail[] = fileArray.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
     setPendingDetails(prev => [...prev, ...newItems])
   }
 
   function handleDeletePendingDetail(index: number) {
-    setPendingDetails(prev => {
-      URL.revokeObjectURL(prev[index].preview)
-      return prev.filter((_, i) => i !== index)
-    })
+    setPendingDetails(prev => { URL.revokeObjectURL(prev[index].preview); return prev.filter((_, i) => i !== index) })
   }
 
   function handleDeleteDetail(publicId: string) {
@@ -346,50 +357,38 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   function toggleSelectDetail(publicId: string) {
-    setSelectedDetailIds(prev => {
-      const next = new Set(prev)
-      if (next.has(publicId)) { next.delete(publicId) } else { next.add(publicId) }
-      return next
-    })
+    setSelectedDetailIds(prev => { const n = new Set(prev); n.has(publicId) ? n.delete(publicId) : n.add(publicId); return n })
   }
 
   function toggleSelectPending(idx: number) {
-    setSelectedPendingIdxs(prev => {
-      const next = new Set(prev)
-      if (next.has(idx)) { next.delete(idx) } else { next.add(idx) }
-      return next
-    })
+    setSelectedPendingIdxs(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n })
   }
 
   function handleBatchDelete() {
-    // 批次刪除：existing photos
     selectedDetailIds.forEach(id => handleDeleteDetail(id))
-    // 批次刪除：pending photos（index 由大到小，避免移除後 index 偏移）
-    const sortedIdxs = Array.from(selectedPendingIdxs).sort((a, b) => b - a)
-    sortedIdxs.forEach(idx => handleDeletePendingDetail(idx))
+    Array.from(selectedPendingIdxs).sort((a, b) => b - a).forEach(idx => handleDeletePendingDetail(idx))
     setSelectedDetailIds(new Set())
     setSelectedPendingIdxs(new Set())
     setSelectMode(false)
   }
 
   const totalSelected = selectedDetailIds.size + selectedPendingIdxs.size
-
   const isBusy = saving || uploading
-  // Show staged preview if available, otherwise show existing (unless marked for delete)
   const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
-  // Only show existing details not marked for deletion
   const visibleDetails = detailPhotos.filter(p => !deleteDetailIds.has(p.public_id))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[#fff9f4] rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col border border-[rgba(122,82,48,.18)]"
+        style={{ boxShadow: '0 0 30px rgba(122,82,48,.15), 0 20px 60px rgba(0,0,0,.2)' }}>
 
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(122,82,48,.15)]">
+          <h2 className="text-lg font-semibold text-[#7a5230]">
             {mode === 'create' ? '新增料卡' : '編輯料卡'}
           </h2>
           <button onClick={handleClose} disabled={isBusy}
-            className="text-gray-400 hover:text-gray-600 disabled:opacity-40">
+            className="text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -397,38 +396,38 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2">
               {error}
             </div>
           )}
 
           {/* 料號 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              料號 <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">
+              料號 <span className="text-[#b5451b]">*</span>
             </label>
             <input type="text" value={form.equipment_id}
               onChange={e => set('equipment_id', e.target.value)}
               placeholder="例：1000003"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
+              className={inputCls}
             />
           </div>
 
           {/* 品名 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              品名 <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">
+              品名 <span className="text-[#b5451b]">*</span>
             </label>
             <input type="text" value={form.name}
               onChange={e => set('name', e.target.value)} placeholder="例：S168-4G衛星定位器"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className={inputCls}
             />
           </div>
 
           {/* 分類 + 狀態 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+              <label className="flex items-center gap-1 text-sm font-medium text-[#6b4f38] mb-1">
                 分類
                 <SettingsPopover
                   settingKey="categories"
@@ -437,14 +436,16 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                   disabled={isBusy}
                 />
               </label>
-              <select value={form.category} onChange={e => set('category', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-                <option value="">— 未分類 —</option>
-                {localSettings.categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <FieldSelect
+                value={form.category}
+                options={localSettings.categories}
+                placeholder="— 未分類 —"
+                onChange={v => set('category', v)}
+                disabled={isBusy}
+              />
             </div>
             <div>
-              <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+              <label className="flex items-center gap-1 text-sm font-medium text-[#6b4f38] mb-1">
                 狀態
                 <SettingsPopover
                   settingKey="statuses"
@@ -453,47 +454,49 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                   disabled={isBusy}
                 />
               </label>
-              <select value={form.status} onChange={e => set('status', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-                {localSettings.statuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <FieldSelect
+                value={form.status}
+                options={localSettings.statuses}
+                onChange={v => set('status', v)}
+                disabled={isBusy}
+              />
             </div>
           </div>
 
           {/* 廠商 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">廠商</label>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">廠商</label>
             <input type="text" value={form.vendor}
               onChange={e => set('vendor', e.target.value)} placeholder="例：格瑪車機"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className={inputCls}
             />
           </div>
 
           {/* 標籤 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              標籤 <span className="text-gray-400 font-normal ml-1">（逗號分隔）</span>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">
+              標籤 <span className="text-[#a08060] font-normal ml-1">（逗號分隔）</span>
             </label>
             <input type="text" value={form.tags}
               onChange={e => set('tags', e.target.value)} placeholder="例：HS昇銳, RFID, 4G"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className={inputCls}
             />
           </div>
 
           {/* 備註 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">備註</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               rows={2} placeholder="補充說明…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className={`${inputCls} resize-none`}
             />
           </div>
 
           {/* NEW 標記 */}
           <div className="flex items-center justify-between py-1">
             <div>
-              <span className="text-sm font-medium text-gray-700">標記為新品項</span>
-              <span className="ml-2 text-[10px] font-bold tracking-widest text-white bg-red-600 px-1.5 py-0.5 rounded shadow-sm">
+              <span className="text-sm font-medium text-[#6b4f38]">標記為新品項</span>
+              <span className="badge-new-pulse ml-2 text-[10px] font-bold tracking-widest text-white bg-[#b5451b] px-1.5 py-0.5 rounded shadow-sm">
                 NEW
               </span>
             </div>
@@ -501,8 +504,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               type="button"
               onClick={() => setIsNew(v => !v)}
               disabled={isBusy}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none disabled:opacity-40 ${
-                isNew ? 'bg-red-500' : 'bg-gray-200'
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-all focus:outline-none disabled:opacity-40 ${
+                isNew
+                  ? 'bg-[#b5451b] shadow-[0_0_8px_rgba(181,69,27,.4)]'
+                  : 'bg-[#e8ddd0]'
               }`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
@@ -511,9 +516,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             </button>
           </div>
 
-          {/* 照片錯誤提示（就近顯示） */}
+          {/* 照片錯誤 */}
           {photoError && (
-            <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="flex items-start gap-2 text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2">
               <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <span>{photoError}</span>
             </div>
@@ -521,26 +526,26 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
           {/* 主照片 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">主照片</label>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-2">主照片</label>
             {currentMainPhoto ? (
               <div className="flex items-center gap-3">
-                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-[rgba(122,82,48,.2)] bg-[#e8ddd0] flex-shrink-0">
                   <Image src={currentMainPhoto} alt="主照片" fill className="object-cover" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy}
-                    className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-40">
+                    className="text-sm text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
                     更換照片
                   </button>
                   <button type="button" onClick={handleDeleteMain} disabled={isBusy}
-                    className="text-sm text-red-500 hover:text-red-700 disabled:opacity-40">
+                    className="text-sm text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                     刪除照片
                   </button>
                 </div>
               </div>
             ) : (
               <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy}
-                className="flex items-center gap-2 border-2 border-dashed border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors disabled:opacity-40">
+                className="flex items-center gap-2 border-2 border-dashed border-[#e8ddd0] rounded-lg px-4 py-3 text-sm text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
                 <Upload className="h-4 w-4" />
                 上傳主照片
               </button>
@@ -552,37 +557,38 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           {/* 細節照片 */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">細節照片</label>
+              <label className="text-sm font-medium text-[#6b4f38]">細節照片</label>
               {(visibleDetails.length > 0 || pendingDetails.length > 0) && (
                 <button type="button" onClick={() => {
                   setSelectMode(v => !v)
                   setSelectedDetailIds(new Set())
                   setSelectedPendingIdxs(new Set())
                 }} disabled={isBusy}
-                  className="text-xs text-gray-500 hover:text-blue-600 disabled:opacity-40 transition-colors">
+                  className="text-xs text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors">
                   {selectMode ? '取消選取' : '選取'}
                 </button>
               )}
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {/* existing detail photos */}
               {visibleDetails.map(photo => {
                 const isSelected = selectedDetailIds.has(photo.public_id)
                 return (
                   <div key={photo.public_id}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
                       selectMode
-                        ? isSelected ? 'border-red-400 cursor-pointer' : 'border-gray-200 cursor-pointer'
-                        : 'border-gray-200'
-                    } bg-gray-50`}
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#e8ddd0] cursor-pointer'
+                        : 'border-[rgba(122,82,48,.15)]'
+                    } bg-[#e8ddd0]`}
                     onClick={selectMode ? () => toggleSelectDetail(photo.public_id) : undefined}
                   >
                     <Image src={photo.url} alt="細節照片" fill className="object-cover" />
                     {selectMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-red-400/20' : ''}`}>
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
                         {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-red-500 drop-shadow" />
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
                           : <Square className="h-5 w-5 text-white drop-shadow" />
                         }
                       </div>
@@ -597,24 +603,25 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                 )
               })}
 
-              {/* staged detail photos (not yet uploaded) */}
               {pendingDetails.map((item, idx) => {
                 const isSelected = selectedPendingIdxs.has(idx)
                 return (
                   <div key={idx}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
                       selectMode
-                        ? isSelected ? 'border-red-400 cursor-pointer' : 'border-blue-200 cursor-pointer'
-                        : 'border-blue-200'
-                    } bg-blue-50`}
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#c49a72] cursor-pointer'
+                        : 'border-[#c49a72]'
+                    } bg-[#f2ebe0]`}
                     onClick={selectMode ? () => toggleSelectPending(idx) : undefined}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
                     {selectMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-red-400/20' : ''}`}>
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
                         {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-red-500 drop-shadow" />
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
                           : <Square className="h-5 w-5 text-white drop-shadow" />
                         }
                       </div>
@@ -629,24 +636,22 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                 )
               })}
 
-              {/* 新增按鈕（選取模式時隱藏） */}
               {!selectMode && (
                 <button type="button" onClick={() => detailFileRef.current?.click()} disabled={isBusy}
-                  className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-40">
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
                   <Plus className="h-5 w-5" />
                 </button>
               )}
             </div>
 
-            {/* 選取模式 action bar */}
             {selectMode && (
-              <div className="mt-3 flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                <span className="text-sm text-gray-600">
-                  已選 <span className="font-semibold text-gray-900">{totalSelected}</span> 張
+              <div className="mt-3 flex items-center justify-between bg-[rgba(122,82,48,.05)] border border-[rgba(122,82,48,.18)] rounded-lg px-3 py-2">
+                <span className="text-sm text-[#6b4f38]">
+                  已選 <span className="font-semibold text-[#7a5230]">{totalSelected}</span> 張
                 </span>
                 <button type="button" onClick={handleBatchDelete}
                   disabled={isBusy || totalSelected === 0}
-                  className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  className="text-sm font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                   刪除選取
                 </button>
               </div>
@@ -657,20 +662,21 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           </div>
 
           {uploading && (
-            <div className="flex items-center gap-2 text-sm text-blue-600">
+            <div className="flex items-center gap-2 text-sm text-[#7a5230]">
               <Loader2 className="h-4 w-4 animate-spin" />
               照片處理中…
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[rgba(122,82,48,.15)]">
           <button onClick={handleClose} disabled={isBusy}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-40">
+            className="px-4 py-2 text-sm text-[#a08060] hover:text-[#6b4f38] disabled:opacity-40 transition-colors">
             取消
           </button>
           <button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isBusy}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="flex items-center gap-2 px-5 py-2 bg-[#7a5230] text-white text-sm font-medium rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-all shadow-[0_0_10px_rgba(122,82,48,.4)] hover:shadow-[0_0_14px_rgba(122,82,48,.55)]">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {mode === 'create' ? '建立' : '儲存'}
           </button>
