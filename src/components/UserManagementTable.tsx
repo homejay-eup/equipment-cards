@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2, Shield, ShieldOff, Trash2, UserPlus } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Loader2, Shield, ShieldOff, Trash2, UserPlus, ChevronDown } from 'lucide-react'
 
 interface UserRow {
   email: string
@@ -21,16 +21,31 @@ function formatDate(iso: string) {
   })
 }
 
+const ROLE_OPTIONS: { value: 'admin' | 'viewer'; label: string }[] = [
+  { value: 'viewer', label: '一般使用者' },
+  { value: 'admin',  label: '管理員' },
+]
+
 export default function UserManagementTable({ initialUsers, currentUserEmail }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 新增 Email 表單
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer')
+  const [roleOpen, setRoleOpen] = useState(false)
+  const roleRef = useRef<HTMLDivElement>(null)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!roleOpen) return
+    const close = (e: MouseEvent) => {
+      if (roleRef.current && !roleRef.current.contains(e.target as Node)) setRoleOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [roleOpen])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -59,17 +74,17 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
   }
 
   async function toggleRole(user: UserRow) {
-    const newRole = user.role === 'admin' ? 'viewer' : 'admin'
+    const next = user.role === 'admin' ? 'viewer' : 'admin'
     setLoadingEmail(user.email)
     setError(null)
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, role: newRole }),
+        body: JSON.stringify({ email: user.email, role: next }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
-      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, role: newRole } : u))
+      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, role: next } : u))
     } catch {
       setError('更新失敗，請重試')
     } finally {
@@ -102,12 +117,12 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
     <div className="space-y-6">
 
       {/* 新增 Email 表單 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-blue-600" />
+      <div className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-[#6b4f38] mb-1 flex items-center gap-2">
+          <UserPlus className="h-4 w-4 text-[#7a5230]" />
           指派角色
         </h2>
-        <p className="text-xs text-gray-400 mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員</p>
+        <p className="text-xs text-[#a08060] mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員</p>
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
           <input
             type="email"
@@ -116,80 +131,104 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
             placeholder="輸入公司 Email 地址"
             required
             disabled={adding}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+            className="flex-1 border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
           />
-          <select
-            value={newRole}
-            onChange={e => setNewRole(e.target.value as 'admin' | 'viewer')}
-            disabled={adding}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
-          >
-            <option value="viewer">一般使用者</option>
-            <option value="admin">管理員</option>
-          </select>
+
+          {/* 自訂角色下拉 */}
+          <div ref={roleRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => !adding && setRoleOpen(v => !v)}
+              disabled={adding}
+              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm bg-[#faf6f0] text-[#6b4f38] cursor-pointer transition-all focus:outline-none disabled:opacity-50 whitespace-nowrap ${
+                roleOpen
+                  ? 'border-[#c49a72] shadow-[0_0_8px_rgba(122,82,48,.25)]'
+                  : 'border-[#e8ddd0] hover:border-[rgba(122,82,48,.35)] hover:shadow-[0_0_6px_rgba(122,82,48,.18)]'
+              }`}
+            >
+              {ROLE_OPTIONS.find(o => o.value === newRole)?.label}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${roleOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {roleOpen && (
+              <div className="absolute top-full mt-1 left-0 right-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50">
+                {ROLE_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => { setNewRole(o.value); setRoleOpen(false) }}
+                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
+                      newRole === o.value
+                        ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
+                        : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+                    }`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             type="submit"
             disabled={adding || !newEmail.trim()}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#7a5230] text-white text-sm font-medium rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-all shadow-[0_0_8px_rgba(122,82,48,.35)] hover:shadow-[0_0_12px_rgba(122,82,48,.5)]"
           >
             {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
             新增
           </button>
         </form>
         {addError && (
-          <p className="mt-2 text-sm text-red-600">{addError}</p>
+          <p className="mt-2 text-sm text-[#b5451b]">{addError}</p>
         )}
       </div>
 
       {/* 使用者清單 */}
       <div>
         {error && (
-          <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
+          <div className="mb-4 text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-4 py-3">
             {error}
           </div>
         )}
 
-        <div className="mb-3 text-sm text-gray-500">
+        <div className="mb-3 text-sm text-[#a08060]">
           共 {users.length} 位使用者，{adminCount} 位管理員
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
           {users.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">尚未加入任何使用者</div>
+            <div className="py-12 text-center text-sm text-[#a08060]">尚未加入任何使用者</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">角色</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">加入日期</th>
+                <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">Email</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">角色</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">加入日期</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[rgba(122,82,48,.08)]">
                 {users.map(user => {
                   const isSelf = user.email === currentUserEmail
                   const isLoading = loadingEmail === user.email
                   return (
-                    <tr key={user.email} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-900">
+                    <tr key={user.email} className="hover:bg-[rgba(122,82,48,.03)] transition-colors">
+                      <td className="px-4 py-3 text-[#2c1e12]">
                         {user.email}
-                        {isSelf && <span className="ml-2 text-xs text-gray-400">（你）</span>}
+                        {isSelf && <span className="ml-2 text-xs text-[#a08060]">（你）</span>}
                       </td>
                       <td className="px-4 py-3">
                         {user.role === 'admin' ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.25)] px-2 py-0.5 rounded-full shadow-[0_0_6px_rgba(122,82,48,.2)]">
                             <Shield className="h-3 w-3" />
                             管理員
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-[rgba(122,82,48,.05)] text-[#a08060] border border-[rgba(122,82,48,.15)] px-2 py-0.5 rounded-full">
                             <ShieldOff className="h-3 w-3" />
                             一般使用者
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
+                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
                         {formatDate(user.created_at)}
                       </td>
                       <td className="px-4 py-3">
@@ -198,7 +237,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
                             onClick={() => toggleRole(user)}
                             disabled={isLoading || isSelf}
                             title={isSelf ? '無法修改自己的角色' : user.role === 'admin' ? '降為一般使用者' : '升為管理員'}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[rgba(122,82,48,.07)] text-[#6b4f38] border border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.22)]"
                           >
                             {isLoading
                               ? <Loader2 className="h-3 w-3 animate-spin inline" />
@@ -209,7 +248,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
                             onClick={() => handleRemove(user)}
                             disabled={isLoading || isSelf}
                             title={isSelf ? '無法移除自己' : '移除使用者'}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="p-1.5 rounded-lg text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.08)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

@@ -30,15 +30,15 @@ export default async function AdminUsersPage() {
   const users = await fetchAllowedEmails()
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <main className="min-h-screen bg-[#faf6f0]">
+      <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/" className="text-gray-400 hover:text-gray-600 transition-colors">
+          <Link href="/" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900">帳號管理</h1>
+            <Users className="h-5 w-5 text-[#7a5230]" />
+            <h1 className="text-xl font-bold text-[#7a5230]">帳號管理</h1>
           </div>
         </div>
       </header>
