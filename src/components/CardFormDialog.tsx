@@ -492,7 +492,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           {/* NEW 標記 */}
           <div className="flex items-center justify-between py-1">
             <div>
-              <span className="text-sm font-medium text-gray-700">標記為新品</span>
+              <span className="text-sm font-medium text-gray-700">標記為新品項</span>
               <span className="ml-2 text-[10px] font-bold tracking-widest text-white bg-red-600 px-1.5 py-0.5 rounded shadow-sm">
                 NEW
               </span>
