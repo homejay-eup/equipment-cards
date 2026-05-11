@@ -357,11 +357,11 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   }
 
   function toggleSelectDetail(publicId: string) {
-    setSelectedDetailIds(prev => { const n = new Set(prev); n.has(publicId) ? n.delete(publicId) : n.add(publicId); return n })
+    setSelectedDetailIds(prev => { const n = new Set(prev); if (n.has(publicId)) { n.delete(publicId) } else { n.add(publicId) }; return n })
   }
 
   function toggleSelectPending(idx: number) {
-    setSelectedPendingIdxs(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n })
+    setSelectedPendingIdxs(prev => { const n = new Set(prev); if (n.has(idx)) { n.delete(idx) } else { n.add(idx) }; return n })
   }
 
   function handleBatchDelete() {
