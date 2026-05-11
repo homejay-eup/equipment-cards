@@ -266,10 +266,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
           <div className="flex gap-2 flex-wrap items-center pb-1">
             {categories.map(cat => (
               <button key={cat} onClick={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   category === cat
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] glow-wood'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
                 }`}>
                 {cat}
               </button>
@@ -277,26 +277,26 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             {statusOptions.map(opt => (
               <button key={opt.value} onClick={() => setStatus(opt.value)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   status === opt.value
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] glow-wood'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
                 }`}>
                 {opt.label}
               </button>
             ))}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             <button onClick={() => setIsNewFilter(v => !v)}
-              className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-colors ${
+              className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-all duration-200 ${
                 isNewFilter
-                  ? 'bg-[#b5451b] text-white border-[#b5451b]'
-                  : 'bg-white text-[#b5451b] border-[rgba(181,69,27,.35)] hover:border-[#b5451b]'
+                  ? 'bg-[#b5451b] text-white border-[#b5451b] shadow-[0_0_10px_rgba(181,69,27,.5),0_0_20px_rgba(181,69,27,.18)]'
+                  : 'bg-white text-[#b5451b] border-[rgba(181,69,27,.35)] hover:border-[#b5451b] hover:shadow-[0_0_8px_rgba(181,69,27,.3)]'
               }`}>
               NEW
             </button>
             {hasActiveFilters && (
               <button onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-[#a08060] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230] transition-colors">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-[#a08060] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.18)] transition-all duration-200">
                 <X className="h-3 w-3" />
                 清除篩選
               </button>
@@ -319,7 +319,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
             <p className="text-lg">找不到符合的料卡</p>
             <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
             {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-3 text-blue-500 text-sm underline hover:text-blue-700">
+              <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
                 清除所有篩選
               </button>
             )}
@@ -385,22 +385,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
           <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none ${
+              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
                 selectMode
-                  ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white glow-wood'
-                  : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)]'
+                  ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
+                  : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
               }`}
             >
               <CheckSquare className="h-5 w-5" />
               {selectMode ? '取消選取' : '批次選取'}
             </button>
             <button onClick={() => setImportOpen(true)}
-              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none">
+              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
               <FileUp className="h-5 w-5" />
               批次匯入
             </button>
             <button onClick={openCreate}
-              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-colors focus:outline-none glow-wood">
+              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
               <Plus className="h-5 w-5" />
               新增料卡
             </button>

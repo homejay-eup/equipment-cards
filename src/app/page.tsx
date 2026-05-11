@@ -38,7 +38,7 @@ export default async function HomePage() {
   const isAdmin = role === 'admin'
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-[#faf6f0]">
       <Suspense fallback={
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
           載入中…
