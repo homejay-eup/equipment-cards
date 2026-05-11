@@ -26,11 +26,15 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { data: { user } } = await supabase.auth.exchangeCodeForSession(code)
-      .then(() => supabase.auth.getUser())
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-    // 非公司信箱：登出並跳回錯誤頁
-    if (!user?.email?.endsWith(ALLOWED_DOMAIN)) {
+    // exchange 失敗（code 過期或已用）：直接跳回登入頁
+    if (error || !data.user) {
+      return NextResponse.redirect(`${origin}/login`)
+    }
+
+    // 非公司信箱：登出並顯示錯誤
+    if (!data.user.email?.endsWith(ALLOWED_DOMAIN)) {
       await supabase.auth.signOut()
       return NextResponse.redirect(`${origin}/login?error=unauthorized`)
     }
