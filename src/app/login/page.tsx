@@ -7,7 +7,8 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 function isInAppBrowser() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent
-  return /FBAN|FBAV|Line\/|Instagram|Twitter\/|wv\)|GSA\/|MicroMessenger|LinkedInApp/i.test(ua)
+  // 只偵測明確的 app 內建瀏覽器，避免誤判 Chrome
+  return /FBAN|FBAV|Line\/|Instagram|MicroMessenger|LinkedInApp/i.test(ua)
 }
 
 function LoginForm() {
@@ -60,8 +61,7 @@ function LoginForm() {
 
         <button
           onClick={signInWithGoogle}
-          disabled={webView}
-          className="w-full flex items-center justify-center gap-3 bg-[#faf6f0] border border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3 text-sm font-medium text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:border-[rgba(122,82,48,.4)] hover:shadow-[0_0_10px_rgba(122,82,48,.18)] active:bg-[rgba(122,82,48,.1)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 bg-[#faf6f0] border border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3 text-sm font-medium text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:border-[rgba(122,82,48,.4)] hover:shadow-[0_0_10px_rgba(122,82,48,.18)] active:bg-[rgba(122,82,48,.1)] transition-all"
         >
           <GoogleIcon />
           使用 Google 帳號登入
