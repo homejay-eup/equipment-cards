@@ -144,21 +144,21 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         ) : (
           /* ── 一般模式：左右並排 ── */
           <div className="flex flex-col md:flex-row" style={{ height: 'min(85vh, 680px)' }}>
-            {/* 左側：照片區（無縮圖） */}
-            <div className="bg-[#f2ebe0] md:w-3/5 flex-shrink-0 flex flex-col">
+            {/* 上/左：照片區（手機佔 58% 高度，桌機佔 60% 寬度） */}
+            <div className="bg-[#f2ebe0] flex-shrink-0 flex flex-col basis-[58%] md:basis-auto md:w-3/5">
               <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
             </div>
 
-            {/* 右側：資訊區 + 縮圖列固定在底部 */}
-            <div className="flex flex-col flex-1 overflow-hidden">
+            {/* 下/右：資訊區 + 縮圖列 */}
+            <div className="flex flex-col flex-1 overflow-hidden min-h-0">
               <div className="flex-1 overflow-y-auto">
-                <DialogHeader className="px-5 pt-5 pb-3 border-b border-[rgba(122,82,48,.12)] pr-14">
+                <DialogHeader className="px-4 pt-3 pb-2 md:px-5 md:pt-5 md:pb-3 border-b border-[rgba(122,82,48,.12)] md:pr-14">
                   <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
-                  <DialogTitle className="text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
+                  <DialogTitle className="text-sm md:text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
                     {card.name}
                   </DialogTitle>
                   {/* 狀態 + 分類 + 廠商 同行 */}
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
                       {card.status}
                     </Badge>
@@ -173,11 +173,11 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   </div>
                 </DialogHeader>
 
-                <div className="px-5 py-4 space-y-4">
+                <div className="px-4 py-2 md:px-5 md:py-4 space-y-2 md:space-y-4">
                   {card.tags.length > 0 && (
                     <div>
-                      <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
-                      <div className="flex flex-wrap gap-1.5">
+                      <p className="text-xs text-[#a08060] mb-1">標籤</p>
+                      <div className="flex flex-wrap gap-1">
                         {card.tags.map(tag => (
                           <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                         ))}
@@ -188,7 +188,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   {card.notes && (
                     <div>
                       <p className="text-xs text-[#a08060] mb-1">備註</p>
-                      <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                      <p className="text-xs md:text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                     </div>
                   )}
                 </div>
