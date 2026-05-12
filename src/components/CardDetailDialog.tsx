@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,6 +14,8 @@ interface Props {
   activeStatus: string
 }
 
+const SWIPE_THRESHOLD = 50
+
 export default function CardDetailDialog({ card, open, onClose, activeStatus }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖' }] : []),
@@ -22,14 +24,89 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
 
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+
   const prev = () => setPhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length)
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null || allPhotos.length <= 1) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const dy = e.changedTouches[0].clientY - (touchStartY.current ?? 0)
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+      dx < 0 ? next() : prev()
+    }
+    touchStartX.current = null
+    touchStartY.current = null
+  }
+
   const isActive = card.status === activeStatus || card.status === 'active'
+
+  /* ── 共用照片區 JSX ── */
+  function PhotoArea({ sizes, minHeight }: { sizes: string; minHeight?: string }) {
+    return (
+      <div
+        className="relative flex-1"
+        style={{ minHeight: minHeight ?? '200px', touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {allPhotos.length > 0 ? (
+          <>
+            <Image
+              key={allPhotos[photoIndex].url}
+              src={allPhotos[photoIndex].url}
+              alt={card.name}
+              fill
+              sizes={sizes}
+              className="object-contain"
+              priority
+            />
+            {allPhotos.length > 1 && (
+              <>
+                <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            )}
+            <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full pointer-events-none">
+              {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
+            </span>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
+            <ImageOff className="h-12 w-12" />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function ThumbnailStrip() {
+    if (allPhotos.length <= 1) return null
+    return (
+      <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0">
+        {allPhotos.map((photo, i) => (
+          <button key={i} onClick={() => setPhotoIndex(i)}
+            className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+            <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
+          </button>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      {/* 放大模式：純照片視窗（約正方形，適合截圖）；一般模式：左右並排 */}
       <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)]' : 'max-w-3xl'}`}>
 
         {/* 放大／縮小按鈕 */}
@@ -42,55 +119,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
         </button>
 
         {expanded ? (
-          /* ── 放大模式：照片填滿，品號/品名置中在下方 ── */
+          /* ── 放大模式 ── */
           <div className="bg-[#f2ebe0] flex flex-col" style={{ height: 'min(90vh, 90vw)' }}>
-            {/* 縮圖列（上方） */}
-            {allPhotos.length > 1 && (
-              <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0">
-                {allPhotos.map((photo, i) => (
-                  <button key={i} onClick={() => setPhotoIndex(i)}
-                    className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                    <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* 照片區 */}
-            <div className="relative flex-1 min-h-0">
-              {allPhotos.length > 0 ? (
-                <>
-                  <Image
-                    key={allPhotos[photoIndex].url}
-                    src={allPhotos[photoIndex].url}
-                    alt={card.name}
-                    fill
-                    sizes="min(90vh, 90vw)"
-                    className="object-contain"
-                    priority
-                  />
-                  {allPhotos.length > 1 && (
-                    <>
-                      <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    </>
-                  )}
-                  <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full">
-                    {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
-                  </span>
-                </>
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
-                  <ImageOff className="h-12 w-12" />
-                </div>
-              )}
-            </div>
-
-            {/* 品號 + 品名 */}
+            <ThumbnailStrip />
+            <PhotoArea sizes="min(90vh, 90vw)" minHeight="0" />
             <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
               <p className="text-base font-bold text-[#2c1e12] mt-1 leading-snug">{card.name}</p>
@@ -99,53 +131,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
         ) : (
           /* ── 一般模式：左右並排 ── */
           <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
-
             {/* 左側：照片區 */}
             <div className="bg-[#f2ebe0] md:w-1/2 flex-shrink-0 flex flex-col">
-              {/* 縮圖列（上方） */}
-              {allPhotos.length > 1 && (
-                <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0">
-                  {allPhotos.map((photo, i) => (
-                    <button key={i} onClick={() => setPhotoIndex(i)}
-                      className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-                      <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="relative flex-1 min-h-[200px]">
-                {allPhotos.length > 0 ? (
-                  <>
-                    <Image
-                      key={allPhotos[photoIndex].url}
-                      src={allPhotos[photoIndex].url}
-                      alt={card.name}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 400px"
-                      className="object-contain"
-                      priority
-                    />
-                    {allPhotos.length > 1 && (
-                      <>
-                        <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                          <ChevronLeft className="h-5 w-5" />
-                        </button>
-                        <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                          <ChevronRight className="h-5 w-5" />
-                        </button>
-                      </>
-                    )}
-                    <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full">
-                      {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
-                    </span>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
-                    <ImageOff className="h-12 w-12" />
-                  </div>
-                )}
-              </div>
+              <ThumbnailStrip />
+              <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
             </div>
 
             {/* 右側：資訊區 */}

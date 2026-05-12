@@ -32,8 +32,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
   const activeStatus = settings.statuses[0] ?? '現役'
 
-  const [query,    setQuery]    = useState(() => searchParams.get('q')      ?? '')
-  const [category, setCategory] = useState(() => searchParams.get('cat')    ?? '全部')
+  const [query,        setQuery]        = useState(() => searchParams.get('q')      ?? '')
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(() => {
+    const cat = searchParams.get('cat')
+    return cat ? new Set(cat.split(',').filter(Boolean)) : new Set()
+  })
   const [status,   setStatus]   = useState(() => searchParams.get('status') ?? 'all')
   const [sortBy,   setSortBy]   = useState(() => searchParams.get('sort')   ?? 'id')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>(() => (searchParams.get('dir') ?? 'asc') as 'asc' | 'desc')
@@ -63,15 +66,15 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
   useEffect(() => {
     const params = new URLSearchParams()
-    if (query)              params.set('q',      query)
-    if (category !== '全部') params.set('cat',    category)
-    if (status   !== 'all') params.set('status', status)
-    if (sortBy   !== 'id')  params.set('sort',   sortBy)
-    if (sortDir  !== 'asc') params.set('dir',    sortDir)
-    if (isNewFilter)        params.set('new',    '1')
+    if (query)                params.set('q',      query)
+    if (selectedCats.size > 0) params.set('cat',   Array.from(selectedCats).join(','))
+    if (status   !== 'all')   params.set('status', status)
+    if (sortBy   !== 'id')    params.set('sort',   sortBy)
+    if (sortDir  !== 'asc')   params.set('dir',    sortDir)
+    if (isNewFilter)          params.set('new',    '1')
     const qs = params.toString()
     router.replace(qs ? `?${qs}` : '/', { scroll: false })
-  }, [query, category, status, sortBy, sortDir, isNewFilter, router])
+  }, [query, selectedCats, status, sortBy, sortDir, isNewFilter, router])
 
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
@@ -91,8 +94,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       ? fuse.search(query.trim()).map(r => r.item)
       : [...initialCards]
 
-    if (category !== '全部') result = result.filter(c => c.category === category)
-    if (status   !== 'all')  result = result.filter(c => c.status === status)
+    if (selectedCats.size > 0) result = result.filter(c => selectedCats.has(c.category ?? ''))
+    if (status !== 'all')      result = result.filter(c => c.status === status)
     if (isNewFilter)         result = result.filter(c => c.is_new)
 
     if (!query.trim()) {
@@ -109,10 +112,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       })
     }
     return result
-  }, [initialCards, query, category, status, sortBy, sortDir, isNewFilter, fuse])
+  }, [initialCards, query, selectedCats, status, sortBy, sortDir, isNewFilter, fuse])
 
-  const hasActiveFilters = !!(query || category !== '全部' || status !== 'all' || isNewFilter)
-  const clearFilters = () => { setQuery(''); setCategory('全部'); setStatus('all'); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
+  const hasActiveFilters = !!(query || selectedCats.size > 0 || status !== 'all' || isNewFilter)
+  const activeFilterCount = [selectedCats.size > 0, status !== 'all', isNewFilter].filter(Boolean).length
+
+  function toggleCat(cat: string) {
+    if (cat === '全部') { setSelectedCats(new Set()); return }
+    setSelectedCats(prev => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
+
+  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setStatus('all'); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
 
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
@@ -235,9 +250,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 title="篩選"
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                {hasActiveFilters && (
+                {activeFilterCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#b5451b] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {[category !== '全部', status !== 'all', isNewFilter].filter(Boolean).length}
+                    {activeFilterCount}
                   </span>
                 )}
               </button>
@@ -282,16 +297,19 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
           {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
           <div className={`${showFilters ? 'flex' : 'hidden'} md:flex gap-2 flex-wrap items-center pb-1`}>
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  category === cat
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                }`}>
-                {cat}
-              </button>
-            ))}
+            {categories.map(cat => {
+              const isActive = cat === '全部' ? selectedCats.size === 0 : selectedCats.has(cat)
+              return (
+                <button key={cat} onClick={() => toggleCat(cat)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                    isActive
+                      ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                  }`}>
+                  {cat}
+                </button>
+              )
+            })}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             {statusOptions.map(opt => (
               <button key={opt.value} onClick={() => setStatus(opt.value)}
@@ -376,31 +394,44 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       {/* 管理員浮動按鈕區 */}
       {isAdmin && (
         <>
-          {/* 批次刪除 action bar */}
+          {/* 批次選取 action bar：全寬固定底部 */}
           {selectMode && (
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#faf6f0] border border-[rgba(122,82,48,.32)] rounded-2xl shadow-xl px-5 py-3 glow-wood">
-              <button onClick={toggleSelectAll} className="text-sm text-[#a08060] hover:text-[#7a5230] transition-colors whitespace-nowrap">
-                {selectedIds.size === filtered.length ? '取消全選' : `全選（${filtered.length}）`}
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#faf6f0] border-t border-[rgba(122,82,48,.2)] shadow-[0_-4px_16px_rgba(122,82,48,.1)] px-4 py-3 flex items-center gap-3">
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-1.5 text-sm text-[#6b4f38] hover:text-[#7a5230] transition-colors whitespace-nowrap shrink-0"
+              >
+                {selectedIds.size === filtered.length
+                  ? <CheckSquare className="h-4 w-4 text-[#7a5230]" />
+                  : <CheckSquare className="h-4 w-4 opacity-50" />
+                }
+                <span className="hidden sm:inline">{selectedIds.size === filtered.length ? '取消全選' : '全選'}</span>
               </button>
-              <span className="text-sm text-[#6b4f38]">
-                已選 <span className="font-semibold text-[#7a5230]">{selectedIds.size}</span> 張
+              <span className="flex-1 text-sm font-semibold text-[#7a5230] text-center">
+                已選 {selectedIds.size} 張
               </span>
+              <button
+                onClick={exitSelectMode}
+                className="px-3 py-1.5 text-sm text-[#a08060] border border-[rgba(122,82,48,.25)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors shrink-0"
+              >
+                取消
+              </button>
               <button
                 onClick={handleBatchDelete}
                 disabled={batchDeleting || selectedIds.size === 0}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#b5451b] hover:bg-[#9a3a16] text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#b5451b] hover:bg-[#9a3a16] text-white text-sm font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0 whitespace-nowrap"
               >
                 {batchDeleting
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Trash2 className="h-4 w-4" />
                 }
-                刪除選取
+                刪除（{selectedIds.size}）
               </button>
             </div>
           )}
 
           {/* 批次選取 + 批次匯入 + 新增料卡 */}
-          <div className="fixed bottom-6 right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40">
+          <div className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40 transition-all duration-200`}>
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
               title={selectMode ? '取消選取' : '批次選取'}
