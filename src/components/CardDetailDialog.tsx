@@ -109,7 +109,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)]' : 'max-w-3xl'}`}>
+      <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)]' : 'max-w-5xl'}`}>
 
         {/* 編輯按鈕（管理員） */}
         {isAdmin && onEdit && (
@@ -143,9 +143,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           </div>
         ) : (
           /* ── 一般模式：左右並排 ── */
-          <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+          <div className="flex flex-col md:flex-row" style={{ height: 'min(85vh, 680px)' }}>
             {/* 左側：照片區（無縮圖） */}
-            <div className="bg-[#f2ebe0] md:w-1/2 flex-shrink-0 flex flex-col">
+            <div className="bg-[#f2ebe0] md:w-3/5 flex-shrink-0 flex flex-col">
               <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
             </div>
 
