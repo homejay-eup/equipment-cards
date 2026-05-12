@@ -28,8 +28,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
-  const thumbScrollRef = useRef<HTMLDivElement>(null)
-
   const prev = () => setPhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length)
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
 
@@ -116,40 +114,25 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     )
   }
 
-  /* ── 縮圖列（含左右按鈕） ── */
+  /* ── 縮圖列：左(上一張)、中(當前)、右(下一張)，跟隨主圖連動 ── */
   function ThumbnailStrip() {
     if (allPhotos.length <= 1) return null
+    const len = allPhotos.length
+    const indices = len === 2
+      ? [0, 1]
+      : [(photoIndex - 1 + len) % len, photoIndex, (photoIndex + 1) % len]
     return (
-      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)] w-full overflow-hidden">
-        <button
-          onClick={() => thumbScrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
-          className="flex-shrink-0 w-8 self-stretch flex items-center justify-center text-[#7a5230] hover:bg-[rgba(122,82,48,.12)] transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        {/* min-w-0 讓 flex-1 可以正確收縮，不溢出父容器 */}
-        <div
-          ref={thumbScrollRef}
-          className="flex gap-1.5 py-2 overflow-x-auto flex-1 min-w-0"
-          style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {allPhotos.map((photo, i) => (
-            <button key={i} onClick={() => setPhotoIndex(i)}
-              className={`relative flex-shrink-0 w-[30%] aspect-square md:w-16 md:h-16 md:aspect-auto rounded overflow-hidden border-2 transition-all ${
-                i === photoIndex
-                  ? 'border-[#c49a72] shadow-[0_0_6px_rgba(196,154,114,.5)]'
-                  : 'border-transparent opacity-55 hover:opacity-90'
-              }`}>
-              <Image src={photo.url} alt="" fill sizes="(max-width: 768px) 30vw, 64px" className="object-cover" />
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => thumbScrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
-          className="flex-shrink-0 w-8 self-stretch flex items-center justify-center text-[#7a5230] hover:bg-[rgba(122,82,48,.12)] transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+      <div className="flex gap-2 p-2 bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)]">
+        {indices.map(idx => (
+          <button key={idx} onClick={() => setPhotoIndex(idx)}
+            className={`relative flex-1 aspect-square rounded overflow-hidden border-2 transition-all ${
+              idx === photoIndex
+                ? 'border-[#c49a72] shadow-[0_0_8px_rgba(196,154,114,.6)] scale-[1.03]'
+                : 'border-transparent opacity-55 hover:opacity-85'
+            }`}>
+            <Image src={allPhotos[idx].url} alt="" fill sizes="33vw" className="object-cover" />
+          </button>
+        ))}
       </div>
     )
   }
