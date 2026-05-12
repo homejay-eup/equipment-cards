@@ -28,6 +28,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
+  const thumbScrollRef = useRef<HTMLDivElement>(null)
 
   const prev = () => setPhotoIndex(i => (i - 1 + allPhotos.length) % allPhotos.length)
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
@@ -93,23 +94,42 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     )
   }
 
+  /* ── 縮圖列（含左右按鈕） ── */
   function ThumbnailStrip() {
     if (allPhotos.length <= 1) return null
     return (
-      <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {allPhotos.map((photo, i) => (
-          <button key={i} onClick={() => setPhotoIndex(i)}
-            className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
-            <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
-          </button>
-        ))}
+      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.1)]">
+        <button
+          onClick={() => thumbScrollRef.current?.scrollBy({ left: -112, behavior: 'smooth' })}
+          className="flex-shrink-0 px-1.5 py-2 text-[#a08060] hover:text-[#7a5230] transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div
+          ref={thumbScrollRef}
+          className="flex gap-1.5 py-2 overflow-x-auto flex-1"
+          style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {allPhotos.map((photo, i) => (
+            <button key={i} onClick={() => setPhotoIndex(i)}
+              className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+              <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => thumbScrollRef.current?.scrollBy({ left: 112, behavior: 'smooth' })}
+          className="flex-shrink-0 px-1.5 py-2 text-[#a08060] hover:text-[#7a5230] transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
     )
   }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)]' : 'max-w-5xl'}`}>
+      <DialogContent className={`w-full p-0 transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)] overflow-hidden' : 'max-w-5xl overflow-y-auto max-h-[90vh] md:overflow-hidden'}`}>
 
         {/* 編輯按鈕（管理員） */}
         {isAdmin && onEdit && (
@@ -142,22 +162,23 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
             <ThumbnailStrip />
           </div>
         ) : (
-          /* ── 一般模式：左右並排 ── */
-          <div className="flex flex-col md:flex-row" style={{ height: 'min(85vh, 680px)' }}>
-            {/* 上/左：照片區（手機佔 58% 高度，桌機佔 60% 寬度） */}
-            <div className="bg-[#f2ebe0] flex-shrink-0 flex flex-col basis-[58%] md:basis-auto md:w-3/5">
+          /* ── 一般模式 ── */
+          /* 手機：上下流動（照片固定高，資訊自適應）；桌機：左右並排固定高 */
+          <div className="flex flex-col md:flex-row md:h-[min(85vh,680px)]">
+
+            {/* 照片區：手機固定 60vw 高，桌機佔 3/5 寬 */}
+            <div className="bg-[#f2ebe0] flex-shrink-0 flex flex-col h-[60vw] md:h-auto md:w-3/5">
               <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
             </div>
 
-            {/* 下/右：資訊區 + 縮圖列 */}
-            <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-              <div className="flex-1 overflow-y-auto">
+            {/* 資訊區：手機自適應，桌機固定剩餘空間 */}
+            <div className="flex flex-col md:flex-1 md:overflow-hidden md:min-h-0">
+              <div className="md:flex-1 md:overflow-y-auto">
                 <DialogHeader className="px-4 pt-3 pb-2 md:px-5 md:pt-5 md:pb-3 border-b border-[rgba(122,82,48,.12)] md:pr-14">
                   <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
                   <DialogTitle className="text-sm md:text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
                     {card.name}
                   </DialogTitle>
-                  {/* 狀態 + 分類 + 廠商 同行 */}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
                       {card.status}
@@ -194,7 +215,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                 </div>
               </div>
 
-              {/* 縮圖列：固定在資訊欄底部，品號品名下方 */}
+              {/* 縮圖列 */}
               <ThumbnailStrip />
             </div>
           </div>
@@ -203,4 +224,3 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     </Dialog>
   )
 }
-
