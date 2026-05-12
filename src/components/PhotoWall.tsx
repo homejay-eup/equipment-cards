@@ -207,6 +207,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     ...settings.statuses.map(s => ({ value: s, label: s })),
   ]
 
+  // 孤兒分類：存在於料卡資料，但不在設定清單內
+  const orphanCategories = useMemo(() => {
+    const official = new Set(settings.categories)
+    const found = new Set<string>()
+    for (const c of initialCards) {
+      if (c.category && !official.has(c.category)) found.add(c.category)
+    }
+    return Array.from(found).sort()
+  }, [initialCards, settings.categories])
+
   // 孤兒狀態：存在於料卡資料，但不在設定清單內
   const orphanStatuses = useMemo(() => {
     const official = new Set(settings.statuses)
@@ -324,6 +334,27 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                       : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
                   }`}>
                   {cat}
+                </button>
+              )
+            })}
+            {/* 孤兒分類 */}
+            {orphanCategories.map(cat => {
+              const isActive = selectedCats.has(cat)
+              const count = initialCards.filter(c => c.category === cat).length
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggleCat(cat)}
+                  title={`此分類已從清單移除，仍有 ${count} 張料卡使用此值`}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                    isActive
+                      ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                      : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                  }`}
+                >
+                  <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                  {cat}
+                  <span className="opacity-70">({count})</span>
                 </button>
               )
             })}
