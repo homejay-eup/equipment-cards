@@ -120,26 +120,27 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   function ThumbnailStrip() {
     if (allPhotos.length <= 1) return null
     return (
-      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)]">
+      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)] w-full overflow-hidden">
         <button
           onClick={() => thumbScrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
           className="flex-shrink-0 w-8 self-stretch flex items-center justify-center text-[#7a5230] hover:bg-[rgba(122,82,48,.12)] transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
+        {/* min-w-0 讓 flex-1 可以正確收縮，不溢出父容器 */}
         <div
           ref={thumbScrollRef}
-          className="flex gap-1.5 py-2 overflow-x-auto flex-1"
+          className="flex gap-1.5 py-2 overflow-x-auto flex-1 min-w-0"
           style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {allPhotos.map((photo, i) => (
             <button key={i} onClick={() => setPhotoIndex(i)}
-              className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-all ${
+              className={`relative flex-shrink-0 w-[30%] aspect-square md:w-16 md:h-16 md:aspect-auto rounded overflow-hidden border-2 transition-all ${
                 i === photoIndex
                   ? 'border-[#c49a72] shadow-[0_0_6px_rgba(196,154,114,.5)]'
                   : 'border-transparent opacity-55 hover:opacity-90'
               }`}>
-              <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
+              <Image src={photo.url} alt="" fill sizes="(max-width: 768px) 30vw, 64px" className="object-cover" />
             </button>
           ))}
         </div>
@@ -159,7 +160,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
       <DialogContent className={`w-full p-0 transition-all duration-200 ${
         expanded
           ? 'max-w-[min(90vh,90vw)] overflow-hidden'
-          : 'max-w-5xl overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
+          : 'max-w-5xl overflow-x-hidden overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
       }`}>
 
         {/* 編輯按鈕（管理員） */}
