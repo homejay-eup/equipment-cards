@@ -11,7 +11,7 @@ import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -49,6 +49,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -223,6 +224,23 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
               )}
             </div>
             <div className="flex items-center gap-1">
+              {/* 手機篩選切換按鈕 */}
+              <button
+                onClick={() => setShowFilters(v => !v)}
+                className={`md:hidden relative flex items-center justify-center w-9 h-9 border rounded-md bg-white transition-colors focus:outline-none ${
+                  showFilters || hasActiveFilters
+                    ? 'border-[#c49a72] text-[#7a5230] glow-wood'
+                    : 'border-[#e8ddd0] text-[#a08060] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+                title="篩選"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#b5451b] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {[category !== '全部', status !== 'all', isNewFilter].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
               {/* 自訂排序下拉 */}
               <div ref={sortRef} className="relative">
                 <button
@@ -262,8 +280,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
             </div>
           </div>
 
-          {/* 篩選列 */}
-          <div className="flex gap-2 flex-wrap items-center pb-1">
+          {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
+          <div className={`${showFilters ? 'flex' : 'hidden'} md:flex gap-2 flex-wrap items-center pb-1`}>
             {categories.map(cat => (
               <button key={cat} onClick={() => setCategory(cat)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
@@ -382,27 +400,30 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
           )}
 
           {/* 批次選取 + 批次匯入 + 新增料卡 */}
-          <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
+          <div className="fixed bottom-6 right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40">
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-              className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
+              title={selectMode ? '取消選取' : '批次選取'}
+              className={`flex items-center gap-2 font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
                 selectMode
                   ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
                   : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
               }`}
             >
               <CheckSquare className="h-5 w-5" />
-              {selectMode ? '取消選取' : '批次選取'}
+              <span className="hidden sm:inline">{selectMode ? '取消選取' : '批次選取'}</span>
             </button>
             <button onClick={() => setImportOpen(true)}
-              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
+              title="批次匯入"
+              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
               <FileUp className="h-5 w-5" />
-              批次匯入
+              <span className="hidden sm:inline">批次匯入</span>
             </button>
             <button onClick={openCreate}
-              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
+              title="新增料卡"
+              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
               <Plus className="h-5 w-5" />
-              新增料卡
+              <span className="hidden sm:inline">新增料卡</span>
             </button>
           </div>
 

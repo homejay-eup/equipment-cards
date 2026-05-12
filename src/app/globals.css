@@ -85,8 +85,7 @@
   50%       { box-shadow: 0 0 10px rgba(181,69,27,.4), 0 0 20px rgba(181,69,27,.12); }
 }
 
-/* 滑鼠點擊時不顯示 focus 外框，鍵盤 Tab 導覽時保留 */
+/* 滑鼠點擊時不顯示 focus 外框，鍵盤 Tab 導覽時保留（不移除 box-shadow，避免蓋掉光暈效果）*/
 *:focus:not(:focus-visible) {
   outline: none !important;
-  box-shadow: none !important;
 }

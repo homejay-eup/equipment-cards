@@ -8,7 +8,7 @@ function isInAppBrowser() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent
   // 只偵測明確的 app 內建瀏覽器，避免誤判 Chrome
-  return /FBAN|FBAV|Line\/|Instagram|MicroMessenger|LinkedInApp/i.test(ua)
+  return /FBAN|FBAV|Line\/|Instagram|MicroMessenger|LinkedInApp|Teams\/|Slack\/|GSA\/|KAKAOTALK|Snapchat/i.test(ua)
 }
 
 function LoginForm() {

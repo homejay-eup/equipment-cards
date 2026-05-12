@@ -146,12 +146,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                   </div>
                 )}
               </div>
-
-              {/* 品號 + 品名 */}
-              <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
-                <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
-                <p className="text-sm font-bold text-[#2c1e12] mt-1 leading-snug">{card.name}</p>
-              </div>
             </div>
 
             {/* 右側：資訊區 */}
