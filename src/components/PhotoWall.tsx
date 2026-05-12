@@ -11,6 +11,7 @@ import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 
 interface Props {
@@ -57,6 +58,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   const [sortOpen, setSortOpen] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
+
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string; message?: string; detail?: string; onConfirm: () => void
+  }>({ title: '', onConfirm: () => {} })
+
+  function askConfirm(cfg: typeof confirmConfig) {
+    setConfirmConfig(cfg)
+    setConfirmOpen(true)
+  }
 
   useEffect(() => {
     if (!sortOpen) return
@@ -144,16 +155,21 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
 
-  const handleDelete = useCallback(async (card: EquipmentCard) => {
-    if (!confirm(`確定要刪除「${card.name}」？\n此操作無法還原，Cloudinary 照片也會一併刪除。`)) return
-    try {
-      const res = await fetch(`/api/cards/${card.equipment_id}`, { method: 'DELETE' })
-      if (!res.ok) { alert('刪除失敗，請重試'); return }
-      router.refresh()
-    } catch {
-      alert('刪除失敗，請重試')
-    }
-  }, [router])
+  const handleDelete = useCallback((card: EquipmentCard) => {
+    askConfirm({
+      title: `刪除「${card.name}」？`,
+      message: '此操作無法還原，Cloudinary 照片也會一併刪除。',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/cards/${card.equipment_id}`, { method: 'DELETE' })
+          if (!res.ok) { alert('刪除失敗，請重試'); return }
+          router.refresh()
+        } catch {
+          alert('刪除失敗，請重試')
+        }
+      },
+    })
+  }, [router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
@@ -176,30 +192,36 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     setSelectedIds(new Set())
   }
 
-  const handleBatchDelete = useCallback(async () => {
+  const handleBatchDelete = useCallback(() => {
     const count = selectedIds.size
     const names = filtered
       .filter(c => selectedIds.has(c.equipment_id))
       .map(c => `${c.equipment_id} ${c.name}`)
       .join('\n')
-    if (!confirm(`確定要刪除以下 ${count} 筆料卡？\n\n${names}\n\n此操作無法還原。`)) return
-    setBatchDeleting(true)
-    try {
-      const results = await Promise.allSettled(
-        Array.from(selectedIds).map(id =>
-          fetch(`/api/cards/${id}`, { method: 'DELETE' })
-        )
-      )
-      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
-      if (failed > 0) alert(`${count - failed} 筆刪除成功，${failed} 筆失敗`)
-      exitSelectMode()
-      router.refresh()
-    } catch {
-      alert('刪除失敗，請重試')
-    } finally {
-      setBatchDeleting(false)
-    }
-  }, [selectedIds, filtered, router])
+    askConfirm({
+      title: `確定刪除 ${count} 筆料卡？`,
+      message: '此操作無法還原。',
+      detail: names,
+      onConfirm: async () => {
+        setBatchDeleting(true)
+        try {
+          const results = await Promise.allSettled(
+            Array.from(selectedIds).map(id =>
+              fetch(`/api/cards/${id}`, { method: 'DELETE' })
+            )
+          )
+          const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
+          if (failed > 0) alert(`${count - failed} 筆刪除成功，${failed} 筆失敗`)
+          exitSelectMode()
+          router.refresh()
+        } catch {
+          alert('刪除失敗，請重試')
+        } finally {
+          setBatchDeleting(false)
+        }
+      },
+    })
+  }, [selectedIds, filtered, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const categories = ['全部', ...settings.categories]
   const statusOptions = [
@@ -549,6 +571,17 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
           />
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        detail={confirmConfig.detail}
+        confirmLabel="刪除"
+        danger
+        onConfirm={() => { setConfirmOpen(false); confirmConfig.onConfirm() }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   )
 }

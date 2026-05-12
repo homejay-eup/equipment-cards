@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Loader2, Shield, ShieldOff, Trash2, UserPlus, ChevronDown } from 'lucide-react'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
   email: string
@@ -30,6 +31,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingRemove, setPendingRemove] = useState<UserRow | null>(null)
 
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer')
@@ -92,8 +95,12 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
     }
   }
 
-  async function handleRemove(user: UserRow) {
-    if (!confirm(`確定要移除 ${user.email}？`)) return
+  function handleRemove(user: UserRow) {
+    setPendingRemove(user)
+    setConfirmOpen(true)
+  }
+
+  async function doRemove(user: UserRow) {
     setLoadingEmail(user.email)
     setError(null)
     try {
@@ -262,6 +269,16 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={`移除 ${pendingRemove?.email}？`}
+        message="移除後該帳號將失去管理員權限，但仍可用公司帳號登入。"
+        confirmLabel="移除"
+        danger
+        onConfirm={() => { setConfirmOpen(false); if (pendingRemove) doRemove(pendingRemove) }}
+        onCancel={() => { setConfirmOpen(false); setPendingRemove(null) }}
+      />
     </div>
   )
 }
