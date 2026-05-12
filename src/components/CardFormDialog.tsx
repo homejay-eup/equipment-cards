@@ -487,7 +487,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           <div>
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">備註</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              rows={2} placeholder="補充說明…"
+              rows={5} placeholder="補充說明…"
               className={`${inputCls} resize-none`}
             />
           </div>
