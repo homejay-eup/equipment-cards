@@ -11,7 +11,7 @@ import CardDetailDialog from '@/components/CardDetailDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -207,6 +207,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     ...settings.statuses.map(s => ({ value: s, label: s })),
   ]
 
+  // 孤兒狀態：存在於料卡資料，但不在設定清單內
+  const orphanStatuses = useMemo(() => {
+    const official = new Set(settings.statuses)
+    const found = new Set<string>()
+    for (const c of initialCards) {
+      if (c.status && !official.has(c.status)) found.add(c.status)
+    }
+    return Array.from(found).sort()
+  }, [initialCards, settings.statuses])
+
   const mainPhotosCount = initialCards.filter(c => c.main_photo).length
   const detailPhotosCount = initialCards.reduce((sum, c) => sum + c.detail_photos.length, 0)
 
@@ -331,6 +341,32 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 </button>
               )
             })}
+            {/* 孤兒狀態：已從清單移除但仍有料卡使用 */}
+            {orphanStatuses.length > 0 && (
+              <>
+                <span className="w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
+                {orphanStatuses.map(s => {
+                  const isActive = selectedStatuses.has(s)
+                  const count = initialCards.filter(c => c.status === s).length
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => toggleStatus(s)}
+                      title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                        isActive
+                          ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                          : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                      }`}
+                    >
+                      <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                      {s}
+                      <span className="opacity-70">({count})</span>
+                    </button>
+                  )
+                })}
+              </>
+            )}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             <button onClick={() => setIsNewFilter(v => !v)}
               className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-all duration-200 ${
