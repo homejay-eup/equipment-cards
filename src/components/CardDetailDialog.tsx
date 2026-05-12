@@ -40,7 +40,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
     const dx = e.changedTouches[0].clientX - touchStartX.current
     const dy = e.changedTouches[0].clientY - (touchStartY.current ?? 0)
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-      dx < 0 ? next() : prev()
+      if (dx < 0) next(); else prev()
     }
     touchStartX.current = null
     touchStartY.current = null
