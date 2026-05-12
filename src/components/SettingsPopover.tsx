@@ -86,7 +86,7 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
         type="button"
         onClick={openPopover}
         disabled={disabled}
-        className="text-gray-400 hover:text-blue-500 disabled:opacity-40 transition-colors"
+        className="text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors"
         title="管理選項"
       >
         <Settings className="h-3.5 w-3.5" />
@@ -96,21 +96,21 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-52 bg-white border border-gray-200 rounded-xl shadow-xl p-3 flex flex-col gap-2"
+          className="w-52 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_8px_30px_rgba(122,82,48,.18)] p-3 flex flex-col gap-2"
         >
-          <p className="text-xs font-medium text-gray-500">
+          <p className="text-xs font-semibold text-[#7a5230]">
             {settingKey === 'categories' ? '分類選項' : '狀態選項'}
           </p>
 
           <ul className="space-y-1 max-h-48 overflow-y-auto">
             {draft.map((item, idx) => (
-              <li key={item} className="flex items-center gap-1">
-                <span className="text-sm text-gray-800 truncate flex-1">{item}</span>
+              <li key={item} className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-[rgba(122,82,48,.04)] transition-colors">
+                <span className="text-sm text-[#2c1e12] truncate flex-1">{item}</span>
                 {!(settingKey === 'statuses' && idx === 0) && (
                   <button
                     type="button"
                     onClick={() => handleDelete(item)}
-                    className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                    className="text-[#c49a72] hover:text-[#b5451b] transition-colors flex-shrink-0"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -119,34 +119,34 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
             ))}
           </ul>
 
-          <div className="flex gap-1 pt-1 border-t border-gray-100">
+          <div className="flex gap-1 pt-1.5 border-t border-[rgba(122,82,48,.12)]">
             <input
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
               placeholder="新增選項…"
-              className="flex-1 min-w-0 text-xs border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="flex-1 min-w-0 text-xs border border-[rgba(122,82,48,.2)] rounded-md px-2 py-1.5 bg-[#faf6f0] text-[#2c1e12] placeholder:text-[#a08060] focus:outline-none focus:ring-1 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
             />
             <button
               type="button"
               onClick={handleAdd}
               disabled={!input.trim()}
-              className="p-1 rounded-md bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition-colors flex-shrink-0"
+              className="p-1.5 rounded-md bg-[rgba(122,82,48,.07)] hover:bg-[rgba(122,82,48,.14)] disabled:opacity-40 transition-colors flex-shrink-0"
               title="加入清單"
             >
-              <Plus className="h-3.5 w-3.5 text-gray-600" />
+              <Plus className="h-3.5 w-3.5 text-[#6b4f38]" />
             </button>
           </div>
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[#b5451b]">{error}</p>}
 
-          <div className="flex gap-2 pt-1 border-t border-gray-100">
+          <div className="flex gap-2 pt-1.5 border-t border-[rgba(122,82,48,.12)]">
             <button
               type="button"
               onClick={() => setOpen(false)}
               disabled={saving}
-              className="flex-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 py-1 transition-colors"
+              className="flex-1 text-xs text-[#a08060] hover:text-[#6b4f38] disabled:opacity-40 py-1.5 rounded-md hover:bg-[rgba(122,82,48,.05)] transition-colors"
             >
               取消
             </button>
@@ -154,7 +154,7 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
               type="button"
               onClick={handleConfirm}
               disabled={saving || !dirty}
-              className="flex-1 flex items-center justify-center gap-1 text-xs font-medium bg-blue-600 text-white rounded-md py-1 hover:bg-blue-700 disabled:opacity-40 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold bg-[#7a5230] text-white rounded-md py-1.5 hover:bg-[#9c6b42] disabled:opacity-40 transition-colors shadow-[0_0_8px_rgba(122,82,48,.3)]"
             >
               {saving && <Loader2 className="h-3 w-3 animate-spin" />}
               確認

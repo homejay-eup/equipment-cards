@@ -115,7 +115,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   }, [initialCards, query, selectedCats, status, sortBy, sortDir, isNewFilter, fuse])
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || status !== 'all' || isNewFilter)
-  const activeFilterCount = [selectedCats.size > 0, status !== 'all', isNewFilter].filter(Boolean).length
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); return }
@@ -250,11 +249,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
                 title="篩選"
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#b5451b] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {activeFilterCount}
-                  </span>
-                )}
               </button>
               {/* 自訂排序下拉 */}
               <div ref={sortRef} className="relative">
