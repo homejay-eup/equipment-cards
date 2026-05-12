@@ -125,7 +125,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
             <PhotoArea sizes="min(90vh, 90vw)" minHeight="0" />
             <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
-              <p className="text-base font-bold text-[#2c1e12] mt-1 leading-snug">{card.name}</p>
+              <p className="text-base font-bold text-[#5a3820] mt-1 leading-snug">{card.name}</p>
             </div>
           </div>
         ) : (
@@ -141,22 +141,26 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
             <div className="flex flex-col flex-1 overflow-y-auto">
               <DialogHeader className="px-5 pt-5 pb-3 border-b border-[rgba(122,82,48,.12)] pr-14">
                 <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
-                <DialogTitle className="text-base font-bold text-[#2c1e12] mt-0.5 leading-snug">
+                <DialogTitle className="text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
                   {card.name}
                 </DialogTitle>
-                <div className="mt-1.5">
+                {/* 狀態 + 分類 + 廠商 同行 */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
                     {card.status}
                   </Badge>
+                  {card.category && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
+                      {card.category}
+                    </span>
+                  )}
+                  {card.vendor && (
+                    <span className="text-xs text-[#a08060]">· {card.vendor}</span>
+                  )}
                 </div>
               </DialogHeader>
 
               <div className="px-5 py-4 space-y-4 flex-1">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  {card.category && <InfoRow label="分類" value={card.category} />}
-                  {card.vendor   && <InfoRow label="廠商" value={card.vendor} />}
-                </div>
-
                 {card.tags.length > 0 && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
@@ -174,11 +178,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
                     <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                   </div>
                 )}
-
-                <div className="pt-2 border-t border-[rgba(122,82,48,.1)] text-xs text-[#a08060] space-y-0.5">
-                  <p>主照片：{card.main_photo ? '1 張' : '無'}</p>
-                  <p>細節照片：{card.detail_photos.length} 張</p>
-                </div>
               </div>
             </div>
           </div>
@@ -188,11 +187,3 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-[#a08060]">{label}</p>
-      <p className="text-sm font-medium text-[#2c1e12]">{value}</p>
-    </div>
-  )
-}
