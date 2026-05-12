@@ -174,7 +174,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
               <p className="text-base font-bold text-[#5a3820] mt-1 leading-snug">{card.name}</p>
             </div>
-            <ThumbnailStrip />
           </div>
         ) : (
           <>
