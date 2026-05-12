@@ -122,15 +122,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
       ? [0, 1]
       : [(photoIndex - 1 + len) % len, photoIndex, (photoIndex + 1) % len]
     return (
-      <div className="flex gap-2 p-2 bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)]">
+      <div className="flex justify-center gap-2 px-3 py-1.5 bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)]">
         {indices.map(idx => (
           <button key={idx} onClick={() => setPhotoIndex(idx)}
-            className={`relative flex-1 aspect-square rounded overflow-hidden border-2 transition-all ${
+            className={`relative h-14 w-14 rounded overflow-hidden border-2 transition-all flex-shrink-0 ${
               idx === photoIndex
-                ? 'border-[#c49a72] shadow-[0_0_8px_rgba(196,154,114,.6)] scale-[1.03]'
+                ? 'border-[#c49a72] shadow-[0_0_8px_rgba(196,154,114,.6)] scale-[1.05]'
                 : 'border-transparent opacity-55 hover:opacity-85'
             }`}>
-            <Image src={allPhotos[idx].url} alt="" fill sizes="33vw" className="object-cover" />
+            <Image src={allPhotos[idx].url} alt="" fill sizes="56px" className="object-cover" />
           </button>
         ))}
       </div>
