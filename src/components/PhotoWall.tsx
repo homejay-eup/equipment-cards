@@ -37,7 +37,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     const cat = searchParams.get('cat')
     return cat ? new Set(cat.split(',').filter(Boolean)) : new Set()
   })
-  const [status,   setStatus]   = useState(() => searchParams.get('status') ?? 'all')
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(() => {
+    const s = searchParams.get('status')
+    return s ? new Set(s.split(',').filter(Boolean)) : new Set()
+  })
   const [sortBy,   setSortBy]   = useState(() => searchParams.get('sort')   ?? 'id')
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>(() => (searchParams.get('dir') ?? 'asc') as 'asc' | 'desc')
   const [isNewFilter, setIsNewFilter] = useState(() => searchParams.get('new') === '1')
@@ -67,14 +70,14 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
   useEffect(() => {
     const params = new URLSearchParams()
     if (query)                params.set('q',      query)
-    if (selectedCats.size > 0) params.set('cat',   Array.from(selectedCats).join(','))
-    if (status   !== 'all')   params.set('status', status)
-    if (sortBy   !== 'id')    params.set('sort',   sortBy)
-    if (sortDir  !== 'asc')   params.set('dir',    sortDir)
-    if (isNewFilter)          params.set('new',    '1')
+    if (selectedCats.size > 0)     params.set('cat',    Array.from(selectedCats).join(','))
+    if (selectedStatuses.size > 0) params.set('status', Array.from(selectedStatuses).join(','))
+    if (sortBy   !== 'id')         params.set('sort',   sortBy)
+    if (sortDir  !== 'asc')        params.set('dir',    sortDir)
+    if (isNewFilter)               params.set('new',    '1')
     const qs = params.toString()
     router.replace(qs ? `?${qs}` : '/', { scroll: false })
-  }, [query, selectedCats, status, sortBy, sortDir, isNewFilter, router])
+  }, [query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, router])
 
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
@@ -94,9 +97,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       ? fuse.search(query.trim()).map(r => r.item)
       : [...initialCards]
 
-    if (selectedCats.size > 0) result = result.filter(c => selectedCats.has(c.category ?? ''))
-    if (status !== 'all')      result = result.filter(c => c.status === status)
-    if (isNewFilter)         result = result.filter(c => c.is_new)
+    if (selectedCats.size > 0)     result = result.filter(c => selectedCats.has(c.category ?? ''))
+    if (selectedStatuses.size > 0) result = result.filter(c => selectedStatuses.has(c.status ?? ''))
+    if (isNewFilter)               result = result.filter(c => c.is_new)
 
     if (!query.trim()) {
       result.sort((a, b) => {
@@ -112,9 +115,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       })
     }
     return result
-  }, [initialCards, query, selectedCats, status, sortBy, sortDir, isNewFilter, fuse])
+  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, fuse])
 
-  const hasActiveFilters = !!(query || selectedCats.size > 0 || status !== 'all' || isNewFilter)
+  const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter)
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); return }
@@ -126,7 +129,17 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     })
   }
 
-  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setStatus('all'); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
+  function toggleStatus(s: string) {
+    if (s === 'all') { setSelectedStatuses(new Set()); return }
+    setSelectedStatuses(prev => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      return next
+    })
+  }
+
+  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
 
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
@@ -305,16 +318,19 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
               )
             })}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
-            {statusOptions.map(opt => (
-              <button key={opt.value} onClick={() => setStatus(opt.value)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  status === opt.value
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                }`}>
-                {opt.label}
-              </button>
-            ))}
+            {statusOptions.map(opt => {
+              const isActive = opt.value === 'all' ? selectedStatuses.size === 0 : selectedStatuses.has(opt.value)
+              return (
+                <button key={opt.value} onClick={() => toggleStatus(opt.value)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                    isActive
+                      ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                  }`}>
+                  {opt.label}
+                </button>
+              )
+            })}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
             <button onClick={() => setIsNewFilter(v => !v)}
               className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-all duration-200 ${
