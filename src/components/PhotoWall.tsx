@@ -496,6 +496,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
             open={!!selected}
             onClose={() => setSelected(null)}
             activeStatus={activeStatus}
+            isAdmin={isAdmin}
+            onEdit={() => { openEdit(selected); setSelected(null) }}
           />
         )}
       </div>

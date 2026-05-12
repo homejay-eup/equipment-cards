@@ -5,18 +5,20 @@ import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
   open: boolean
   onClose: () => void
   activeStatus: string
+  isAdmin?: boolean
+  onEdit?: () => void
 }
 
 const SWIPE_THRESHOLD = 50
 
-export default function CardDetailDialog({ card, open, onClose, activeStatus }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖' }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}` })),
@@ -108,6 +110,17 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus }: 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className={`w-full p-0 overflow-hidden transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)]' : 'max-w-3xl'}`}>
+
+        {/* 編輯按鈕（管理員） */}
+        {isAdmin && onEdit && (
+          <button
+            onClick={onEdit}
+            className="absolute top-3 right-[4.75rem] z-50 rounded-full bg-[#fff9f4]/90 backdrop-blur-sm p-1.5 shadow text-[#a08060] opacity-90 hover:opacity-100 hover:text-[#7a5230] transition-opacity"
+            aria-label="編輯料卡"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
 
         {/* 放大／縮小按鈕 */}
         <button
