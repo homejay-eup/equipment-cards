@@ -98,21 +98,31 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       { name: 'tags',         weight: 1 },
       { name: 'notes',        weight: 0.5 },
     ],
-    threshold: 0.4,
+    threshold: 0.3,
     includeScore: true,
-    minMatchCharLength: 1,
+    minMatchCharLength: 2,
   }), [initialCards])
 
   const filtered = useMemo(() => {
-    let result: EquipmentCard[] = query.trim()
-      ? fuse.search(query.trim()).map(r => r.item)
-      : [...initialCards]
+    const q = query.trim()
+    let result: EquipmentCard[]
+    if (!q) {
+      result = [...initialCards]
+    } else if (/^\d+$/.test(q)) {
+      // 純數字查詢：用精確包含比對，避免模糊算法造成不相關結果
+      result = initialCards.filter(c =>
+        c.equipment_id.includes(q) ||
+        c.name.includes(q)
+      )
+    } else {
+      result = fuse.search(q).map(r => r.item)
+    }
 
     if (selectedCats.size > 0)     result = result.filter(c => selectedCats.has(c.category ?? ''))
     if (selectedStatuses.size > 0) result = result.filter(c => selectedStatuses.has(c.status ?? ''))
     if (isNewFilter)               result = result.filter(c => c.is_new)
 
-    if (!query.trim()) {
+    if (!q) {
       result.sort((a, b) => {
         let cmp = 0
         if (sortBy === 'name') {
