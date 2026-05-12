@@ -96,7 +96,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   function ThumbnailStrip() {
     if (allPhotos.length <= 1) return null
     return (
-      <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0">
+      <div className="flex gap-1.5 p-2 overflow-x-auto bg-[#e8ddd0] flex-shrink-0" style={{ WebkitOverflowScrolling: 'touch' }}>
         {allPhotos.map((photo, i) => (
           <button key={i} onClick={() => setPhotoIndex(i)}
             className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
@@ -134,64 +134,68 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         {expanded ? (
           /* ── 放大模式 ── */
           <div className="bg-[#f2ebe0] flex flex-col" style={{ height: 'min(90vh, 90vw)' }}>
-            <ThumbnailStrip />
             <PhotoArea sizes="min(90vh, 90vw)" minHeight="0" />
             <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
               <p className="text-base font-bold text-[#5a3820] mt-1 leading-snug">{card.name}</p>
             </div>
+            <ThumbnailStrip />
           </div>
         ) : (
           /* ── 一般模式：左右並排 ── */
           <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
-            {/* 左側：照片區 */}
+            {/* 左側：照片區（無縮圖） */}
             <div className="bg-[#f2ebe0] md:w-1/2 flex-shrink-0 flex flex-col">
-              <ThumbnailStrip />
               <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
             </div>
 
-            {/* 右側：資訊區 */}
-            <div className="flex flex-col flex-1 overflow-y-auto">
-              <DialogHeader className="px-5 pt-5 pb-3 border-b border-[rgba(122,82,48,.12)] pr-14">
-                <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
-                <DialogTitle className="text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
-                  {card.name}
-                </DialogTitle>
-                {/* 狀態 + 分類 + 廠商 同行 */}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
-                    {card.status}
-                  </Badge>
-                  {card.category && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
-                      {card.category}
-                    </span>
+            {/* 右側：資訊區 + 縮圖列固定在底部 */}
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
+                <DialogHeader className="px-5 pt-5 pb-3 border-b border-[rgba(122,82,48,.12)] pr-14">
+                  <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
+                  <DialogTitle className="text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
+                    {card.name}
+                  </DialogTitle>
+                  {/* 狀態 + 分類 + 廠商 同行 */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
+                      {card.status}
+                    </Badge>
+                    {card.category && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
+                        {card.category}
+                      </span>
+                    )}
+                    {card.vendor && (
+                      <span className="text-xs text-[#a08060]">· {card.vendor}</span>
+                    )}
+                  </div>
+                </DialogHeader>
+
+                <div className="px-5 py-4 space-y-4">
+                  {card.tags.length > 0 && (
+                    <div>
+                      <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {card.tags.map(tag => (
+                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {card.vendor && (
-                    <span className="text-xs text-[#a08060]">· {card.vendor}</span>
+
+                  {card.notes && (
+                    <div>
+                      <p className="text-xs text-[#a08060] mb-1">備註</p>
+                      <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                    </div>
                   )}
                 </div>
-              </DialogHeader>
-
-              <div className="px-5 py-4 space-y-4 flex-1">
-                {card.tags.length > 0 && (
-                  <div>
-                    <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {card.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {card.notes && (
-                  <div>
-                    <p className="text-xs text-[#a08060] mb-1">備註</p>
-                    <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
-                  </div>
-                )}
               </div>
+
+              {/* 縮圖列：固定在資訊欄底部，品號品名下方 */}
+              <ThumbnailStrip />
             </div>
           </div>
         )}
