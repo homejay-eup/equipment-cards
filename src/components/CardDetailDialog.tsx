@@ -51,45 +51,67 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   const isActive = card.status === activeStatus || card.status === 'active'
 
-  /* ── 共用照片區 JSX ── */
-  function PhotoArea({ sizes, minHeight }: { sizes: string; minHeight?: string }) {
+  /* ── 照片內容（共用） ── */
+  function PhotoContent({ sizes }: { sizes: string }) {
+    if (allPhotos.length === 0) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
+          <ImageOff className="h-12 w-12" />
+        </div>
+      )
+    }
+    return (
+      <>
+        <Image
+          key={allPhotos[photoIndex].url}
+          src={allPhotos[photoIndex].url}
+          alt={card.name}
+          fill
+          sizes={sizes}
+          className="object-contain"
+          priority
+        />
+        {allPhotos.length > 1 && (
+          <>
+            <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.45)] hover:bg-[rgba(44,30,18,.7)] text-white rounded-full p-2 transition-colors shadow">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.45)] hover:bg-[rgba(44,30,18,.7)] text-white rounded-full p-2 transition-colors shadow">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        )}
+        <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full pointer-events-none">
+          {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
+        </span>
+      </>
+    )
+  }
+
+  /* ── 手機照片區：padding-bottom 自適應比例 ── */
+  function MobilePhotoArea() {
     return (
       <div
-        className="relative flex-1"
-        style={{ minHeight: minHeight ?? '200px', touchAction: 'pan-y' }}
+        className="bg-[#f2ebe0] w-full relative"
+        style={{ paddingBottom: '80%', touchAction: 'pan-y' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {allPhotos.length > 0 ? (
-          <>
-            <Image
-              key={allPhotos[photoIndex].url}
-              src={allPhotos[photoIndex].url}
-              alt={card.name}
-              fill
-              sizes={sizes}
-              className="object-contain"
-              priority
-            />
-            {allPhotos.length > 1 && (
-              <>
-                <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.35)] hover:bg-[rgba(44,30,18,.6)] text-white rounded-full p-1.5 transition-colors">
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </>
-            )}
-            <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full pointer-events-none">
-              {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
-            </span>
-          </>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
-            <ImageOff className="h-12 w-12" />
-          </div>
-        )}
+        <PhotoContent sizes="100vw" />
+      </div>
+    )
+  }
+
+  /* ── 桌機照片區：flex-1 填滿 ── */
+  function DesktopPhotoArea() {
+    return (
+      <div
+        className="relative flex-1"
+        style={{ minHeight: '200px', touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <PhotoContent sizes="(max-width: 768px) 100vw, 500px" />
       </div>
     )
   }
@@ -98,10 +120,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   function ThumbnailStrip() {
     if (allPhotos.length <= 1) return null
     return (
-      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.1)]">
+      <div className="flex items-center bg-[#e8ddd0] flex-shrink-0 border-t border-[rgba(122,82,48,.15)]">
         <button
-          onClick={() => thumbScrollRef.current?.scrollBy({ left: -112, behavior: 'smooth' })}
-          className="flex-shrink-0 px-1.5 py-2 text-[#a08060] hover:text-[#7a5230] transition-colors"
+          onClick={() => thumbScrollRef.current?.scrollBy({ left: -120, behavior: 'smooth' })}
+          className="flex-shrink-0 w-8 self-stretch flex items-center justify-center text-[#7a5230] hover:bg-[rgba(122,82,48,.12)] transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -112,14 +134,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         >
           {allPhotos.map((photo, i) => (
             <button key={i} onClick={() => setPhotoIndex(i)}
-              className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-colors ${i === photoIndex ? 'border-[#c49a72]' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+              className={`relative flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 transition-all ${
+                i === photoIndex
+                  ? 'border-[#c49a72] shadow-[0_0_6px_rgba(196,154,114,.5)]'
+                  : 'border-transparent opacity-55 hover:opacity-90'
+              }`}>
               <Image src={photo.url} alt="" fill sizes="56px" className="object-cover" />
             </button>
           ))}
         </div>
         <button
-          onClick={() => thumbScrollRef.current?.scrollBy({ left: 112, behavior: 'smooth' })}
-          className="flex-shrink-0 px-1.5 py-2 text-[#a08060] hover:text-[#7a5230] transition-colors"
+          onClick={() => thumbScrollRef.current?.scrollBy({ left: 120, behavior: 'smooth' })}
+          className="flex-shrink-0 w-8 self-stretch flex items-center justify-center text-[#7a5230] hover:bg-[rgba(122,82,48,.12)] transition-colors"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -129,7 +155,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className={`w-full p-0 transition-all duration-200 ${expanded ? 'max-w-[min(90vh,90vw)] overflow-hidden' : 'max-w-5xl overflow-y-auto max-h-[90vh] md:overflow-hidden'}`}>
+      {/* 手機：overflow-y-auto 可上下捲動；桌機：overflow-hidden 固定高 */}
+      <DialogContent className={`w-full p-0 transition-all duration-200 ${
+        expanded
+          ? 'max-w-[min(90vh,90vw)] overflow-hidden'
+          : 'max-w-5xl overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
+      }`}>
 
         {/* 編輯按鈕（管理員） */}
         {isAdmin && onEdit && (
@@ -154,7 +185,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         {expanded ? (
           /* ── 放大模式 ── */
           <div className="bg-[#f2ebe0] flex flex-col" style={{ height: 'min(90vh, 90vw)' }}>
-            <PhotoArea sizes="min(90vh, 90vw)" minHeight="0" />
+            <DesktopPhotoArea />
             <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
               <p className="text-base font-bold text-[#5a3820] mt-1 leading-snug">{card.name}</p>
@@ -162,63 +193,97 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
             <ThumbnailStrip />
           </div>
         ) : (
-          /* ── 一般模式 ── */
-          /* 手機：上下流動（照片固定高，資訊自適應）；桌機：左右並排固定高 */
-          <div className="flex flex-col md:flex-row md:h-[min(85vh,680px)]">
-
-            {/* 照片區：手機固定 60vw 高，桌機佔 3/5 寬 */}
-            <div className="bg-[#f2ebe0] flex-shrink-0 flex flex-col h-[60vw] md:h-auto md:w-3/5">
-              <PhotoArea sizes="(max-width: 768px) 100vw, 400px" />
-            </div>
-
-            {/* 資訊區：手機自適應，桌機固定剩餘空間 */}
-            <div className="flex flex-col md:flex-1 md:overflow-hidden md:min-h-0">
-              <div className="md:flex-1 md:overflow-y-auto">
-                <DialogHeader className="px-4 pt-3 pb-2 md:px-5 md:pt-5 md:pb-3 border-b border-[rgba(122,82,48,.12)] md:pr-14">
-                  <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
-                  <DialogTitle className="text-sm md:text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
-                    {card.name}
-                  </DialogTitle>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
-                      {card.status}
-                    </Badge>
-                    {card.category && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
-                        {card.category}
-                      </span>
-                    )}
-                    {card.vendor && (
-                      <span className="text-xs text-[#a08060]">· {card.vendor}</span>
-                    )}
-                  </div>
-                </DialogHeader>
-
-                <div className="px-4 py-2 md:px-5 md:py-4 space-y-2 md:space-y-4">
-                  {card.tags.length > 0 && (
-                    <div>
-                      <p className="text-xs text-[#a08060] mb-1">標籤</p>
-                      <div className="flex flex-wrap gap-1">
-                        {card.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                        ))}
-                      </div>
-                    </div>
+          <>
+            {/* ── 手機版：上下流動 ── */}
+            <div className="md:hidden flex flex-col">
+              <MobilePhotoArea />
+              <div className="px-4 pt-3 pb-2 border-b border-[rgba(122,82,48,.12)]">
+                <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
+                <p className="text-sm font-bold text-[#5a3820] mt-0.5 leading-snug">{card.name}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
+                    {card.status}
+                  </Badge>
+                  {card.category && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
+                      {card.category}
+                    </span>
                   )}
-
-                  {card.notes && (
-                    <div>
-                      <p className="text-xs text-[#a08060] mb-1">備註</p>
-                      <p className="text-xs md:text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
-                    </div>
+                  {card.vendor && (
+                    <span className="text-xs text-[#a08060]">· {card.vendor}</span>
                   )}
                 </div>
               </div>
-
-              {/* 縮圖列 */}
+              <div className="px-4 py-2 space-y-2">
+                {card.tags.length > 0 && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">標籤</p>
+                    <div className="flex flex-wrap gap-1">
+                      {card.tags.map(tag => (
+                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {card.notes && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">備註</p>
+                    <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                  </div>
+                )}
+              </div>
               <ThumbnailStrip />
             </div>
-          </div>
+
+            {/* ── 桌機版：左右並排 ── */}
+            <div className="hidden md:flex flex-row h-[min(85vh,680px)]">
+              <div className="bg-[#f2ebe0] w-3/5 flex-shrink-0 flex flex-col">
+                <DesktopPhotoArea />
+              </div>
+              <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+                <div className="flex-1 overflow-y-auto">
+                  <DialogHeader className="px-5 pt-5 pb-3 border-b border-[rgba(122,82,48,.12)] pr-14">
+                    <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
+                    <DialogTitle className="text-base font-bold text-[#5a3820] mt-0.5 leading-snug">
+                      {card.name}
+                    </DialogTitle>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
+                        {card.status}
+                      </Badge>
+                      {card.category && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
+                          {card.category}
+                        </span>
+                      )}
+                      {card.vendor && (
+                        <span className="text-xs text-[#a08060]">· {card.vendor}</span>
+                      )}
+                    </div>
+                  </DialogHeader>
+                  <div className="px-5 py-4 space-y-4">
+                    {card.tags.length > 0 && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {card.tags.map(tag => (
+                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {card.notes && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">備註</p>
+                        <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <ThumbnailStrip />
+              </div>
+            </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
