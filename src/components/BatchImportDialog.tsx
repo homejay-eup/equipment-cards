@@ -55,8 +55,8 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
   const raw = parseCSV(text.replace(/^﻿/, ''))
   if (raw.length < 2) return []
 
-  // 第一列為 header
-  const headers = raw[0].map(h => h.trim().toLowerCase())
+  // 第一列為 header；去除（必填）/（選填）等修飾詞，支援中文範本與英文 header 並存
+  const headers = raw[0].map(h => h.trim().toLowerCase().replace(/[（(][^）)]*[）)]/g, '').trim())
 
   // header 名稱對應（支援中英文）
   function col(row: string[], ...names: string[]): string {
@@ -186,9 +186,9 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">批次匯入料卡</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8ddd4]">
+          <h2 className="text-lg font-semibold text-[#3d2b1a]">批次匯入料卡</h2>
+          <button onClick={handleClose} className="text-[#a08060] hover:text-[#7a5230] transition-colors focus:outline-none">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -199,16 +199,30 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
           {/* Step: upload */}
           {step === 'upload' && (
             <div className="space-y-5">
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>上傳 CSV 檔案，一次新增多筆料卡。</p>
-                <p className="text-gray-400">tags 欄位用 <code className="bg-gray-100 px-1 rounded">|</code> 分隔，例如：<code className="bg-gray-100 px-1 rounded">HS昇銳|GPS</code></p>
+              <div className="text-sm text-[#6b4c2e] space-y-1">
+                <p>上傳 CSV 檔案，一次新增多筆料卡。下載範本填入資料後再上傳即可。</p>
+              </div>
+
+              {/* Field legend */}
+              <div className="rounded-xl border border-[#e8ddd4] bg-[#faf6f0] px-4 py-3 text-sm space-y-1">
+                <p className="font-medium text-[#7a5230] mb-1.5">欄位說明</p>
+                <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-[#5a3c1e]">
+                  <span><span className="font-medium">料號</span>（必填）</span>
+                  <span><span className="font-medium">品名</span>（必填）</span>
+                  <span className="text-[#8a6a4a]">分類（選填）</span>
+                  <span className="text-[#8a6a4a]">廠商（選填）</span>
+                  <span className="text-[#8a6a4a]">狀態（選填，預設「現役」）</span>
+                  <span className="text-[#8a6a4a]">標籤（選填，用 <code className="bg-[#ede5db] px-1 rounded text-xs">|</code> 分隔）</span>
+                  <span className="text-[#8a6a4a]">備註（選填）</span>
+                  <span className="text-[#8a6a4a]">淨重kg（選填）</span>
+                </div>
               </div>
 
               {/* Download template */}
               <a
                 href="/batch-import-template.csv"
-                download
-                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                download="設備料卡批次匯入範本.csv"
+                className="inline-flex items-center gap-2 text-sm text-[#7a5230] hover:text-[#5a3010] font-medium"
               >
                 <Download className="h-4 w-4" />
                 下載 CSV 範本
@@ -217,16 +231,16 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
               {/* Drop zone */}
               <div
                 className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
-                  dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                  dragging ? 'border-[#7a5230] bg-[#faf6f0]' : 'border-[#d5c4b0] hover:border-[#c49a72] hover:bg-[#faf6f0]'
                 }`}
                 onClick={() => fileRef.current?.click()}
                 onDragOver={e => { e.preventDefault(); setDragging(true) }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
               >
-                <Upload className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">點擊或拖曳 CSV 檔案至此</p>
-                <p className="text-gray-400 text-sm mt-1">僅支援 .csv 格式，UTF-8 編碼</p>
+                <Upload className="h-10 w-10 text-[#c49a72] mx-auto mb-3" />
+                <p className="text-[#7a5230] font-medium">點擊或拖曳 CSV 檔案至此</p>
+                <p className="text-[#a08060] text-sm mt-1">僅支援 .csv 格式，UTF-8 編碼</p>
               </div>
               <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
             </div>
@@ -236,21 +250,21 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
           {step === 'preview' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
-                <FileText className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-600">{fileName}</span>
-                <span className="text-gray-400">·</span>
-                <span className="text-green-600 font-medium">{validRows.length} 筆可匯入</span>
+                <FileText className="h-4 w-4 text-[#a08060]" />
+                <span className="text-[#6b4c2e]">{fileName}</span>
+                <span className="text-[#c49a72]">·</span>
+                <span className="text-emerald-600 font-medium">{validRows.length} 筆可匯入</span>
                 {invalidRows.length > 0 && (
                   <>
-                    <span className="text-gray-400">·</span>
+                    <span className="text-[#c49a72]">·</span>
                     <span className="text-red-500 font-medium">{invalidRows.length} 筆有錯誤（將跳過）</span>
                   </>
                 )}
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <div className="overflow-x-auto rounded-lg border border-[#e8ddd4]">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-600">
+                  <thead className="bg-[#faf6f0] text-[#7a5230]">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium w-8">#</th>
                       <th className="px-3 py-2 text-left font-medium">料號</th>
@@ -263,18 +277,18 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                       <th className="px-3 py-2 text-left font-medium">淨重（kg）</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-[#f0e8e0]">
                     {rows.map((row, i) => (
-                      <tr key={i} className={row.error ? 'bg-red-50' : 'bg-white'}>
-                        <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                        <td className="px-3 py-2 font-mono text-gray-800">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
-                        <td className="px-3 py-2 text-gray-800">{row.name || <span className="text-red-400">（空）</span>}</td>
-                        <td className="px-3 py-2 text-gray-600">{row.category}</td>
-                        <td className="px-3 py-2 text-gray-600">{row.vendor}</td>
-                        <td className="px-3 py-2 text-gray-600">{row.status}</td>
-                        <td className="px-3 py-2 text-gray-500 text-xs">{row.tags.join('、')}</td>
-                        <td className="px-3 py-2 text-gray-500 truncate max-w-[8rem]" title={row.notes}>{row.notes}</td>
-                        <td className="px-3 py-2 text-gray-500">{row.net_weight ?? '—'}</td>
+                      <tr key={i} className={row.error ? 'bg-red-50' : 'bg-white hover:bg-[#faf6f0]'}>
+                        <td className="px-3 py-2 text-[#a08060]">{i + 1}</td>
+                        <td className="px-3 py-2 font-mono text-[#3d2b1a]">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
+                        <td className="px-3 py-2 text-[#3d2b1a]">{row.name || <span className="text-red-400">（空）</span>}</td>
+                        <td className="px-3 py-2 text-[#6b4c2e]">{row.category}</td>
+                        <td className="px-3 py-2 text-[#6b4c2e]">{row.vendor}</td>
+                        <td className="px-3 py-2 text-[#6b4c2e]">{row.status}</td>
+                        <td className="px-3 py-2 text-[#8a6a4a] text-xs">{row.tags.join('、')}</td>
+                        <td className="px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem]" title={row.notes}>{row.notes}</td>
+                        <td className="px-3 py-2 text-[#8a6a4a]">{row.net_weight ?? '—'}</td>
                         {row.error && (
                           <td className="px-3 py-2">
                             <span className="flex items-center gap-1 text-red-500 text-xs whitespace-nowrap">
@@ -294,24 +308,24 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
           {/* Step: done */}
           {step === 'done' && result && (
             <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 bg-green-50 rounded-xl">
-                <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="font-medium text-green-800">匯入完成</p>
-                  <p className="text-sm text-green-700 mt-0.5">成功新增 {result.inserted} 筆料卡</p>
+                  <p className="font-medium text-emerald-800">匯入完成</p>
+                  <p className="text-sm text-emerald-700 mt-0.5">成功新增 {result.inserted} 筆料卡</p>
                   {result.updated > 0 && (
-                    <p className="text-sm text-green-700 mt-0.5">更新 {result.updated} 筆料卡</p>
+                    <p className="text-sm text-emerald-700 mt-0.5">更新 {result.updated} 筆料卡</p>
                   )}
                 </div>
               </div>
               {result.skipped.length > 0 && (
-                <div className="p-4 bg-yellow-50 rounded-xl text-sm">
-                  <p className="font-medium text-yellow-800 mb-1">跳過（料號已存在）{result.skipped.length} 筆</p>
-                  <p className="text-yellow-700 font-mono text-xs">{result.skipped.join('、')}</p>
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-sm">
+                  <p className="font-medium text-amber-800 mb-1">跳過（料號已存在）{result.skipped.length} 筆</p>
+                  <p className="text-amber-700 font-mono text-xs">{result.skipped.join('、')}</p>
                 </div>
               )}
               {result.errors.length > 0 && (
-                <div className="p-4 bg-red-50 rounded-xl text-sm">
+                <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-sm">
                   <p className="font-medium text-red-800 mb-1">寫入失敗 {result.errors.length} 筆</p>
                   <ul className="text-red-700 text-xs space-y-0.5">
                     {result.errors.map((e, i) => <li key={i}>{e}</li>)}
@@ -323,19 +337,19 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[#e8ddd4] bg-[#faf6f0] rounded-b-2xl">
           {step === 'upload' && (
-            <button onClick={handleClose} className="text-sm text-gray-500 hover:text-gray-700">取消</button>
+            <button onClick={handleClose} className="text-sm text-[#a08060] hover:text-[#7a5230]">取消</button>
           )}
           {step === 'preview' && (
             <>
-              <button onClick={() => setStep('upload')} className="text-sm text-gray-500 hover:text-gray-700">
+              <button onClick={() => setStep('upload')} className="text-sm text-[#a08060] hover:text-[#7a5230]">
                 重新上傳
               </button>
               <button
                 onClick={handleImport}
                 disabled={importing || validRows.length === 0}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors focus:outline-none"
+                className="flex items-center gap-2 px-5 py-2 bg-[#7a5230] hover:bg-[#6a4520] text-white text-sm font-medium rounded-lg disabled:opacity-40 transition-colors focus:outline-none"
               >
                 {importing && <Loader2 className="h-4 w-4 animate-spin" />}
                 確認匯入 {validRows.length} 筆
@@ -345,7 +359,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
           {step === 'done' && (
             <button
               onClick={handleClose}
-              className="ml-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none"
+              className="ml-auto px-5 py-2 bg-[#7a5230] hover:bg-[#6a4520] text-white text-sm font-medium rounded-lg transition-colors focus:outline-none"
             >
               完成
             </button>
