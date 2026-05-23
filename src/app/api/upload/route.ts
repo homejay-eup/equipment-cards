@@ -96,6 +96,13 @@ export async function PATCH(req: NextRequest) {
         .eq('equipment_id', equipment_id)
 
       if (error) throw error
+    } else if (type === 'weight') {
+      const { error } = await supabase
+        .from('equipment_cards')
+        .update({ weight_photo: url, weight_photo_public_id: public_id })
+        .eq('equipment_id', equipment_id)
+
+      if (error) throw error
     } else {
       // detail：將新物件 append 進 detail_photos 陣列
       const { data, error: fetchError } = await supabase

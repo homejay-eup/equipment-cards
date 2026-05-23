@@ -23,6 +23,7 @@ interface FormState {
   status: string
   tags: string
   notes: string
+  net_weight: string
 }
 
 interface PendingDetail {
@@ -103,6 +104,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const router = useRouter()
   const mainFileRef   = useRef<HTMLInputElement>(null)
   const detailFileRef = useRef<HTMLInputElement>(null)
+  const weightFileRef = useRef<HTMLInputElement>(null)
 
   const defaultStatus = settings.statuses[0] ?? '現役'
 
@@ -116,6 +118,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     status:       card?.status ?? defaultStatus,
     tags:         card?.tags.join(', ') ?? '',
     notes:        card?.notes ?? '',
+    net_weight:   card?.net_weight?.toString() ?? '',
   })
 
   const [isNew, setIsNew] = useState<boolean>(card?.is_new ?? true)
@@ -133,6 +136,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   })
   const [deleteMainPending, setDeleteMainPending]   = useState(false)
   const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
+
+  const [weightPhotoFile, setWeightPhotoFile]           = useState<File | null>(null)
+  const [weightPhotoPreview, setWeightPhotoPreview]     = useState<string | null>(card?.weight_photo ?? null)
+  const [deleteWeightPhotoPending, setDeleteWeightPhotoPending] = useState(false)
 
   const [documents, setDocuments] = useState<EquipmentDocument[]>(card?.documents ?? [])
 
@@ -154,6 +161,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       status:       card?.status ?? defaultStatus,
       tags:         card?.tags.join(', ') ?? '',
       notes:        card?.notes ?? '',
+      net_weight:   card?.net_weight?.toString() ?? '',
     })
     setIsNew(card?.is_new ?? true)
     setMainPhoto(card?.main_photo ?? null)
@@ -164,6 +172,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setPendingDetails([])
     setDeleteMainPending(false)
     setDeleteDetailIds(new Set())
+    setWeightPhotoFile(null)
+    setWeightPhotoPreview(card?.weight_photo ?? null)
+    setDeleteWeightPhotoPending(false)
     setError(null)
     setPhotoError(null)
     setSelectMode(false)
@@ -188,6 +199,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   function handleClose() {
     if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
     pendingDetails.forEach(p => URL.revokeObjectURL(p.preview))
+    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
+      URL.revokeObjectURL(weightPhotoPreview)
+    }
     onClose()
   }
 
@@ -236,7 +250,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const res = await fetch('/api/cards', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew, documents }),
+        body: JSON.stringify({
+          ...form,
+          tags: parseTags(form.tags),
+          is_new: isNew,
+          documents,
+          net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? '建立失敗'); return }
@@ -258,6 +278,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
           }
         } catch (e) { setError(`料卡已建立，但細節照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
+      if (weightPhotoFile) {
+        setUploading(true)
+        try { await uploadPhoto(weightPhotoFile, equipId, 'weight') }
+        catch (e) { setError(`料卡已建立，但淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
         finally { setUploading(false) }
       }
 
@@ -283,6 +310,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           ...form, tags: parseTags(form.tags), is_new: isNew,
           detail_photo_captions: detailCaptions,
           documents,
+          net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
+          delete_weight_photo: deleteWeightPhotoPending && !weightPhotoFile,
         }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
@@ -319,6 +348,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             await uploadPhoto(pendingDetails[i].file, equipId, `detail_${base}_${i}`)
           }
         } catch (e) { setError(`細節照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
+      if (weightPhotoFile) {
+        setUploading(true)
+        try { await uploadPhoto(weightPhotoFile, equipId, 'weight') }
+        catch (e) { setError(`淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
         finally { setUploading(false) }
       }
 
@@ -371,6 +407,29 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setDeleteDetailIds(prev => new Set([...Array.from(prev), publicId]))
   }
 
+  function handleWeightPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
+      URL.revokeObjectURL(weightPhotoPreview)
+    }
+    setWeightPhotoFile(file)
+    setWeightPhotoPreview(URL.createObjectURL(file))
+    setDeleteWeightPhotoPending(false)
+  }
+
+  function handleDeleteWeightPhoto() {
+    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
+      URL.revokeObjectURL(weightPhotoPreview)
+      setWeightPhotoFile(null)
+      setWeightPhotoPreview(null)
+    } else {
+      setDeleteWeightPhotoPending(true)
+      setWeightPhotoPreview(null)
+    }
+  }
+
   function toggleSelectDetail(publicId: string) {
     setSelectedDetailIds(prev => { const n = new Set(prev); if (n.has(publicId)) { n.delete(publicId) } else { n.add(publicId) }; return n })
   }
@@ -391,6 +450,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const isBusy = saving || uploading
   const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
   const visibleDetails = detailPhotos.filter(p => !deleteDetailIds.has(p.public_id))
+  const currentWeightPhoto = weightPhotoPreview
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -505,6 +565,52 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               rows={5} placeholder="補充說明…"
               className={`${inputCls} resize-none`}
             />
+          </div>
+
+          {/* 淨重（kg） */}
+          <div>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-1">淨重（kg）</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.net_weight}
+              onChange={e => set('net_weight', e.target.value)}
+              placeholder="例：1.25"
+              disabled={isBusy}
+              className={`${inputCls} disabled:opacity-50`}
+            />
+          </div>
+
+          {/* 淨重照片 */}
+          <div>
+            <label className="block text-sm font-medium text-[#6b4f38] mb-2">淨重照片</label>
+            {currentWeightPhoto ? (
+              <div className="flex items-center gap-3">
+                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-[rgba(122,82,48,.2)] bg-[#e8ddd0] flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={currentWeightPhoto} alt="淨重照片" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
+                    className="text-sm text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
+                    更換照片
+                  </button>
+                  <button type="button" onClick={handleDeleteWeightPhoto} disabled={isBusy}
+                    className="text-sm text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
+                    刪除照片
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
+                className="flex items-center gap-2 border-2 border-dashed border-[#e8ddd0] rounded-lg px-4 py-3 text-sm text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
+                <Upload className="h-4 w-4" />
+                上傳淨重照片
+              </button>
+            )}
+            <input ref={weightFileRef} type="file" accept="image/*" className="hidden"
+              onChange={handleWeightPhotoChange} />
           </div>
 
           {/* 文件連結 */}

@@ -38,6 +38,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
+    ...(card.weight_photo ? [{ url: card.weight_photo, label: '淨重照', caption: undefined as string | undefined }] : []),
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
@@ -252,6 +253,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                   </div>
                 )}
+                {card.net_weight != null && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">淨重</p>
+                    <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
+                  </div>
+                )}
                 {onBookmarkNotesChange && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
@@ -338,6 +345,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">備註</p>
                         <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                      </div>
+                    )}
+                    {card.net_weight != null && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">淨重</p>
+                        <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
                       </div>
                     )}
                     {onBookmarkNotesChange && (

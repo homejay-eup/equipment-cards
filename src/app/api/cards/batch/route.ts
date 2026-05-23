@@ -17,6 +17,7 @@ interface BatchRow {
   status?: string
   tags?: string[]
   notes?: string
+  net_weight?: number
 }
 
 // ── POST /api/cards/batch ─────────────────────────────────────
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabase()
   const inserted: string[] = []
+  const updated: string[] = []
   const skipped: string[] = []
   const errors: string[] = []
 
@@ -54,11 +56,35 @@ export async function POST(req: NextRequest) {
         tags: Array.isArray(row.tags) ? row.tags : [],
         notes: row.notes?.trim() || null,
         detail_photos: [],
+        net_weight: (typeof row.net_weight === 'number' && !isNaN(row.net_weight)) ? row.net_weight : null,
       })
 
     if (error) {
       if (error.code === '23505') {
-        skipped.push(row.equipment_id)
+        // 料號已存在：改為更新有提供且非空的欄位
+        const updatePayload: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+        }
+        if (row.name.trim()) updatePayload.name = row.name.trim()
+        if (row.category?.trim()) updatePayload.category = row.category.trim()
+        if (row.vendor?.trim()) updatePayload.vendor = row.vendor.trim()
+        if (row.status?.trim()) updatePayload.status = row.status.trim()
+        if (Array.isArray(row.tags) && row.tags.length > 0) updatePayload.tags = row.tags
+        if (row.notes?.trim()) updatePayload.notes = row.notes.trim()
+        if (typeof row.net_weight === 'number' && !isNaN(row.net_weight)) {
+          updatePayload.net_weight = row.net_weight
+        }
+
+        const { error: updateError } = await supabase
+          .from('equipment_cards')
+          .update(updatePayload)
+          .eq('equipment_id', row.equipment_id.trim())
+
+        if (updateError) {
+          errors.push(`${row.equipment_id}：${updateError.message}`)
+        } else {
+          updated.push(row.equipment_id)
+        }
       } else {
         errors.push(`${row.equipment_id}：${error.message}`)
       }
@@ -67,5 +93,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ inserted: inserted.length, skipped, errors })
+  return NextResponse.json({ inserted: inserted.length, updated: updated.length, skipped, errors })
 }

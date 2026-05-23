@@ -21,6 +21,9 @@ export interface EquipmentCard {
   main_photo: string | null
   main_photo_public_id: string | null
   detail_photos: DetailPhoto[]
+  net_weight: number | null
+  weight_photo: string | null
+  weight_photo_public_id: string | null
   documents: Document[]
   is_new: boolean
   created_at: string

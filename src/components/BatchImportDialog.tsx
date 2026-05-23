@@ -19,6 +19,7 @@ interface ParsedRow {
   status: string
   tags: string[]
   notes: string
+  net_weight?: number
   error?: string
 }
 
@@ -50,23 +51,54 @@ function parseCSV(text: string): string[][] {
 }
 
 function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
-  const raw = parseCSV(text)
-  if (raw.length === 0) return []
+  // 去除 Excel UTF-8 BOM（﻿），否則第一欄 header 比對會失敗
+  const raw = parseCSV(text.replace(/^﻿/, ''))
+  if (raw.length < 2) return []
 
-  // 自動跳過標題列（若第一欄為 equipment_id）
-  const start = raw[0][0]?.toLowerCase() === 'equipment_id' ? 1 : 0
+  // 第一列為 header
+  const headers = raw[0].map(h => h.trim().toLowerCase())
+
+  // header 名稱對應（支援中英文）
+  function col(row: string[], ...names: string[]): string {
+    for (const name of names) {
+      const idx = headers.indexOf(name)
+      if (idx !== -1) return row[idx]?.trim() ?? ''
+    }
+    return ''
+  }
+
   const validStatuses = settings.statuses
 
-  return raw.slice(start).map(cols => {
-    const [equipment_id = '', name = '', category = '', vendor = '', status = '', tagsRaw = '', notes = ''] = cols
+  return raw.slice(1).map(cols => {
+    const equipment_id = col(cols, 'equipment_id', '料號')
+    const name = col(cols, 'name', '品名')
+    const category = col(cols, 'category', '分類')
+    const vendor = col(cols, 'vendor', '廠商')
+    const status = col(cols, 'status', '狀態')
+    const tagsRaw = col(cols, 'tags', '標籤')
+    const notes = col(cols, 'notes', '備註')
+    const netWeightRaw = col(cols, 'net_weight', '淨重', '淨重(kg)', '淨重（kg）')
+
     const tags = tagsRaw ? tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : []
+    const net_weight = netWeightRaw ? parseFloat(netWeightRaw) : undefined
 
     let error: string | undefined
-    if (!equipment_id.trim()) error = '料號為必填'
-    else if (!name.trim()) error = '品名為必填'
+    if (!equipment_id) error = '料號為必填'
+    else if (!name) error = '品名為必填'
     else if (status && !validStatuses.includes(status)) error = `狀態「${status}」無效，請填 ${validStatuses.join(' 或 ')}`
+    else if (netWeightRaw && (isNaN(net_weight!) || net_weight! < 0)) error = `淨重「${netWeightRaw}」格式錯誤，請填數字`
 
-    return { equipment_id: equipment_id.trim(), name: name.trim(), category: category.trim(), vendor: vendor.trim(), status: status.trim() || validStatuses[0], tags, notes: notes.trim(), error }
+    return {
+      equipment_id,
+      name,
+      category,
+      vendor,
+      status: status || validStatuses[0],
+      tags,
+      notes,
+      net_weight,
+      error,
+    }
   })
 }
 
@@ -74,6 +106,7 @@ type Step = 'upload' | 'preview' | 'done'
 
 interface ImportResult {
   inserted: number
+  updated: number
   skipped: string[]
   errors: string[]
 }
@@ -138,7 +171,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
       const data = await res.json()
       setResult(data)
       setStep('done')
-      if (data.inserted > 0) router.refresh()
+      if (data.inserted > 0 || data.updated > 0) router.refresh()
     } catch {
       alert('匯入失敗，請重試')
     } finally {
@@ -226,7 +259,8 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                       <th className="px-3 py-2 text-left font-medium">廠商</th>
                       <th className="px-3 py-2 text-left font-medium">狀態</th>
                       <th className="px-3 py-2 text-left font-medium">標籤</th>
-                      <th className="px-3 py-2 text-left font-medium w-32">備注</th>
+                      <th className="px-3 py-2 text-left font-medium w-32">備註</th>
+                      <th className="px-3 py-2 text-left font-medium">淨重（kg）</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -240,6 +274,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                         <td className="px-3 py-2 text-gray-600">{row.status}</td>
                         <td className="px-3 py-2 text-gray-500 text-xs">{row.tags.join('、')}</td>
                         <td className="px-3 py-2 text-gray-500 truncate max-w-[8rem]" title={row.notes}>{row.notes}</td>
+                        <td className="px-3 py-2 text-gray-500">{row.net_weight ?? '—'}</td>
                         {row.error && (
                           <td className="px-3 py-2">
                             <span className="flex items-center gap-1 text-red-500 text-xs whitespace-nowrap">
@@ -264,6 +299,9 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                 <div>
                   <p className="font-medium text-green-800">匯入完成</p>
                   <p className="text-sm text-green-700 mt-0.5">成功新增 {result.inserted} 筆料卡</p>
+                  {result.updated > 0 && (
+                    <p className="text-sm text-green-700 mt-0.5">更新 {result.updated} 筆料卡</p>
+                  )}
                 </div>
               </div>
               {result.skipped.length > 0 && (

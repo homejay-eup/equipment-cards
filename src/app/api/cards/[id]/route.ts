@@ -32,7 +32,7 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, documents } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, documents, net_weight, delete_weight_photo } = body
 
     const supabase = getSupabase()
 
@@ -48,6 +48,24 @@ export async function PATCH(
       }
     }
 
+    // 若需要刪除淨重照片，先取出 public_id 再清除 Cloudinary
+    let weightPhotoOverride: { weight_photo: null; weight_photo_public_id: null } | Record<string, never> = {}
+    if (delete_weight_photo === true) {
+      const { data: current } = await supabase
+        .from('equipment_cards')
+        .select('weight_photo_public_id')
+        .eq('equipment_id', params.id)
+        .single()
+      if (current?.weight_photo_public_id) {
+        try {
+          await getCloudinary().uploader.destroy(current.weight_photo_public_id)
+        } catch {
+          // 刪除失敗不影響後續更新
+        }
+      }
+      weightPhotoOverride = { weight_photo: null, weight_photo_public_id: null }
+    }
+
     const { data, error } = await supabase
       .from('equipment_cards')
       .update({
@@ -60,6 +78,8 @@ export async function PATCH(
         notes: notes?.trim() || null,
         ...(typeof is_new === 'boolean' ? { is_new } : {}),
         ...(Array.isArray(documents) ? { documents } : {}),
+        net_weight: (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null,
+        ...weightPhotoOverride,
         updated_at: new Date().toISOString(),
         updated_by: adminUser.email ?? null,
       })
@@ -112,7 +132,7 @@ export async function DELETE(
     // 1. 取得料卡（需要照片 public_id）
     const { data: card, error: fetchError } = await supabase
       .from('equipment_cards')
-      .select('main_photo_public_id, detail_photos')
+      .select('main_photo_public_id, detail_photos, weight_photo_public_id')
       .eq('equipment_id', params.id)
       .single()
 
@@ -123,6 +143,7 @@ export async function DELETE(
     if (card?.main_photo_public_id) publicIds.push(card.main_photo_public_id)
     const details: { public_id: string }[] = card?.detail_photos ?? []
     details.forEach(p => publicIds.push(p.public_id))
+    if (card?.weight_photo_public_id) publicIds.push(card.weight_photo_public_id)
 
     await Promise.allSettled(
       publicIds.map(id => cdn.uploader.destroy(id))
