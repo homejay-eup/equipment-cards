@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
     if (!equipment_id || !type) {
       return NextResponse.json({ error: 'equipment_id and type are required' }, { status: 400 })
     }
+    // 拒絕裸字 'weight'，強制要求帶後綴（如 weight_1234_0），避免多張照片的 public_id 衝突
+    if (type === 'weight') {
+      return NextResponse.json({ error: "type 'weight' requires suffix, e.g. weight_1234_0" }, { status: 400 })
+    }
 
     const folder    = process.env.CLOUDINARY_UPLOAD_FOLDER ?? 'equipment-cards'
     const timestamp = Math.floor(Date.now() / 1000)
@@ -96,13 +100,25 @@ export async function PATCH(req: NextRequest) {
         .eq('equipment_id', equipment_id)
 
       if (error) throw error
-    } else if (type === 'weight') {
-      const { error } = await supabase
+    } else if (type === 'weight' || type.startsWith('weight_')) {
+      // 將新照片 append 進 weight_photos 陣列
+      const { data: wData, error: wFetchError } = await supabase
         .from('equipment_cards')
-        .update({ weight_photo: url, weight_photo_public_id: public_id })
+        .select('weight_photos')
+        .eq('equipment_id', equipment_id)
+        .single()
+
+      if (wFetchError) throw wFetchError
+
+      const existingW: { public_id: string; url: string }[] = wData?.weight_photos ?? []
+      const updatedW = [...existingW, { public_id, url }]
+
+      const { error: wError } = await supabase
+        .from('equipment_cards')
+        .update({ weight_photos: updatedW })
         .eq('equipment_id', equipment_id)
 
-      if (error) throw error
+      if (wError) throw wError
     } else {
       // detail：將新物件 append 進 detail_photos 陣列
       const { data, error: fetchError } = await supabase

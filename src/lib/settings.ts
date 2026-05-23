@@ -16,8 +16,9 @@ export async function getSettings(): Promise<AppSettings> {
 
     const settings: AppSettings = { ...DEFAULT_SETTINGS }
     for (const row of data) {
-      if (row.key === 'categories' && Array.isArray(row.value)) settings.categories = row.value
-      if (row.key === 'statuses'   && Array.isArray(row.value)) settings.statuses   = row.value
+      if (row.key === 'categories'    && Array.isArray(row.value)) settings.categories    = row.value
+      if (row.key === 'statuses'      && Array.isArray(row.value)) settings.statuses      = row.value
+      if (row.key === 'documentTypes' && Array.isArray(row.value)) settings.documentTypes = row.value
     }
     return settings
   } catch {

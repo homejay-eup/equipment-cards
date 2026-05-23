@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Settings, X, Plus, Loader2 } from 'lucide-react'
 
 interface Props {
-  settingKey: 'categories' | 'statuses'
+  settingKey: 'categories' | 'statuses' | 'documentTypes'
   items: string[]
   /** 按「確認」後回傳最新清單（已寫入 DB） */
   onConfirm: (newItems: string[]) => void
@@ -99,7 +99,7 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
           className="w-52 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_8px_30px_rgba(122,82,48,.18)] p-3 flex flex-col gap-2"
         >
           <p className="text-xs font-semibold text-[#7a5230]">
-            {settingKey === 'categories' ? '分類選項' : '狀態選項'}
+            {settingKey === 'categories' ? '分類選項' : settingKey === 'statuses' ? '狀態選項' : '文件類型'}
           </p>
 
           <ul className="space-y-1 max-h-48 overflow-y-auto">
