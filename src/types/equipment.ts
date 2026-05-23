@@ -1,6 +1,7 @@
 export interface DetailPhoto {
   public_id: string
   url: string
+  caption?: string
 }
 
 export interface EquipmentCard {

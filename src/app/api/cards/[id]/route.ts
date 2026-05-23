@@ -32,7 +32,7 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions } = body
 
     const supabase = getSupabase()
 
@@ -67,6 +67,26 @@ export async function PATCH(
       .single()
 
     if (error) throw error
+
+    // 合併 caption 更新（不影響 public_id / url）
+    if (detail_photo_captions && typeof detail_photo_captions === 'object' && !Array.isArray(detail_photo_captions)) {
+      const finalId = (newId && newId.trim() !== params.id) ? newId.trim() : params.id
+      const { data: current } = await supabase
+        .from('equipment_cards')
+        .select('detail_photos')
+        .eq('equipment_id', finalId)
+        .single()
+      if (current?.detail_photos) {
+        const merged = (current.detail_photos as Array<{public_id: string; url: string; caption?: string}>).map(p => {
+          const cap = (detail_photo_captions as Record<string, string>)[p.public_id]
+          if (cap === undefined) return p
+          if (!cap) return { ...p, caption: undefined }
+          return { ...p, caption: cap }
+        })
+        await supabase.from('equipment_cards').update({ detail_photos: merged }).eq('equipment_id', finalId)
+      }
+    }
+
     return NextResponse.json(data)
   } catch (err) {
     console.error('[cards] update error', err)
