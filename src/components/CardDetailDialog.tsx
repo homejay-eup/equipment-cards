@@ -18,6 +18,11 @@ interface Props {
 
 const SWIPE_THRESHOLD = 50
 
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
 export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖' }] : []),
@@ -214,6 +219,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                   </div>
                 )}
+                <div className="pt-1 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
+                  <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                  <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                  {isAdmin && card.updated_by && (
+                    <p className="text-xs text-[#b0967a]">更新人員：{card.updated_by}</p>
+                  )}
+                </div>
               </div>
               <ThumbnailStrip />
             </div>
@@ -261,6 +273,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                       </div>
                     )}
+                    <div className="pt-2 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
+                      <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                      <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                      {isAdmin && card.updated_by && (
+                        <p className="text-xs text-[#b0967a]">更新人員：{card.updated_by}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <ThumbnailStrip />

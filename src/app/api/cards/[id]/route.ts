@@ -25,7 +25,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  if (!await requireAdmin()) {
+  const adminUser = await requireAdmin()
+  if (!adminUser) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -59,6 +60,7 @@ export async function PATCH(
         notes: notes?.trim() || null,
         ...(typeof is_new === 'boolean' ? { is_new } : {}),
         updated_at: new Date().toISOString(),
+        updated_by: adminUser.email ?? null,
       })
       .eq('equipment_id', params.id)
       .select()
