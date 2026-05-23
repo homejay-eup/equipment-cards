@@ -214,6 +214,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       {card.category}
                     </span>
                   )}
+                  {card.vendor && (
+                    <span className="text-xs text-[#a08060]">{card.vendor}</span>
+                  )}
                 </div>
               </div>
               <div className="px-4 py-2 space-y-2">
@@ -264,7 +267,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           <span className="flex-1 leading-snug">{doc.name}</span>
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
                             doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
-                            : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                            : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
                             : 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border border-[rgba(156,107,66,.25)]'
                           }`}>
                             {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
@@ -309,6 +312,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
                           {card.category}
                         </span>
+                      )}
+                      {card.vendor && (
+                        <span className="text-xs text-[#a08060]">{card.vendor}</span>
                       )}
                     </div>
                   </DialogHeader>
@@ -360,7 +366,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                               <span className="flex-1 leading-snug">{doc.name}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
                                 doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
-                                : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                                : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
                                 : 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border border-[rgba(156,107,66,.25)]'
                               }`}>
                                 {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
