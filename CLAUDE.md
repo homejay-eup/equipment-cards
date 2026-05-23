@@ -1,161 +1,294 @@
-# 設備料卡管理系統
+# CLAUDE.md — 設備料卡管理系統（D 型專案執行）
 
-部門設備料卡管理系統，取代過大的 Excel 檔。使用人數 10–50 人，料卡 786 筆。
+此檔案供 Claude Code 全程使用，涵蓋討論、決策、執行委派、文件維護。
+實際程式執行由子 Agent 負責（`.claude/agents/`）。
 
-## 🚀 系統已上線
+---
 
-- **正式網址**：https://equipment-cards.vercel.app
-- **上次部署**：2026-05-03，所有功能正常運作
+## 專案規格
 
-## ✅ 開發進度（全部完成）
+- **產品名稱**：設備料卡管理系統（Equipment Cards）
+- **核心功能**：部門設備照片牆與管理後台，取代過大的 Excel 設備清單
+- **目標使用者**：公司內部 @eup.com.tw，10–50 人，786 筆料卡
+- **最在意的面向**：使用體驗 + 維護便利性
 
-| 步驟 | 狀態 | 說明 |
-|------|------|------|
-| Step 1：資料盤點 + Schema | ✅ 完成 | Supabase 資料表建立 |
-| Step 2：Supabase + Cloudinary 設定 | ✅ 完成 | 雲端服務設定完畢 |
-| Step 3：批次上傳 | ✅ 完成 | 786 筆料卡 + 1091 張細節照片 |
-| Step 4：Next.js 專案 + 照片牆 UI | ✅ 完成 | 卡片網格 + Lightbox |
-| Step 5：查詢、篩選、模糊搜尋 | ✅ 完成 | Fuse.js + 分類 + 狀態 + URL 同步 |
-| Step 6：Vercel 部署 + GitHub | ✅ 完成 | 自動部署，push 即上線 |
-| Step 7：登入驗證（Auth） | ✅ 完成 | Supabase Auth + Google OAuth，限 @eup.com.tw |
-| Step 8：管理員後台 | ✅ 完成 | 新增 / 編輯 / 刪除料卡 + 照片上傳 UI |
+### 技術架構
 
-## 🔑 服務帳號與網址
+- **前端**：Next.js 14 App Router + Tailwind CSS + shadcn/ui + Fuse.js
+- **資料庫/Auth**：Supabase（PostgreSQL + Google OAuth + RLS）
+- **照片儲存**：Cloudinary（免費 25GB，`dnqtafoh6`）
+- **部署**：Vercel Hobby（`equipment-cards` 專案，push 即自動部署）
+- **選型原因**：Supabase 免費且不需信用卡；Cloudinary 25GB 比 R2 10GB 大；Vercel + Next.js 同廠商零障礙
+- **排除選項**：Cloudflare R2（需信用卡，10GB 上限）、Firebase（比 Supabase 複雜）
 
-| 服務 | 帳號 / 資訊 |
+### 服務帳號速查
+
+| 服務 | 網址 / 識別 |
 |------|------------|
 | **GitHub** | https://github.com/homejay-eup/equipment-cards |
-| **Vercel** | https://vercel.com/hjs-projects-bc94d0b2/equipment-cards（專案名：equipment-cards）|
-| **Supabase** | https://supabase.com → 專案 `ntapfguwmuufnlafroxs` |
-| **Cloudinary** | https://cloudinary.com → Cloud Name: `dnqtafoh6` |
+| **Vercel** | https://vercel.com/hjs-projects-bc94d0b2/equipment-cards |
+| **Supabase** | 專案 `ntapfguwmuufnlafroxs` |
+| **Cloudinary** | Cloud Name: `dnqtafoh6` |
+| **線上網址** | https://equipment-cards.vercel.app |
 
-## ⚙️ 技術選型
-
-- **前端**：Next.js 14 + Tailwind CSS + shadcn/ui + Fuse.js
-- **資料庫**：Supabase（PostgreSQL）
-- **認證**：Supabase Auth + Google OAuth（@supabase/ssr）
-- **照片儲存**：Cloudinary（免費 25 GB）
-- **部署**：Vercel Hobby（GitHub 自動部署）
-
-## 🗂️ 分類系統（category + tags）
-
-`category` 欄位對應 UI 篩選按鈕：
-
-| 分類 | 說明 |
-|------|------|
-| 主機 | GPS 定位器、DVR、環保車機（1000xxx）|
-| 鏡頭 | 各式攝影機（2000xxx）|
-| 螢幕 | 車用螢幕（3000xxx）|
-| 儲存媒體 | 記憶卡、SSD、HDD（4000xxx）|
-| 線材 | 電源線、鏡頭線、轉接線（7000xxx）|
-| 配件 | ADAS、RFID、Smart Box、胎壓、酒測器等 |
-| 耗材 | 螺絲、螺帽、束帶、繼電器等 |
-| 工具 | 校正工具 |
-| 國外設備 | 進口設備 |
-
-`tags` 欄位由 `設備線材_照片Jason` 資料夾結構自動萃取：
-- 品牌標籤：`HS昇銳`、`FUHO馥鴻`、`格瑪車機`、`康訊車機` 等
-- 功能標籤：`ADAS`、`RFID`、`Smart Box`、`盲區`、`DMS`、`CAN設備` 等
-- 搜尋時可直接輸入標籤名稱（Fuse.js 模糊比對）
-
-若需重新更新 category/tags，執行：
-```bash
-node _開發檔案/scripts/update-categories.js
-```
-
-## 🗄️ 資料庫 Schema（equipment_cards 表）
+### 專案結構
 
 ```
-equipment_id          TEXT PRIMARY KEY      -- 如 1000003
-name                  TEXT NOT NULL
-category              TEXT                  -- 主機/鏡頭/螢幕/線材/配件/耗材…
-vendor                TEXT
-status                TEXT DEFAULT 'active' -- 'active' | 'discontinued'
-tags                  TEXT[]                -- 品牌/功能標籤，如 ["HS昇銳","RFID"]
-notes                 TEXT
-main_photo            TEXT                  -- Cloudinary secure_url
-main_photo_public_id  TEXT                  -- 刪除照片用
-detail_photos         JSONB                 -- [{"public_id":"…","url":"…"}]
-created_at            TIMESTAMPTZ
-updated_at            TIMESTAMPTZ
-```
-
-## 🔧 本機開發
-
-```bash
-# 1. 安裝依賴
-npm install
-
-# 2. 確認 .env.local 存在（內含所有金鑰）
-# 參考 .env.local.example
-
-# 3. 啟動開發伺服器
-npm run dev
-# → http://localhost:3000
-
-# 4. 部署上線（push 到 GitHub 即自動觸發）
-git add .
-git commit -m "說明"
-git push
-```
-
-## 🌐 部署流程
-
-| 方式 | 說明 |
-|------|------|
-| **自動**（推薦）| `git push` → GitHub → Vercel 自動部署 |
-| **手動**（備用）| `npx vercel --prod` |
-
-> **注意**：git commit 作者必須使用 `homejay@eup.com.tw`  
-> 本機已設定：`git config user.name "homejay-eup"` / `git config user.email "homejay@eup.com.tw"`  
-> 換電腦時需重新執行上述設定
-
-## 📁 專案檔案結構
-
-```
-設備料卡/                              ← Next.js 14 專案根目錄
-├── CLAUDE.md                          ← 本文件
-├── middleware.ts                      ← 路由保護（cookie 檢查，第一道防線）
+設備料卡/
+├── CLAUDE.md                          ← 本檔案
+├── middleware.ts                      ← 路由保護（cookie 檢查）
 ├── .env.local                         ← 環境變數（勿 commit）
-├── .env.local.example                 ← 環境變數範本
-├── next.config.mjs                    ← Cloudinary image domain 白名單
-├── tailwind.config.ts                 ← shadcn/ui CSS 變數設定
+├── .claude/
+│   └── agents/                        ← 子 Agent 定義
+│       ├── frontend.md
+│       ├── data.md
+│       ├── tester.md
+│       └── reviewer.md
+├── _管理/
+│   ├── 00_專案索引.md                 ← 必讀：步驟狀態總覽
+│   ├── 00_方案紀錄.md                 ← 按需讀：決策依據
+│   ├── 00_執行紀錄.md                 ← 按需讀：試做結果
+│   ├── 00_待整理清單.md               ← 暫存用
+│   └── 01_equipment-cards/
+│       ├── 00_專案概覽.md             ← Step 清單與狀態
+│       ├── specs/                     ← 功能規格文件
+│       └── archived/                  ← 舊版步驟冊
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx                 ← Root layout（Inter 字型）
-│   │   ├── page.tsx                   ← 首頁：驗證 session + 查詢角色
-│   │   ├── globals.css                ← Tailwind v3 + shadcn CSS 變數
-│   │   ├── login/page.tsx             ← 登入頁（Google OAuth 按鈕）
-│   │   ├── auth/callback/route.ts     ← OAuth 回調：取得 session cookie
+│   │   ├── layout.tsx
+│   │   ├── page.tsx                   ← 首頁（驗證 session + 查詢角色）
+│   │   ├── globals.css
+│   │   ├── login/page.tsx
+│   │   ├── auth/callback/route.ts
+│   │   ├── admin/users/               ← 帳號管理
 │   │   └── api/
-│   │       ├── upload/                ← 照片上傳/刪除 API routes
-│   │       └── cards/                 ← 料卡 CRUD API routes
+│   │       ├── upload/                ← 照片上傳/刪除
+│   │       └── cards/                 ← 料卡 CRUD
 │   ├── components/
-│   │   ├── PhotoWall.tsx              ← 搜尋 + 分類篩選 + Grid（Fuse.js）
-│   │   ├── EquipmentCardItem.tsx      ← 單張卡片縮圖元件（含管理員 hover 按鈕）
+│   │   ├── PhotoWall.tsx              ← 主頁（搜尋+篩選+網格）
+│   │   ├── EquipmentCardItem.tsx      ← 單張卡片縮圖
 │   │   ├── CardDetailDialog.tsx       ← 細節 Lightbox（照片輪播）
-│   │   ├── CardFormDialog.tsx         ← 新增／編輯料卡 Dialog（管理員用）
-│   │   ├── UserMenu.tsx               ← Header 右上角：email + 登出
+│   │   ├── CardFormDialog.tsx         ← 新增/編輯料卡 Dialog
+│   │   ├── BatchImportDialog.tsx      ← CSV 批次匯入
+│   │   ├── ConfirmDialog.tsx          ← 破壞性操作確認
+│   │   ├── UserMenu.tsx               ← Header 右上角
 │   │   └── ui/                        ← shadcn/ui 元件
-│   ├── hooks/usePhotoUpload.ts        ← 照片上傳 hook
+│   ├── hooks/usePhotoUpload.ts
 │   ├── lib/
-│   │   ├── supabase-server.ts         ← Server Component / API Route 用 client
-│   │   ├── supabase-browser.ts        ← 瀏覽器端用 client（登出用）
+│   │   ├── supabase-server.ts
+│   │   ├── supabase-browser.ts
 │   │   ├── admin.ts                   ← requireAdmin() / getUserRole()
-│   │   └── utils.ts                   ← cn() helper
-│   └── types/equipment.ts             ← EquipmentCard TypeScript 型別
-├── 設備線材_照片Jason/                ← 分類用資料夾（category/tags 來源）
-└── _開發檔案/                         ← 開發工具（排除在 tsconfig 外）
-    └── scripts/
-        ├── batch-upload.ts            ← 批次上傳腳本（已執行完畢，勿重複執行）
-        └── update-categories.js       ← 分類/標籤更新腳本
+│   │   └── utils.ts
+│   └── types/equipment.ts             ← EquipmentCard / AppSettings 型別
+├── _開發檔案/scripts/                 ← 一次性輔助腳本
+└── 設備線材_照片Jason/                ← 分類資料夾（本機，不進 git）
 ```
 
-## 🔮 未來可擴充方向
+### 目前進度
 
-- [x] 管理員後台：新增 / 編輯 / 刪除料卡（✅ 2026-05-03 完成）
-- [x] 照片上傳 UI（✅ 2026-05-03 完成）
-- [x] Supabase Auth 登入（限定公司成員）（✅ 2026-05-03 完成）
-- [ ] 廠商篩選器
-- [ ] 匯出 PDF / Excel 清單
-- [ ] 手機版 UI 優化
+- **已完成**：Step 1–8（資料盤點/部署/Auth/管理後台，2026-04-27 至 2026-05-03）
+- **進行中**：架構遷移 D 型（2026-05-23）
+- **待處理**：Step 9–16（分類更新/時間欄位/細節圖 caption/PDF 連結/個人備忘板等）
+
+### 規範與約定
+
+- 命名規則：TypeScript 檔案 `PascalCase`（元件）/ `camelCase`（hooks/lib）
+- UI 語言：繁體中文
+- 主題色：`#7a5230`（木質暖棕）、背景 `#faf6f0`、強調 `#c49a72`
+- **不要動的東西**：`.env.local`（含所有金鑰）、`設備線材_照片Jason/`（原始資料）
+
+#### 根目錄使用原則
+
+根目錄只允許：
+- 設定檔（`package.json`、`next.config.mjs`、`tsconfig.json`、`.env.local` 等）— **必須在根目錄**
+- `src/`、`public/`
+- `CLAUDE.md`、`.claude/`
+- `_管理/`、`_開發檔案/`
+
+#### 檔案放置規則
+
+| 類型 | 位置 |
+|------|------|
+| 頁面 | `src/app/`（路徑即 URL，不可移動） |
+| 共用元件 | `src/components/` |
+| shadcn/ui | `src/components/ui/` |
+| 自訂 hooks | `src/hooks/` |
+| 工具/API Client | `src/lib/` |
+| TypeScript 型別 | `src/types/` |
+| API Routes | `src/app/api/` |
+| 一次性腳本 | `_開發檔案/scripts/` |
+| Schema SQL | `_開發檔案/sql/` |
+| 規格文件 | `_管理/01_equipment-cards/specs/` |
+| **不確定時** | 停下來問，不擅自建立新資料夾 |
+
+### 完成標準
+
+- 每個功能完成後 `npm run build` 必須通過
+- 不確定時先問，不要自行假設
+- 照片操作採暫存機制（按儲存才呼叫 Cloudinary API）
+- 破壞性操作必須使用 `ConfirmDialog`，不用原生 `confirm()`
+
+### 已知問題 / 技術債
+
+- `useSearchParams()` 必須包在 `<Suspense>` 內（否則 build 失敗）
+- 三元運算式不能當 statement（ESLint `no-unused-expressions`，已踩過 3 次）
+- shadcn/ui Popover 在 overflow:hidden 父容器需改 fixed 定位
+- Fuse.js 純數字查詢要走 `includes`，不走模糊算法
+
+---
+
+## 此次任務（每次新對話時更新，執行完後清空）
+
+- 目前專案：
+- 當前步驟編號與名稱：
+- 本次要做的事：
+- 相依的前步驟產出：
+- 完成標準：
+
+---
+
+## 啟動行為
+
+每次對話開始時：
+
+1. 依優先順序讀取常駐檔：
+   - **必讀**：`_管理/00_專案索引.md`、`_管理/01_equipment-cards/00_專案概覽.md`
+   - **按需讀**：`_管理/00_方案紀錄.md`、`_管理/00_執行紀錄.md`
+   - **暫存用**：`_管理/00_待整理清單.md`
+2. 讀取「專案規格」與「此次任務」區塊
+3. 簡要告知目前進度（走到第幾步、各步驟狀態、上次執行結果）
+4. 詢問本次要做什麼
+
+---
+
+## 工作流程
+
+1. **啟動** → 讀常駐檔、報告進度、確認本次任務類型
+2. **腦力激盪階段**（主 session，不委派子 Agent）：
+   - 模糊概念 → 列選項優缺點後收斂
+   - 已有具體方案 → 評估優缺點，提出替代做法
+   - 技術選型 → 列選項優缺點與成本，確認後更新「技術架構」
+3. **逐步引導討論**：每次只問一個問題
+4. 討論告一段落時主動詢問：「要把以上討論整理並更新到常駐檔嗎？」確認後更新
+5. **執行前** → 提出「步驟結構與執行摘要」，確認後才委派子 Agent
+6. **委派執行** → 依任務類型呼叫對應子 Agent
+7. 執行結果有問題 → 依迭代規則處理
+
+---
+
+## 子 Agent 委派規則
+
+| 任務類型 | 委派給 | 備註 |
+|---|---|---|
+| UI 元件、頁面、前端邏輯、樣式 | `frontend` | 告知相關檔案路徑與規格文件 |
+| Supabase Schema、API Routes、RLS | `data` | 告知 schema 與操作需求 |
+| Build 驗證、功能情境 | `tester` | 告知要測試的功能與完成標準 |
+| Code Review、安全性、效能審查 | `reviewer` | tester 通過後呼叫 |
+
+**標準執行順序（新功能）**：
+```
+frontend／data 執行 → tester 驗證 → reviewer 審查 → 主 Agent 整合回報
+```
+
+**不委派的情況**：
+- 小幅修改（單檔、10 行以內）
+- 純文件更新（常駐檔、.md）
+
+---
+
+## 迭代規則（三類）
+
+**類型 1：當前步驟重來**
+1. 舊版移入 `_管理/01_equipment-cards/archived/`
+2. 分析原因，記入 `00_執行紀錄.md`
+3. 調整做法，重新委派
+
+**類型 2：前步驟決策改變**
+1. 確認哪個步驟的決策要改
+2. 版號 +1，舊版 archived
+3. 確認受影響步驟需要重跑的範圍
+
+**類型 3：整個方案推翻**
+1. 所有步驟冊移入 `archived/`
+2. 更新方案紀錄與執行紀錄
+3. 重新討論，產出新方案
+
+---
+
+## 常駐檔寫入規則（強制）
+
+1. **先讀再寫**：寫入前必須先讀取現有內容，比照格式繼續寫
+2. **只能追加**：只能在檔尾追加新條目，不允許重寫整個檔案
+   - 例外 1：狀態類欄位允許就地修改
+   - 例外 2：使用者明確要求重寫
+3. 格式不一致時停下來問
+
+---
+
+## 完成後動作（依序執行）
+
+1. 輸出回報格式（給使用者看）
+2. 將執行結果追加至 `_管理/00_執行紀錄.md`
+3. 清空「此次任務」區塊，還原為空白模板
+4. 更新「目前進度」
+
+**回報格式**：
+```
+## 執行結果
+
+- 完成項目：
+- 產出檔案：（列出所有新建或修改的檔案）
+- 遇到的問題：
+- 不滿意的點：（若有）
+- 建議下一步：
+- 已更新常駐檔：
+```
+
+---
+
+## CoreBrain 連接
+
+### 路徑宣告
+
+```
+知識庫根目錄：  C:\Users\jay10\.claude\CoreBrain\
+設備料卡實體：  C:\Users\jay10\.claude\CoreBrain\wiki\entities\equipment-cards-system(設備料卡管理系統).md
+Bug 百科：     C:\Users\jay10\.claude\CoreBrain\wiki\analyses\equipment-cards-bugs(Bug百科與教訓).md
+技術組合：     C:\Users\jay10\.claude\CoreBrain\wiki\concepts\web-dev\nextjs-supabase-cloudinary-stack(技術組合).md
+Auth 踩坑：   C:\Users\jay10\.claude\CoreBrain\wiki\concepts\web-dev\supabase-auth-google-oauth(認證與Google登入).md
+Cloudinary：  C:\Users\jay10\.claude\CoreBrain\wiki\concepts\web-dev\cloudinary-photo-management(照片管理).md
+```
+
+### 開發前必查
+
+開始新 Step 或技術選型討論前，主動查詢：
+- `equipment-cards-bugs` — 有無相關踩坑（必讀）
+- `equipment-cards-system` — 現有功能與 schema 狀態
+- `wiki/concepts/web-dev/` — 有無相關技術踩坑
+
+### 何時 ingest 到 CoreBrain
+
+| 內容 | 目的地 | 時機 |
+|------|--------|------|
+| 新功能完成、schema 變更 | `equipment-cards-system` entity | Step 完成後 |
+| 新 Bug 或踩坑 | `equipment-cards-bugs` analysis | 發現時 |
+| 可複用的技術模式 | `wiki/concepts/web-dev/` | 確認有通用價值時 |
+
+---
+
+## 本機開發
+
+```bash
+npm install        # 安裝依賴
+npm run dev        # 開發伺服器 → http://localhost:3000
+npm run build      # 確認無 build 錯誤
+git push           # 自動觸發 Vercel 部署
+```
+
+## 回答偏好
+
+- 簡潔，無開場白
+- 腦力激盪時主動列出選項優缺點，不替使用者做決定
+- 委派前說明要委派給哪個 Agent、做什麼
+- 步驟有相依關係時主動提出
+- 不確定直接說不知道，不擅自猜測
