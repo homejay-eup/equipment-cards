@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -15,9 +15,11 @@ interface Props {
   isSelected?: boolean
   onSelect?: () => void
   isNew?: boolean
+  isBookmarked?: boolean
+  onToggleBookmark?: () => void
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -78,6 +80,27 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           )}
         </div>
       </button>
+
+      {/* 收藏星號：圖片區右上角
+          - 非管理員：right-1.5（獨佔右上角）
+          - 管理員：right-[2.5rem]（刪除鍵左側，錯開不重疊）
+          - 已收藏常駐，未收藏 hover 顯示（touch 裝置也常駐）
+          - 選取模式隱藏 */}
+      {onToggleBookmark && !selectMode && (
+        <button
+          onClick={e => { e.stopPropagation(); onToggleBookmark() }}
+          className={`absolute top-1.5 z-10 p-1.5 rounded-md bg-white/90 backdrop-blur-sm shadow transition-colors ${
+            isAdmin ? 'right-[2.5rem]' : 'right-1.5'
+          } ${
+            isBookmarked
+              ? 'flex text-amber-400'
+              : 'hidden group-hover:flex [@media(hover:none)]:flex text-[#a08060] hover:text-amber-400'
+          }`}
+          title={isBookmarked ? '移除關注' : '加入關注'}
+        >
+          <Star className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-400' : ''}`} />
+        </button>
+      )}
 
       {/* 選取模式：右上角 checkbox */}
       {selectMode && (
