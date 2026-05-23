@@ -1,7 +1,14 @@
+export interface BookmarkRecord {
+  id: string
+  equipment_id: string
+  notes: string | null
+  created_at: string
+}
+
 export interface Document {
   name: string
   url: string
-  type: 'spec' | 'contract' | 'other'
+  type: string  // 改為 string（原本是 'spec' | 'contract' | 'other'）
 }
 
 export interface DetailPhoto {
@@ -22,8 +29,9 @@ export interface EquipmentCard {
   main_photo_public_id: string | null
   detail_photos: DetailPhoto[]
   net_weight: number | null
-  weight_photo: string | null
-  weight_photo_public_id: string | null
+  weight_photos: DetailPhoto[] | null  // 多張淨重照片；SQL migration 執行前舊資料為 null，程式碼一律用 `?? []`
+  weight_photo: string | null         // 保留：DB 舊欄位向下相容
+  weight_photo_public_id: string | null  // 保留：DB 舊欄位向下相容
   documents: Document[]
   is_new: boolean
   created_at: string
@@ -33,10 +41,12 @@ export interface EquipmentCard {
 
 export interface AppSettings {
   categories: string[]
-  statuses: string[]  // 第一個為預設「現役」狀態
+  statuses: string[]        // 第一個為預設「現役」狀態
+  documentTypes: string[]   // 新增：文件連結類型清單
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   categories: ['主機', '鏡頭', '螢幕', '天線', '儲存媒體', '線材', '配件', '耗材', '工具', '國外設備'],
   statuses: ['現役', '停產'],
+  documentTypes: ['規格書', '合約書', '其他'],
 }

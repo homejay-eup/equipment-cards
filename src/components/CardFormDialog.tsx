@@ -137,9 +137,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [deleteMainPending, setDeleteMainPending]   = useState(false)
   const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
 
-  const [weightPhotoFile, setWeightPhotoFile]           = useState<File | null>(null)
-  const [weightPhotoPreview, setWeightPhotoPreview]     = useState<string | null>(card?.weight_photo ?? null)
-  const [deleteWeightPhotoPending, setDeleteWeightPhotoPending] = useState(false)
+  const [existingWeightPhotos, setExistingWeightPhotos]           = useState<DetailPhoto[]>(card?.weight_photos ?? [])
+  const [pendingWeightPhotos, setPendingWeightPhotos]             = useState<PendingDetail[]>([])
+  const [deleteWeightPhotoIds, setDeleteWeightPhotoIds]           = useState<Set<string>>(new Set())
+  const [selectWeightMode, setSelectWeightMode]                   = useState(false)
+  const [selectedWeightIds, setSelectedWeightIds]                 = useState<Set<string>>(new Set())
+  const [selectedPendingWeightIdxs, setSelectedPendingWeightIdxs] = useState<Set<number>>(new Set())
 
   const [documents, setDocuments] = useState<EquipmentDocument[]>(card?.documents ?? [])
 
@@ -172,9 +175,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setPendingDetails([])
     setDeleteMainPending(false)
     setDeleteDetailIds(new Set())
-    setWeightPhotoFile(null)
-    setWeightPhotoPreview(card?.weight_photo ?? null)
-    setDeleteWeightPhotoPending(false)
+    setExistingWeightPhotos(card?.weight_photos ?? [])
+    setPendingWeightPhotos([])
+    setDeleteWeightPhotoIds(new Set())
+    setSelectWeightMode(false)
+    setSelectedWeightIds(new Set())
+    setSelectedPendingWeightIdxs(new Set())
     setError(null)
     setPhotoError(null)
     setSelectMode(false)
@@ -199,9 +205,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   function handleClose() {
     if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
     pendingDetails.forEach(p => URL.revokeObjectURL(p.preview))
-    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
-      URL.revokeObjectURL(weightPhotoPreview)
-    }
+    pendingWeightPhotos.forEach(p => URL.revokeObjectURL(p.preview))
     onClose()
   }
 
@@ -281,10 +285,14 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         finally { setUploading(false) }
       }
 
-      if (weightPhotoFile) {
+      if (pendingWeightPhotos.length > 0) {
         setUploading(true)
-        try { await uploadPhoto(weightPhotoFile, equipId, 'weight') }
-        catch (e) { setError(`料卡已建立，但淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        try {
+          const base = Date.now()
+          for (let i = 0; i < pendingWeightPhotos.length; i++) {
+            await uploadPhoto(pendingWeightPhotos[i].file, equipId, `weight_${base}_${i}`)
+          }
+        } catch (e) { setError(`料卡已建立，但淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
         finally { setUploading(false) }
       }
 
@@ -311,7 +319,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           detail_photo_captions: detailCaptions,
           documents,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
-          delete_weight_photo: deleteWeightPhotoPending && !weightPhotoFile,
         }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
@@ -351,10 +358,25 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         finally { setUploading(false) }
       }
 
-      if (weightPhotoFile) {
+      // 刪除已標記的淨重照片
+      if (deleteWeightPhotoIds.size > 0) {
         setUploading(true)
-        try { await uploadPhoto(weightPhotoFile, equipId, 'weight') }
-        catch (e) { setError(`淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        try {
+          for (const publicId of Array.from(deleteWeightPhotoIds)) {
+            await fetch(`/api/upload/${encodeURIComponent(publicId)}?equipment_id=${equipId}&type=weight`, { method: 'DELETE' })
+          }
+        } catch { /* non-fatal */ } finally { setUploading(false) }
+      }
+
+      // 上傳新淨重照片
+      if (pendingWeightPhotos.length > 0) {
+        setUploading(true)
+        try {
+          const base = Date.now()
+          for (let i = 0; i < pendingWeightPhotos.length; i++) {
+            await uploadPhoto(pendingWeightPhotos[i].file, equipId, `weight_${base}_${i}`)
+          }
+        } catch (e) { setError(`淨重照片上傳失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
         finally { setUploading(false) }
       }
 
@@ -407,27 +429,51 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setDeleteDetailIds(prev => new Set([...Array.from(prev), publicId]))
   }
 
-  function handleWeightPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handleAddWeightPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileArray = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
-      URL.revokeObjectURL(weightPhotoPreview)
+    if (!fileArray.length) return
+    if (mode === 'create') {
+      const equipId = form.equipment_id.trim()
+      if (!equipId) { setPhotoError('請先填入料號'); return }
     }
-    setWeightPhotoFile(file)
-    setWeightPhotoPreview(URL.createObjectURL(file))
-    setDeleteWeightPhotoPending(false)
+    const newItems: PendingDetail[] = fileArray.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
+    setPendingWeightPhotos(prev => [...prev, ...newItems])
   }
 
-  function handleDeleteWeightPhoto() {
-    if (weightPhotoPreview && weightPhotoPreview !== card?.weight_photo) {
-      URL.revokeObjectURL(weightPhotoPreview)
-      setWeightPhotoFile(null)
-      setWeightPhotoPreview(null)
-    } else {
-      setDeleteWeightPhotoPending(true)
-      setWeightPhotoPreview(null)
-    }
+  function handleDeleteExistingWeight(publicId: string) {
+    setDeleteWeightPhotoIds(prev => new Set([...Array.from(prev), publicId]))
+  }
+
+  function handleDeletePendingWeight(index: number) {
+    setPendingWeightPhotos(prev => {
+      URL.revokeObjectURL(prev[index].preview)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  function toggleSelectWeight(publicId: string) {
+    setSelectedWeightIds(prev => {
+      const n = new Set(prev)
+      if (n.has(publicId)) n.delete(publicId); else n.add(publicId)
+      return n
+    })
+  }
+
+  function toggleSelectPendingWeight(idx: number) {
+    setSelectedPendingWeightIdxs(prev => {
+      const n = new Set(prev)
+      if (n.has(idx)) n.delete(idx); else n.add(idx)
+      return n
+    })
+  }
+
+  function handleBatchDeleteWeight() {
+    selectedWeightIds.forEach(id => handleDeleteExistingWeight(id))
+    Array.from(selectedPendingWeightIdxs).sort((a, b) => b - a).forEach(idx => handleDeletePendingWeight(idx))
+    setSelectedWeightIds(new Set())
+    setSelectedPendingWeightIdxs(new Set())
+    setSelectWeightMode(false)
   }
 
   function toggleSelectDetail(publicId: string) {
@@ -450,7 +496,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const isBusy = saving || uploading
   const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
   const visibleDetails = detailPhotos.filter(p => !deleteDetailIds.has(p.public_id))
-  const currentWeightPhoto = weightPhotoPreview
+  const visibleWeightPhotos = existingWeightPhotos.filter(p => !deleteWeightPhotoIds.has(p.public_id))
+  const totalSelectedWeight = selectedWeightIds.size + selectedPendingWeightIdxs.size
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -571,9 +618,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           <div>
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">淨重（kg）</label>
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               value={form.net_weight}
               onChange={e => set('net_weight', e.target.value)}
               placeholder="例：1.25"
@@ -584,41 +630,127 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
 
           {/* 淨重照片 */}
           <div>
-            <label className="block text-sm font-medium text-[#6b4f38] mb-2">淨重照片</label>
-            {currentWeightPhoto ? (
-              <div className="flex items-center gap-3">
-                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-[rgba(122,82,48,.2)] bg-[#e8ddd0] flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={currentWeightPhoto} alt="淨重照片" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
-                    className="text-sm text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
-                    更換照片
-                  </button>
-                  <button type="button" onClick={handleDeleteWeightPhoto} disabled={isBusy}
-                    className="text-sm text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
-                    刪除照片
-                  </button>
-                </div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-[#6b4f38]">淨重照片</label>
+              {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && (
+                <button type="button" onClick={() => {
+                  setSelectWeightMode(v => !v)
+                  setSelectedWeightIds(new Set())
+                  setSelectedPendingWeightIdxs(new Set())
+                }} disabled={isBusy}
+                  className="text-xs text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors">
+                  {selectWeightMode ? '取消選取' : '選取'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {visibleWeightPhotos.map(photo => {
+                const isSelected = selectedWeightIds.has(photo.public_id)
+                return (
+                  <div
+                    key={photo.public_id}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectWeightMode
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#e8ddd0] cursor-pointer'
+                        : 'border-[rgba(122,82,48,.15)]'
+                    } bg-[#e8ddd0]`}
+                    onClick={selectWeightMode ? () => toggleSelectWeight(photo.public_id) : undefined}
+                  >
+                    <Image src={photo.url} alt="淨重照片" fill className="object-cover" />
+                    {selectWeightMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleDeleteExistingWeight(photo.public_id)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              {pendingWeightPhotos.map((item, idx) => {
+                const isSelected = selectedPendingWeightIdxs.has(idx)
+                return (
+                  <div
+                    key={idx}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectWeightMode
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#c49a72] cursor-pointer'
+                        : 'border-[#c49a72]'
+                    } bg-[#f2ebe0]`}
+                    onClick={selectWeightMode ? () => toggleSelectPendingWeight(idx) : undefined}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.preview} alt="淨重照片預覽" className="w-full h-full object-cover" />
+                    {selectWeightMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleDeletePendingWeight(idx)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+
+              {!selectWeightMode && (
+                <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
+                  <Plus className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {selectWeightMode && (
+              <div className="mt-3 flex items-center justify-between bg-[rgba(122,82,48,.05)] border border-[rgba(122,82,48,.18)] rounded-lg px-3 py-2">
+                <span className="text-sm text-[#6b4f38]">
+                  已選 <span className="font-semibold text-[#7a5230]">{totalSelectedWeight}</span> 張
+                </span>
+                <button type="button" onClick={handleBatchDeleteWeight}
+                  disabled={isBusy || totalSelectedWeight === 0}
+                  className="text-sm font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  刪除選取
+                </button>
               </div>
-            ) : (
-              <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
-                className="flex items-center gap-2 border-2 border-dashed border-[#e8ddd0] rounded-lg px-4 py-3 text-sm text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
-                <Upload className="h-4 w-4" />
-                上傳淨重照片
-              </button>
             )}
-            <input ref={weightFileRef} type="file" accept="image/*" className="hidden"
-              onChange={handleWeightPhotoChange} />
+
+            <input ref={weightFileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={handleAddWeightPhoto} />
           </div>
 
           {/* 文件連結 */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-[#6b4f38]">文件連結</label>
+              <label className="flex items-center gap-1 text-sm font-medium text-[#6b4f38]">
+                文件連結
+                <SettingsPopover
+                  settingKey="documentTypes"
+                  items={localSettings.documentTypes}
+                  onConfirm={types => setLocalSettings(prev => ({ ...prev, documentTypes: types }))}
+                  disabled={isBusy}
+                />
+              </label>
               <button type="button"
-                onClick={() => setDocuments(prev => [...prev, { name: '', url: '', type: 'spec' }])}
+                onClick={() => setDocuments(prev => [...prev, { name: '', url: '', type: localSettings.documentTypes[0] ?? '規格書' }])}
                 disabled={isBusy}
                 className="flex items-center gap-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
                 <Plus className="h-3.5 w-3.5" />
@@ -642,13 +774,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
                       />
                       <select
                         value={doc.type}
-                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, type: e.target.value as 'spec' | 'contract' | 'other' } : d))}
+                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, type: e.target.value } : d))}
                         disabled={isBusy}
                         className="border border-[#e8ddd0] rounded-lg px-2 py-1.5 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
                       >
-                        <option value="spec">規格書</option>
-                        <option value="contract">合約書</option>
-                        <option value="other">其他</option>
+                        {localSettings.documentTypes.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
                       </select>
                       <button type="button"
                         onClick={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))}

@@ -34,11 +34,15 @@ function fmtDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+function emailPrefix(email: string) {
+  return email.split('@')[0]
+}
+
 export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkId, bookmarkNotes, onToggleBookmark, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
-    ...(card.weight_photo ? [{ url: card.weight_photo, label: '淨重照', caption: undefined as string | undefined }] : []),
+    ...(card.weight_photos ?? []).map((p, i) => ({ url: p.url, label: `淨重 ${i + 1}`, caption: undefined as string | undefined })),
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
@@ -173,7 +177,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           <button
             onClick={onToggleBookmark}
             className={`absolute top-3 z-50 rounded-full backdrop-blur-sm p-1.5 shadow transition-opacity ${
-              isAdmin && onEdit ? 'right-[8rem]' : 'right-[4.75rem]'
+              isAdmin && onEdit ? 'right-[7rem]' : 'right-[4.75rem]'
             } ${
               bookmarkId
                 ? 'bg-[#fff9f4]/90 text-amber-400 opacity-100 hover:opacity-80'
@@ -281,11 +285,11 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           <FileText className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060] group-hover:text-[#7a5230]" />
                           <span className="flex-1 leading-snug">{doc.name}</span>
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
-                            doc.type === 'spec' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
-                            : doc.type === 'contract' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                            doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
+                            : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
                             : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
                           }`}>
-                            {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : '其他'}
+                            {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
                           </span>
                           <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50 group-hover:opacity-100" />
                         </a>
@@ -297,7 +301,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                   <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                   {isAdmin && card.updated_by && (
-                    <p className="text-xs text-[#b0967a]">更新人員：{card.updated_by}</p>
+                    <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                   )}
                 </div>
               </div>
@@ -375,11 +379,11 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                               <FileText className="h-4 w-4 flex-shrink-0 text-[#a08060] group-hover:text-[#7a5230]" />
                               <span className="flex-1 leading-snug">{doc.name}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
-                                doc.type === 'spec' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
-                                : doc.type === 'contract' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                                doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
+                                : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
                                 : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
                               }`}>
-                                {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : '其他'}
+                                {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
                               </span>
                               <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50 group-hover:opacity-100" />
                             </a>
@@ -391,7 +395,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                       <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                       {isAdmin && card.updated_by && (
-                        <p className="text-xs text-[#b0967a]">更新人員：{card.updated_by}</p>
+                        <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                       )}
                     </div>
                   </div>

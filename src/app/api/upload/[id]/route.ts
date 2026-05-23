@@ -71,6 +71,26 @@ export async function DELETE(
         .eq('equipment_id', equipment_id)
 
       if (error) throw error
+    } else if (type === 'weight') {
+      // 從 weight_photos 陣列移除對應 public_id
+      const { data: wData, error: wFetchError } = await supabase
+        .from('equipment_cards')
+        .select('weight_photos')
+        .eq('equipment_id', equipment_id)
+        .single()
+
+      if (wFetchError) throw wFetchError
+
+      const updatedW = (wData?.weight_photos ?? []).filter(
+        (p: { public_id: string }) => p.public_id !== public_id,
+      )
+
+      const { error: wError } = await supabase
+        .from('equipment_cards')
+        .update({ weight_photos: updatedW })
+        .eq('equipment_id', equipment_id)
+
+      if (wError) throw wError
     } else {
       // detail：從陣列中移除對應 public_id
       const { data, error: fetchError } = await supabase
