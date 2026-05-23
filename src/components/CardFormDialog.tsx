@@ -311,6 +311,25 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setSaving(true)
     setError(null)
     try {
+      // Compute what changed for the audit trail
+      const changedFields: string[] = []
+      const orig = card!
+      const newTags = parseTags(form.tags)
+      const newNetWeight = form.net_weight !== '' ? parseFloat(form.net_weight) : null
+      if (form.equipment_id.trim() !== orig.equipment_id) changedFields.push('料號')
+      if (form.name.trim() !== orig.name) changedFields.push('品名')
+      if ((form.category || null) !== orig.category) changedFields.push('分類')
+      if ((form.vendor?.trim() || null) !== orig.vendor) changedFields.push('廠商')
+      if (form.status !== orig.status) changedFields.push('狀態')
+      if (JSON.stringify([...newTags].sort()) !== JSON.stringify([...orig.tags].sort())) changedFields.push('標籤')
+      if ((form.notes?.trim() || null) !== orig.notes) changedFields.push('備註')
+      if (JSON.stringify(documents) !== JSON.stringify(orig.documents ?? [])) changedFields.push('文件')
+      if (newNetWeight !== orig.net_weight) changedFields.push('淨重')
+      if (isNew !== !!orig.is_new) changedFields.push('新品標記')
+      if (deleteMainPending || mainPhotoFile) changedFields.push('主圖')
+      if (deleteDetailIds.size > 0 || pendingDetails.length > 0) changedFields.push('細節照片')
+      if (deleteWeightPhotoIds.size > 0 || pendingWeightPhotos.length > 0) changedFields.push('淨重照片')
+
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -319,6 +338,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
           detail_photo_captions: detailCaptions,
           documents,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
+          updated_fields: changedFields,
         }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }

@@ -32,7 +32,7 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, documents, net_weight } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, documents, net_weight, updated_fields } = body
 
     const supabase = getSupabase()
 
@@ -63,6 +63,7 @@ export async function PATCH(
         net_weight: (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null,
         updated_at: new Date().toISOString(),
         updated_by: adminUser.email ?? null,
+        ...(Array.isArray(updated_fields) && updated_fields.length > 0 ? { updated_fields } : {}),
       })
       .eq('equipment_id', params.id)
       .select()

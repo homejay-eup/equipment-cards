@@ -4,7 +4,6 @@ import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink } from 'lucide-react'
 
 interface Props {
@@ -36,6 +35,7 @@ function emailPrefix(email: string) {
   return email.split('@')[0]
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkNotes, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
@@ -65,8 +65,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     touchStartX.current = null
     touchStartY.current = null
   }
-
-  const isActive = card.status === activeStatus || card.status === 'active'
 
   /* ── 照片內容（共用） ── */
   function PhotoContent({ sizes }: { sizes: string }) {
@@ -208,16 +206,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                 <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
                 <p className="text-sm font-bold text-[#5a3820] mt-0.5 leading-snug">{card.name}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.12)] text-[#7a5230] border border-[rgba(122,82,48,.25)]">
                     {card.status}
-                  </Badge>
+                  </span>
                   {card.category && (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
                       {card.category}
                     </span>
-                  )}
-                  {card.vendor && (
-                    <span className="text-xs text-[#a08060]">· {card.vendor}</span>
                   )}
                 </div>
               </div>
@@ -227,7 +222,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-xs text-[#a08060] mb-1">標籤</p>
                     <div className="flex flex-wrap gap-1">
                       {card.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                        <span key={tag} className="px-2 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.18)]">
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -268,7 +265,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
                             doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
                             : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
-                            : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
+                            : 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border border-[rgba(156,107,66,.25)]'
                           }`}>
                             {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
                           </span>
@@ -283,6 +280,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                   {isAdmin && card.updated_by && (
                     <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
+                  )}
+                  {card.updated_fields && card.updated_fields.length > 0 && (
+                    <p className="text-xs text-[#b0967a]">更新內容：{card.updated_fields.join('、')}</p>
                   )}
                 </div>
               </div>
@@ -302,16 +302,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       {card.name}
                     </DialogTitle>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'glow-wood' : ''}>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.12)] text-[#7a5230] border border-[rgba(122,82,48,.25)]">
                         {card.status}
-                      </Badge>
+                      </span>
                       {card.category && (
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
                           {card.category}
                         </span>
-                      )}
-                      {card.vendor && (
-                        <span className="text-xs text-[#a08060]">· {card.vendor}</span>
                       )}
                     </div>
                   </DialogHeader>
@@ -321,7 +318,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
                         <div className="flex flex-wrap gap-1.5">
                           {card.tags.map(tag => (
-                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                            <span key={tag} className="px-2 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.18)]">
+                              {tag}
+                            </span>
                           ))}
                         </div>
                       </div>
@@ -362,7 +361,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
                                 doc.type === 'spec' || doc.type === '規格書' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
                                 : doc.type === 'contract' || doc.type === '合約書' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
-                                : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
+                                : 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border border-[rgba(156,107,66,.25)]'
                               }`}>
                                 {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : doc.type === 'other' ? '其他' : doc.type}
                               </span>
@@ -377,6 +376,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                       {isAdmin && card.updated_by && (
                         <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
+                      )}
+                      {card.updated_fields && card.updated_fields.length > 0 && (
+                        <p className="text-xs text-[#b0967a]">更新內容：{card.updated_fields.join('、')}</p>
                       )}
                     </div>
                   </div>

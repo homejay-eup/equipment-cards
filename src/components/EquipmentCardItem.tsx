@@ -75,9 +75,6 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         <div className="p-2.5">
           <p className="text-[11px] text-[#a08060] font-mono truncate">{card.equipment_id}</p>
           <p className="text-sm font-medium text-[#2c1e12] mt-0.5 line-clamp-2 leading-tight">{card.name}</p>
-          {card.vendor && (
-            <p className="text-xs text-[#6b4f38] mt-1 truncate">{card.vendor}</p>
-          )}
         </div>
       </button>
 
