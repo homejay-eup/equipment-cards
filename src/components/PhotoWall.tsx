@@ -12,13 +12,20 @@ import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Bookmark as BookmarkIcon, BookmarkCheck } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
   isAdmin: boolean
   settings: AppSettings
   userEmail: string
+}
+
+interface BookmarkRecord {
+  id: string
+  equipment_id: string
+  notes: string | null
+  created_at: string
 }
 
 const SORT_OPTIONS = [
@@ -64,6 +71,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
     title: string; message?: string; detail?: string; onConfirm: () => void
   }>({ title: '', onConfirm: () => {} })
 
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
+  const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([])
+  const [bookmarksLoading, setBookmarksLoading] = useState(false)
+  const [bookmarkNotes, setBookmarkNotes] = useState<Record<string, string>>({})
+  const bookmarkSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [bookmarkQuery, setBookmarkQuery] = useState('')
+
   function askConfirm(cfg: typeof confirmConfig) {
     setConfirmConfig(cfg)
     setConfirmOpen(true)
@@ -92,11 +106,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
-      { name: 'equipment_id', weight: 2 },
-      { name: 'name',         weight: 2 },
-      { name: 'vendor',       weight: 1 },
-      { name: 'tags',         weight: 1 },
-      { name: 'notes',        weight: 0.5 },
+      { name: 'equipment_id',   weight: 2 },
+      { name: 'name',           weight: 2 },
+      { name: 'vendor',         weight: 1 },
+      { name: 'tags',           weight: 1 },
+      { name: 'notes',          weight: 0.5 },
+      { name: 'category',          weight: 0.5 },
+      { name: 'documents.name', weight: 0.5 },
     ],
     threshold: 0.3,
     includeScore: true,
@@ -140,6 +156,19 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter)
 
+  const filteredBookmarkCards = useMemo(() => {
+    const bookmarkedIds = new Set(bookmarks.map(b => b.equipment_id))
+    const cards = initialCards.filter(c => bookmarkedIds.has(c.equipment_id))
+    if (!bookmarkQuery.trim()) return cards
+    const q = bookmarkQuery.trim().toLowerCase()
+    return cards.filter(c => {
+      const bookmark = bookmarks.find(b => b.equipment_id === c.equipment_id)
+      return c.name.toLowerCase().includes(q) ||
+        c.equipment_id.toLowerCase().includes(q) ||
+        (bookmark?.notes ?? '').toLowerCase().includes(q)
+    })
+  }, [initialCards, bookmarks, bookmarkQuery])
+
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); return }
     setSelectedCats(prev => {
@@ -159,6 +188,63 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
       return next
     })
   }
+
+  const fetchBookmarks = useCallback(async () => {
+    setBookmarksLoading(true)
+    try {
+      const res = await fetch('/api/bookmarks')
+      if (!res.ok) return
+      const data: BookmarkRecord[] = await res.json()
+      setBookmarks(data)
+      const notes: Record<string, string> = {}
+      data.forEach(b => { notes[b.equipment_id] = b.notes ?? '' })
+      setBookmarkNotes(notes)
+    } finally {
+      setBookmarksLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'bookmarks') fetchBookmarks()
+  }, [activeTab, fetchBookmarks])
+
+  useEffect(() => {
+    const timers = bookmarkSaveTimerRef.current
+    return () => { Object.values(timers).forEach(clearTimeout) }
+  }, [])
+
+  const toggleBookmark = useCallback(async (card: EquipmentCard) => {
+    const existing = bookmarks.find(b => b.equipment_id === card.equipment_id)
+    if (existing) {
+      setBookmarks(prev => prev.filter(b => b.id !== existing.id))
+      const res = await fetch(`/api/bookmarks/${existing.id}`, { method: 'DELETE' })
+      if (!res.ok) setBookmarks(prev => [existing, ...prev])
+    } else {
+      const res = await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ equipment_id: card.equipment_id }),
+      })
+      if (res.ok) {
+        const newBookmark = await res.json()
+        setBookmarks(prev => [newBookmark, ...prev])
+      }
+    }
+  }, [bookmarks])
+
+  const updateBookmarkNotes = useCallback((card: EquipmentCard, notes: string) => {
+    setBookmarkNotes(prev => ({ ...prev, [card.equipment_id]: notes }))
+    const existing = bookmarks.find(b => b.equipment_id === card.equipment_id)
+    if (!existing) return
+    if (bookmarkSaveTimerRef.current[existing.id]) clearTimeout(bookmarkSaveTimerRef.current[existing.id])
+    bookmarkSaveTimerRef.current[existing.id] = setTimeout(async () => {
+      await fetch(`/api/bookmarks/${existing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
+    }, 800)
+  }, [bookmarks])
 
   const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false) }
 
@@ -289,6 +375,37 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
+          {/* Tab 切換 */}
+          <div className="flex gap-1 mb-2">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                activeTab === 'all'
+                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+              }`}
+            >
+              全部料卡
+            </button>
+            <button
+              onClick={() => setActiveTab('bookmarks')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                activeTab === 'bookmarks'
+                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+              }`}
+            >
+              {bookmarks.length > 0
+                ? <BookmarkCheck className="h-3.5 w-3.5" />
+                : <BookmarkIcon className="h-3.5 w-3.5" />
+              }
+              我的關注
+              {bookmarks.length > 0 && (
+                <span className="text-xs">{bookmarks.length}</span>
+              )}
+            </button>
+          </div>
+
           {/* 搜尋列 */}
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
@@ -452,41 +569,98 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
 
       {/* 主內容區 */}
       <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
-        {/* 結果數量 */}
-        <p className="text-sm text-[#a08060] mb-4">
-          顯示 {filtered.length} / {initialCards.length} 筆
-          {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
-        </p>
-
-        {/* 網格 */}
-        {filtered.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-lg">找不到符合的料卡</p>
-            <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
-                清除所有篩選
-              </button>
+        {/* 我的關注 Tab */}
+        {activeTab === 'bookmarks' && (
+          <div>
+            <p className="text-xs text-[#a08060] mb-3 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg px-3 py-2">
+              ⭐ 此區為您的私人空間，其他人（包含管理員）看不到您的標記與備註
+            </p>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input className="pl-9" placeholder="搜尋已關注的料卡或個人備註…"
+                value={bookmarkQuery} onChange={e => setBookmarkQuery(e.target.value)} />
+            </div>
+            {bookmarksLoading ? (
+              <div className="flex items-center justify-center py-12 text-[#a08060]">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                載入中…
+              </div>
+            ) : filteredBookmarkCards.length === 0 ? (
+              <div className="text-center py-20 text-gray-400">
+                {bookmarks.length === 0
+                  ? (
+                    <>
+                      <p className="text-lg">尚未關注任何料卡</p>
+                      <p className="text-sm mt-1">打開料卡細節，點擊 ⭐ 加入關注</p>
+                    </>
+                  )
+                  : (
+                    <p className="text-lg">找不到符合的料卡</p>
+                  )
+                }
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {filteredBookmarkCards.map(card => (
+                  <EquipmentCardItem
+                    key={card.equipment_id}
+                    card={card}
+                    onClick={() => setSelected(card)}
+                    isAdmin={isAdmin}
+                    onEdit={() => openEdit(card)}
+                    onDelete={() => handleDelete(card)}
+                    activeStatus={activeStatus}
+                    selectMode={false}
+                    isSelected={false}
+                    onSelect={() => {}}
+                    isNew={card.is_new}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filtered.map(card => (
-              <EquipmentCardItem
-                key={card.equipment_id}
-                card={card}
-                onClick={() => setSelected(card)}
-                isAdmin={isAdmin}
-                onEdit={() => openEdit(card)}
-                onDelete={() => handleDelete(card)}
-                activeStatus={activeStatus}
-                selectMode={selectMode}
-                isSelected={selectedIds.has(card.equipment_id)}
-                onSelect={() => toggleSelect(card.equipment_id)}
-                isNew={card.is_new}
-              />
-            ))}
-          </div>
+        )}
+
+        {/* 全部料卡 Tab */}
+        {activeTab === 'all' && (
+          <>
+            {/* 結果數量 */}
+            <p className="text-sm text-[#a08060] mb-4">
+              顯示 {filtered.length} / {initialCards.length} 筆
+              {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
+            </p>
+
+            {/* 網格 */}
+            {filtered.length === 0 ? (
+              <div className="text-center py-20 text-gray-400">
+                <p className="text-lg">找不到符合的料卡</p>
+                <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
+                    清除所有篩選
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {filtered.map(card => (
+                  <EquipmentCardItem
+                    key={card.equipment_id}
+                    card={card}
+                    onClick={() => setSelected(card)}
+                    isAdmin={isAdmin}
+                    onEdit={() => openEdit(card)}
+                    onDelete={() => handleDelete(card)}
+                    activeStatus={activeStatus}
+                    selectMode={selectMode}
+                    isSelected={selectedIds.has(card.equipment_id)}
+                    onSelect={() => toggleSelect(card.equipment_id)}
+                    isNew={card.is_new}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* 細節 Dialog */}
@@ -498,6 +672,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail }
             activeStatus={activeStatus}
             isAdmin={isAdmin}
             onEdit={() => { openEdit(selected); setSelected(null) }}
+            bookmarkId={bookmarks.find(b => b.equipment_id === selected.equipment_id)?.id ?? null}
+            bookmarkNotes={bookmarkNotes[selected.equipment_id] ?? ''}
+            onToggleBookmark={() => toggleBookmark(selected)}
+            onBookmarkNotesChange={(notes) => updateBookmarkNotes(selected, notes)}
           />
         )}
       </div>

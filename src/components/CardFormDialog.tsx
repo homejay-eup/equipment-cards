@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown } from 'lucide-react'
-import { EquipmentCard, DetailPhoto, AppSettings } from '@/types/equipment'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown, Link2 } from 'lucide-react'
+import { EquipmentCard, DetailPhoto, AppSettings, Document as EquipmentDocument } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
 
 interface Props {
@@ -134,6 +134,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [deleteMainPending, setDeleteMainPending]   = useState(false)
   const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
 
+  const [documents, setDocuments] = useState<EquipmentDocument[]>(card?.documents ?? [])
+
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
@@ -170,6 +172,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     const captionInit: Record<string, string> = {}
     card?.detail_photos.forEach(p => { if (p.caption) captionInit[p.public_id] = p.caption })
     setDetailCaptions(captionInit)
+    setDocuments(card?.documents ?? [])
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
@@ -233,7 +236,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const res = await fetch('/api/cards', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew }),
+        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew, documents }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? '建立失敗'); return }
@@ -279,6 +282,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
         body: JSON.stringify({
           ...form, tags: parseTags(form.tags), is_new: isNew,
           detail_photo_captions: detailCaptions,
+          documents,
         }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
@@ -490,8 +494,17 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             </label>
             <input type="text" value={form.tags}
               onChange={e => set('tags', e.target.value)} placeholder="例：HS昇銳, RFID, 4G"
+              list="tag-suggestions"
               className={inputCls}
             />
+            <datalist id="tag-suggestions">
+              <option value="前鏡" />
+              <option value="後鏡" />
+              <option value="左鏡" />
+              <option value="右鏡" />
+              <option value="室內鏡" />
+              <option value="廣角特殊" />
+            </datalist>
           </div>
 
           {/* 備註 */}
@@ -501,6 +514,67 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               rows={5} placeholder="補充說明…"
               className={`${inputCls} resize-none`}
             />
+          </div>
+
+          {/* 文件連結 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-[#6b4f38]">文件連結</label>
+              <button type="button"
+                onClick={() => setDocuments(prev => [...prev, { name: '', url: '', type: 'spec' }])}
+                disabled={isBusy}
+                className="flex items-center gap-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
+                <Plus className="h-3.5 w-3.5" />
+                新增
+              </button>
+            </div>
+            {documents.length === 0 ? (
+              <p className="text-xs text-[#b0967a]">尚無文件連結</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {documents.map((doc, i) => (
+                  <div key={i} className="flex flex-col gap-1.5 p-2.5 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={doc.name}
+                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, name: e.target.value } : d))}
+                        placeholder="文件名稱"
+                        disabled={isBusy}
+                        className={`${inputCls} flex-1 text-xs py-1.5`}
+                      />
+                      <select
+                        value={doc.type}
+                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, type: e.target.value as 'spec' | 'contract' | 'other' } : d))}
+                        disabled={isBusy}
+                        className="border border-[#e8ddd0] rounded-lg px-2 py-1.5 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
+                      >
+                        <option value="spec">規格書</option>
+                        <option value="contract">合約書</option>
+                        <option value="other">其他</option>
+                      </select>
+                      <button type="button"
+                        onClick={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))}
+                        disabled={isBusy}
+                        className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors flex-shrink-0">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Link2 className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                      <input
+                        type="url"
+                        value={doc.url}
+                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, url: e.target.value } : d))}
+                        placeholder="https://drive.google.com/..."
+                        disabled={isBusy}
+                        className={`${inputCls} text-xs py-1.5`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* NEW 標記 */}

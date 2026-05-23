@@ -1,3 +1,9 @@
+export interface Document {
+  name: string
+  url: string
+  type: 'spec' | 'contract' | 'other'
+}
+
 export interface DetailPhoto {
   public_id: string
   url: string
@@ -15,6 +21,7 @@ export interface EquipmentCard {
   main_photo: string | null
   main_photo_public_id: string | null
   detail_photos: DetailPhoto[]
+  documents: Document[]
   is_new: boolean
   created_at: string
   updated_at: string

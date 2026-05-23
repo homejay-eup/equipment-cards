@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink, Star } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -14,16 +14,27 @@ interface Props {
   activeStatus: string
   isAdmin?: boolean
   onEdit?: () => void
+  bookmarkId?: string | null
+  bookmarkNotes?: string
+  onToggleBookmark?: () => void
+  onBookmarkNotesChange?: (notes: string) => void
 }
 
 const SWIPE_THRESHOLD = 50
+
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch { return false }
+}
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkId, bookmarkNotes, onToggleBookmark, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
@@ -156,6 +167,23 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           : 'max-w-5xl overflow-x-hidden overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
       }`}>
 
+        {/* 關注按鈕 */}
+        {onToggleBookmark && (
+          <button
+            onClick={onToggleBookmark}
+            className={`absolute top-3 z-50 rounded-full backdrop-blur-sm p-1.5 shadow transition-opacity ${
+              isAdmin && onEdit ? 'right-[8rem]' : 'right-[4.75rem]'
+            } ${
+              bookmarkId
+                ? 'bg-[#fff9f4]/90 text-amber-400 opacity-100 hover:opacity-80'
+                : 'bg-[#fff9f4]/90 text-[#a08060] opacity-90 hover:opacity-100 hover:text-amber-400'
+            }`}
+            aria-label={bookmarkId ? '移除關注' : '加入關注'}
+          >
+            <Star className={`h-4 w-4 ${bookmarkId ? 'fill-amber-400' : ''}`} />
+          </button>
+        )}
+
         {/* 編輯按鈕（管理員） */}
         {isAdmin && onEdit && (
           <button
@@ -224,6 +252,40 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                   </div>
                 )}
+                {onBookmarkNotesChange && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
+                    <textarea
+                      value={bookmarkNotes ?? ''}
+                      onChange={e => onBookmarkNotesChange(e.target.value)}
+                      rows={2}
+                      placeholder="記錄你的私人備忘…"
+                      className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                    />
+                  </div>
+                )}
+                {card.documents?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">文件</p>
+                    <div className="flex flex-col gap-1.5">
+                      {card.documents.map((doc, i) => (
+                        <a key={i} href={isSafeUrl(doc.url) ? doc.url : '#'} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-xs text-[#5a3820] hover:text-[#7a5230] group">
+                          <FileText className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060] group-hover:text-[#7a5230]" />
+                          <span className="flex-1 leading-snug">{doc.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
+                            doc.type === 'spec' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
+                            : doc.type === 'contract' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                            : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
+                          }`}>
+                            {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : '其他'}
+                          </span>
+                          <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50 group-hover:opacity-100" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="pt-1 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
                   <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                   <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
@@ -276,6 +338,40 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">備註</p>
                         <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                      </div>
+                    )}
+                    {onBookmarkNotesChange && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
+                        <textarea
+                          value={bookmarkNotes ?? ''}
+                          onChange={e => onBookmarkNotesChange(e.target.value)}
+                          rows={3}
+                          placeholder="記錄你的私人備忘…"
+                          className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                        />
+                      </div>
+                    )}
+                    {card.documents?.length > 0 && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">文件</p>
+                        <div className="flex flex-col gap-2">
+                          {card.documents.map((doc, i) => (
+                            <a key={i} href={isSafeUrl(doc.url) ? doc.url : '#'} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm text-[#5a3820] hover:text-[#7a5230] group">
+                              <FileText className="h-4 w-4 flex-shrink-0 text-[#a08060] group-hover:text-[#7a5230]" />
+                              <span className="flex-1 leading-snug">{doc.name}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
+                                doc.type === 'spec' ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]'
+                                : doc.type === 'contract' ? 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border border-[rgba(181,69,27,.2)]'
+                                : 'bg-[rgba(80,80,80,.08)] text-[#606060] border border-[rgba(80,80,80,.2)]'
+                              }`}>
+                                {doc.type === 'spec' ? '規格書' : doc.type === 'contract' ? '合約書' : '其他'}
+                              </span>
+                              <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-50 group-hover:opacity-100" />
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     <div className="pt-2 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
