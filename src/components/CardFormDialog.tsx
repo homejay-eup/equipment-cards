@@ -494,17 +494,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
             </label>
             <input type="text" value={form.tags}
               onChange={e => set('tags', e.target.value)} placeholder="例：HS昇銳, RFID, 4G"
-              list="tag-suggestions"
               className={inputCls}
             />
-            <datalist id="tag-suggestions">
-              <option value="前鏡" />
-              <option value="後鏡" />
-              <option value="左鏡" />
-              <option value="右鏡" />
-              <option value="室內鏡" />
-              <option value="廣角特殊" />
-            </datalist>
           </div>
 
           {/* 備註 */}
