@@ -78,20 +78,14 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </button>
 
-      {/* 收藏星號：圖片區右上角
-          - 非管理員：right-1.5（獨佔右上角）
-          - 管理員：right-[2.5rem]（刪除鍵左側，錯開不重疊）
-          - 已收藏常駐，未收藏 hover 顯示（touch 裝置也常駐）
-          - 選取模式隱藏 */}
+      {/* 收藏星號：資訊區右下角，避免與圖片區按鈕及 NEW badge 衝突 */}
       {onToggleBookmark && !selectMode && (
         <button
           onClick={e => { e.stopPropagation(); onToggleBookmark() }}
-          className={`absolute top-1.5 z-10 p-1.5 rounded-md bg-white/90 backdrop-blur-sm shadow transition-colors ${
-            isAdmin ? 'right-[2.5rem]' : 'right-1.5'
-          } ${
+          className={`absolute bottom-1.5 right-1.5 z-10 p-1 rounded-md transition-colors ${
             isBookmarked
               ? 'flex text-amber-400'
-              : 'hidden group-hover:flex [@media(hover:none)]:flex text-[#a08060] hover:text-amber-400'
+              : 'hidden group-hover:flex [@media(hover:none)]:flex text-[#c49a72] hover:text-amber-400'
           }`}
           title={isBookmarked ? '移除關注' : '加入關注'}
         >
