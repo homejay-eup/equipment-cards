@@ -126,6 +126,11 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
   const [mainPhotoFile, setMainPhotoFile]       = useState<File | null>(null)
   const [mainPhotoPreview, setMainPhotoPreview] = useState<string | null>(null)
   const [pendingDetails, setPendingDetails]     = useState<PendingDetail[]>([])
+  const [detailCaptions, setDetailCaptions]     = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {}
+    card?.detail_photos.forEach(p => { if (p.caption) m[p.public_id] = p.caption })
+    return m
+  })
   const [deleteMainPending, setDeleteMainPending]   = useState(false)
   const [deleteDetailIds, setDeleteDetailIds]       = useState<Set<string>>(new Set())
 
@@ -162,6 +167,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
     setSelectMode(false)
     setSelectedDetailIds(new Set())
     setSelectedPendingIdxs(new Set())
+    const captionInit: Record<string, string> = {}
+    card?.detail_photos.forEach(p => { if (p.caption) captionInit[p.public_id] = p.caption })
+    setDetailCaptions(captionInit)
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
@@ -268,7 +276,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
       const res = await fetch(`/api/cards/${card!.equipment_id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags), is_new: isNew }),
+        body: JSON.stringify({
+          ...form, tags: parseTags(form.tags), is_new: isNew,
+          detail_photo_captions: detailCaptions,
+        }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
 
@@ -574,30 +585,42 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               {visibleDetails.map(photo => {
                 const isSelected = selectedDetailIds.has(photo.public_id)
                 return (
-                  <div key={photo.public_id}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
-                      selectMode
-                        ? isSelected
-                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
-                          : 'border-[#e8ddd0] cursor-pointer'
-                        : 'border-[rgba(122,82,48,.15)]'
-                    } bg-[#e8ddd0]`}
-                    onClick={selectMode ? () => toggleSelectDetail(photo.public_id) : undefined}
-                  >
-                    <Image src={photo.url} alt="細節照片" fill className="object-cover" />
-                    {selectMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
-                        {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
-                          : <Square className="h-5 w-5 text-white drop-shadow" />
-                        }
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
+                  <div key={photo.public_id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div
+                      className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                        selectMode
+                          ? isSelected
+                            ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                            : 'border-[#e8ddd0] cursor-pointer'
+                          : 'border-[rgba(122,82,48,.15)]'
+                      } bg-[#e8ddd0]`}
+                      onClick={selectMode ? () => toggleSelectDetail(photo.public_id) : undefined}
+                    >
+                      <Image src={photo.url} alt="細節照片" fill className="object-cover" />
+                      {selectMode ? (
+                        <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                          {isSelected
+                            ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                            : <Square className="h-5 w-5 text-white drop-shadow" />
+                          }
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
+                          disabled={isBusy}
+                          className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {!selectMode && (
+                      <input
+                        type="text"
+                        value={detailCaptions[photo.public_id] ?? ''}
+                        onChange={e => setDetailCaptions(prev => ({ ...prev, [photo.public_id]: e.target.value }))}
+                        placeholder="說明"
                         disabled={isBusy}
-                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        className="w-20 text-[10px] border border-[#e8ddd0] rounded px-1.5 py-0.5 text-[#4a3422] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] placeholder:text-[#c0a890] disabled:opacity-40"
+                      />
                     )}
                   </div>
                 )
@@ -606,31 +629,41 @@ export default function CardFormDialog({ mode, card, open, onClose, settings }: 
               {pendingDetails.map((item, idx) => {
                 const isSelected = selectedPendingIdxs.has(idx)
                 return (
-                  <div key={idx}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
-                      selectMode
-                        ? isSelected
-                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
-                          : 'border-[#c49a72] cursor-pointer'
-                        : 'border-[#c49a72]'
-                    } bg-[#f2ebe0]`}
-                    onClick={selectMode ? () => toggleSelectPending(idx) : undefined}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
-                    {selectMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
-                        {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
-                          : <Square className="h-5 w-5 text-white drop-shadow" />
-                        }
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => handleDeletePendingDetail(idx)}
+                  <div key={idx} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div
+                      className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                        selectMode
+                          ? isSelected
+                            ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                            : 'border-[#c49a72] cursor-pointer'
+                          : 'border-[#c49a72]'
+                      } bg-[#f2ebe0]`}
+                      onClick={selectMode ? () => toggleSelectPending(idx) : undefined}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.preview} alt="細節照片預覽" className="w-full h-full object-cover" />
+                      {selectMode ? (
+                        <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                          {isSelected
+                            ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                            : <Square className="h-5 w-5 text-white drop-shadow" />
+                          }
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => handleDeletePendingDetail(idx)}
+                          disabled={isBusy}
+                          className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {!selectMode && (
+                      <input
+                        type="text"
+                        placeholder="說明"
                         disabled={isBusy}
-                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        className="w-20 text-[10px] border border-[#c49a72] rounded px-1.5 py-0.5 text-[#4a3422] bg-[#faf6f0] focus:outline-none focus:border-[#7a5230] placeholder:text-[#c0a890] disabled:opacity-40"
+                      />
                     )}
                   </div>
                 )
