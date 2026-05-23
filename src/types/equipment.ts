@@ -37,6 +37,7 @@ export interface EquipmentCard {
   created_at: string
   updated_at: string
   updated_by: string | null
+  updated_fields?: string[] | null
 }
 
 export interface AppSettings {
