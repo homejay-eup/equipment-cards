@@ -570,6 +570,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                     isSelected={false}
                     onSelect={() => {}}
                     isNew={card.is_new}
+                    isBookmarked={bookmarks.some(b => b.equipment_id === card.equipment_id)}
+                    onToggleBookmark={() => toggleBookmark(card)}
                   />
                 ))}
               </div>
@@ -612,6 +614,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                     isSelected={selectedIds.has(card.equipment_id)}
                     onSelect={() => toggleSelect(card.equipment_id)}
                     isNew={card.is_new}
+                    isBookmarked={bookmarks.some(b => b.equipment_id === card.equipment_id)}
+                    onToggleBookmark={() => toggleBookmark(card)}
                   />
                 ))}
               </div>
@@ -628,9 +632,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             activeStatus={activeStatus}
             isAdmin={isAdmin}
             onEdit={() => { openEdit(selected); setSelected(null) }}
-            bookmarkId={bookmarks.find(b => b.equipment_id === selected.equipment_id)?.id ?? null}
             bookmarkNotes={bookmarkNotes[selected.equipment_id] ?? ''}
-            onToggleBookmark={() => toggleBookmark(selected)}
             onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}
           />
         )}

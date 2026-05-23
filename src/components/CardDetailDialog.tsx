@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -14,9 +14,7 @@ interface Props {
   activeStatus: string
   isAdmin?: boolean
   onEdit?: () => void
-  bookmarkId?: string | null
   bookmarkNotes?: string
-  onToggleBookmark?: () => void
   onBookmarkNotesChange?: (notes: string) => void
 }
 
@@ -38,7 +36,7 @@ function emailPrefix(email: string) {
   return email.split('@')[0]
 }
 
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkId, bookmarkNotes, onToggleBookmark, onBookmarkNotesChange }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkNotes, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
@@ -171,23 +169,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           ? 'max-w-[min(90vh,90vw)] overflow-hidden'
           : 'max-w-5xl overflow-x-hidden overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
       }`}>
-
-        {/* 關注按鈕 */}
-        {onToggleBookmark && (
-          <button
-            onClick={onToggleBookmark}
-            className={`absolute top-3 z-50 rounded-full backdrop-blur-sm p-1.5 shadow transition-opacity ${
-              isAdmin && onEdit ? 'right-[7rem]' : 'right-[4.75rem]'
-            } ${
-              bookmarkId
-                ? 'bg-[#fff9f4]/90 text-amber-400 opacity-100 hover:opacity-80'
-                : 'bg-[#fff9f4]/90 text-[#a08060] opacity-90 hover:opacity-100 hover:text-amber-400'
-            }`}
-            aria-label={bookmarkId ? '移除關注' : '加入關注'}
-          >
-            <Star className={`h-4 w-4 ${bookmarkId ? 'fill-amber-400' : ''}`} />
-          </button>
-        )}
 
         {/* 編輯按鈕（管理員） */}
         {isAdmin && onEdit && (
