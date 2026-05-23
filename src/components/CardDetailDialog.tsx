@@ -232,18 +232,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </div>
                 )}
-                {card.notes && (
-                  <div>
-                    <p className="text-xs text-[#a08060] mb-1">備註</p>
-                    <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
-                  </div>
-                )}
-                {card.net_weight != null && (
-                  <div>
-                    <p className="text-xs text-[#a08060] mb-1">淨重</p>
-                    <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
-                  </div>
-                )}
                 {onBookmarkNotesChange && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
@@ -254,6 +242,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       placeholder="記錄你的私人備忘…"
                       className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                     />
+                  </div>
+                )}
+                {card.notes && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">備註</p>
+                    <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                  </div>
+                )}
+                {card.net_weight != null && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">淨重</p>
+                    <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
                   </div>
                 )}
                 {card.documents?.length > 0 && (
@@ -331,18 +331,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         </div>
                       </div>
                     )}
-                    {card.notes && (
-                      <div>
-                        <p className="text-xs text-[#a08060] mb-1">備註</p>
-                        <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
-                      </div>
-                    )}
-                    {card.net_weight != null && (
-                      <div>
-                        <p className="text-xs text-[#a08060] mb-1">淨重</p>
-                        <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
-                      </div>
-                    )}
                     {onBookmarkNotesChange && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
@@ -353,6 +341,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           placeholder="記錄你的私人備忘…"
                           className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                         />
+                      </div>
+                    )}
+                    {card.notes && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">備註</p>
+                        <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                      </div>
+                    )}
+                    {card.net_weight != null && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">淨重</p>
+                        <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
                       </div>
                     )}
                     {card.documents?.length > 0 && (
