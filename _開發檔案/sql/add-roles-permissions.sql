@@ -42,8 +42,9 @@ SELECT id, unnest(ARRAY[
   'use_bookmarks', 'use_groups'
 ]) FROM roles WHERE name = '一般使用者';
 
--- 4. 移除 profiles 表的舊 CHECK 約束（若存在）
+-- 4. 移除舊 CHECK 約束（若存在）
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE allowed_emails DROP CONSTRAINT IF EXISTS allowed_emails_role_check;
 
 -- 5. 更新 allowed_emails 的舊角色值
 UPDATE allowed_emails SET role = '管理員' WHERE role = 'admin';
