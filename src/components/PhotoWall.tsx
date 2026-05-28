@@ -23,6 +23,7 @@ interface Props {
   initialGroups?: UserGroup[]
   initialBookmarkNotes?: Record<string, string>
   permissions?: string[]
+  userRole?: string
 }
 
 const SORT_OPTIONS = [
@@ -31,7 +32,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [] }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -369,14 +370,21 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           </div>
           <div className="flex items-center gap-3">
             {canManage ? (
-              <Link href="/admin/users"
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
+              <Link href="/admin/users" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">
+                  {userRole ?? '管理員'}
+                </span>
                 <Users className="h-4 w-4 text-[#a08060]" />
                 <span className="hidden sm:inline text-xs text-[#a08060]">帳號管理</span>
               </Link>
-            ) : isAdmin ? (
-              <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
+            ) : userRole ? (
+              <span className={`text-xs font-medium border px-2.5 py-0.5 rounded ${
+                isAdmin
+                  ? 'badge-admin-pulse font-bold tracking-wider border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)]'
+                  : 'border-[rgba(122,82,48,.2)] text-[#a08060] bg-[rgba(122,82,48,.04)]'
+              }`}>
+                {userRole}
+              </span>
             ) : null}
             {userEmail && <UserMenu email={userEmail} />}
           </div>

@@ -104,7 +104,7 @@ export default async function HomePage() {
     getUserBookmarkNotes(user.id),
   ])
 
-  const { permissions } = roleData
+  const { permissions, roleName } = roleData
   const isAdmin = permissions.includes('crud_cards')
 
   // 伺服器端依權限過濾料卡（read_active_only → 只回現役）
@@ -128,6 +128,7 @@ export default async function HomePage() {
           initialGroups={initialGroups}
           initialBookmarkNotes={initialBookmarkNotes}
           permissions={permissions}
+          userRole={roleName}
         />
       </Suspense>
     </main>
