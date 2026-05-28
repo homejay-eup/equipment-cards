@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, Minus } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -18,9 +18,10 @@ interface Props {
   isBookmarked?: boolean
   onToggleBookmark?: () => void
   onReplace?: () => void
+  onRemoveFromGroup?: () => void
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace, onRemoveFromGroup }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -79,15 +80,18 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </button>
 
-      {/* 替換按鈕：圖片區左下，僅在群組內顯示 */}
+      {/* 替換按鈕：與圖片區等高的覆蓋層，button 定位在照片左下角 */}
       {onReplace && !selectMode && (
-        <button
-          onClick={e => { e.stopPropagation(); onReplace() }}
-          className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
-          title="替換料卡"
-        >
-          <ArrowLeftRight className="h-3.5 w-3.5" />
-        </button>
+        <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
+          <button
+            onClick={e => { e.stopPropagation(); onReplace() }}
+            style={{ pointerEvents: 'auto' }}
+            className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+            title="替換料卡"
+          >
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* 收藏星號：資訊區右下角，避免與圖片區按鈕及 NEW badge 衝突 */}
@@ -115,7 +119,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       )}
 
-      {/* 管理員：編輯（左上）、刪除（右上），選取模式時隱藏 */}
+      {/* 管理員：編輯（左上）、刪除料卡（右上，群組內不顯示以免誤刪） */}
       {isAdmin && !selectMode && (
         <>
           <button
@@ -125,14 +129,27 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete?.() }}
-            className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
-            title="刪除"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          {!onRemoveFromGroup && (
+            <button
+              onClick={e => { e.stopPropagation(); onDelete?.() }}
+              className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
+              title="刪除料卡"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </>
+      )}
+
+      {/* 從群組移除（右上），對所有使用者顯示，與刪除按鈕位置相同但語義不同 */}
+      {onRemoveFromGroup && !selectMode && (
+        <button
+          onClick={e => { e.stopPropagation(); onRemoveFromGroup() }}
+          className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
+          title="從群組移除"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
       )}
     </div>
   )

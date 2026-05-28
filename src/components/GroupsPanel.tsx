@@ -346,6 +346,7 @@ export default function GroupsPanel({
 
   const [replaceTarget, setReplaceTarget] = useState<{ card: EquipmentCard } | null>(null)
   const [addTarget, setAddTarget] = useState<{ groupId: string } | null>(null)
+  const [removeCardTarget, setRemoveCardTarget] = useState<{ card: EquipmentCard; groupId: string } | null>(null)
 
   // 搜尋篩選 Set：O(1) 查詢用
   const filteredSet = useMemo(() =>
@@ -480,6 +481,18 @@ export default function GroupsPanel({
     }
     setReplaceTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleRemoveCard() {
+    if (!removeCardTarget) return
+    const { card, groupId } = removeCardTarget
+    setRemoveCardTarget(null)
+    const res = await fetch(`/api/groups/${groupId}/items/${card.equipment_id}`, { method: 'DELETE' })
+    if (res.ok) {
+      applyGroups(groups.map(g =>
+        g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
+      ))
+    }
+  }
 
   const handleAddCards = useCallback(async (groupId: string, equipmentIds: string[]) => {
     const now = new Date().toISOString()
@@ -670,12 +683,13 @@ export default function GroupsPanel({
                               onClick={() => onCardClick(card)}
                               isAdmin={isAdmin}
                               onEdit={onEdit ? () => onEdit(card) : undefined}
-                              onDelete={onDelete ? () => onDelete(card) : undefined}
+                              onDelete={group.is_default ? (onDelete ? () => onDelete(card) : undefined) : undefined}
                               activeStatus={activeStatus}
                               isNew={card.is_new}
                               isBookmarked={bookmarkedIds.has(card.equipment_id)}
                               onToggleBookmark={() => onToggleBookmark(card)}
                               onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
+                              onRemoveFromGroup={!group.is_default ? () => setRemoveCardTarget({ card, groupId: group.id }) : undefined}
                             />
                           ))}
                         </div>
@@ -697,6 +711,16 @@ export default function GroupsPanel({
         danger
         onConfirm={handleDeleteConfirm}
         onCancel={() => { setConfirmOpen(false); setConfirmTarget(null) }}
+      />
+
+      <ConfirmDialog
+        open={!!removeCardTarget}
+        title={`從群組移除「${removeCardTarget?.card.name ?? ''}」？`}
+        message="此料卡將從這個群組移除，料卡本身不受影響。"
+        confirmLabel="移除"
+        danger
+        onConfirm={handleRemoveCard}
+        onCancel={() => setRemoveCardTarget(null)}
       />
 
       {replaceTarget && (
