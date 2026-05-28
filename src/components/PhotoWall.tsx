@@ -73,7 +73,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [panelOpen, setPanelOpen] = useState(false)
+  const [view, setView] = useState<'wall' | 'groups'>('wall')
 
   // 計算 defaultGroup 的書籤 IDs
   const defaultGroup = groups.find(g => g.is_default)
@@ -364,22 +364,26 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 <span className="hidden sm:inline">角色管理</span>
               </Link>
             )}
-            {/* 我的群組觸發按鈕 */}
+            {/* 我的群組切換按鈕 */}
             <button
-              onClick={() => setPanelOpen(true)}
-              className="relative flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors"
+              onClick={() => setView(v => v === 'groups' ? 'wall' : 'groups')}
+              className={`relative flex items-center gap-1.5 text-xs transition-colors ${
+                view === 'groups'
+                  ? 'text-[#7a5230] font-semibold'
+                  : 'text-[#a08060] hover:text-[#7a5230]'
+              }`}
               title="我的群組"
             >
-              <Star className={`h-4 w-4 ${bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
+              <Star className={`h-4 w-4 ${view === 'groups' || bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
               <span className="hidden sm:inline">我的關注</span>
-              {bookmarkedIds.size > 0 && (
+              {bookmarkedIds.size > 0 && view !== 'groups' && (
                 <span className="text-xs font-medium">{bookmarkedIds.size}</span>
               )}
             </button>
             {userEmail && <UserMenu email={userEmail} />}
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
+        <div className={`max-w-7xl mx-auto px-4 pt-0 pb-2 ${view === 'groups' ? 'hidden' : ''}`}>
           {/* 搜尋列 */}
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
@@ -554,59 +558,68 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       </div>
 
       {/* 主內容區 */}
-      <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
-        {/* 結果數量 */}
-        <p className="text-sm text-[#a08060] mb-4">
-          顯示 {filtered.length} / {initialCards.length} 筆
-          {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
-        </p>
+      {view === 'groups' ? (
+        <GroupsPanel
+          initialGroups={groups}
+          allCards={initialCards}
+          onCardClick={(card) => setSelected(card)}
+          onGroupsChange={setGroups}
+        />
+      ) : (
+        <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
+          {/* 結果數量 */}
+          <p className="text-sm text-[#a08060] mb-4">
+            顯示 {filtered.length} / {initialCards.length} 筆
+            {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
+          </p>
 
-        {/* 網格 */}
-        {filtered.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-lg">找不到符合的料卡</p>
-            <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
-                清除所有篩選
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filtered.map(card => (
-              <EquipmentCardItem
-                key={card.equipment_id}
-                card={card}
-                onClick={() => setSelected(card)}
-                isAdmin={isAdmin}
-                onEdit={() => openEdit(card)}
-                onDelete={() => handleDelete(card)}
-                activeStatus={activeStatus}
-                selectMode={selectMode}
-                isSelected={selectedIds.has(card.equipment_id)}
-                onSelect={() => toggleSelect(card.equipment_id)}
-                isNew={card.is_new}
-                isBookmarked={bookmarkedIds.has(card.equipment_id)}
-                onToggleBookmark={() => toggleDefaultGroup(card)}
-              />
-            ))}
-          </div>
-        )}
+          {/* 網格 */}
+          {filtered.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">
+              <p className="text-lg">找不到符合的料卡</p>
+              <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
+                  清除所有篩選
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {filtered.map(card => (
+                <EquipmentCardItem
+                  key={card.equipment_id}
+                  card={card}
+                  onClick={() => setSelected(card)}
+                  isAdmin={isAdmin}
+                  onEdit={() => openEdit(card)}
+                  onDelete={() => handleDelete(card)}
+                  activeStatus={activeStatus}
+                  selectMode={selectMode}
+                  isSelected={selectedIds.has(card.equipment_id)}
+                  onSelect={() => toggleSelect(card.equipment_id)}
+                  isNew={card.is_new}
+                  isBookmarked={bookmarkedIds.has(card.equipment_id)}
+                  onToggleBookmark={() => toggleDefaultGroup(card)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* 細節 Dialog */}
-        {selected && (
-          <CardDetailDialog
-            card={selected}
-            open={!!selected}
-            onClose={() => setSelected(null)}
-            activeStatus={activeStatus}
-            isAdmin={isAdmin}
-            onEdit={() => { openEdit(selected); setSelected(null) }}
-            permissions={permissions}
-          />
-        )}
-      </div>
+      {/* 細節 Dialog（在兩個 view 都可開啟） */}
+      {selected && (
+        <CardDetailDialog
+          card={selected}
+          open={!!selected}
+          onClose={() => setSelected(null)}
+          activeStatus={activeStatus}
+          isAdmin={isAdmin}
+          onEdit={() => { openEdit(selected); setSelected(null) }}
+          permissions={permissions}
+        />
+      )}
 
       {/* 管理員浮動按鈕區 */}
       {isAdmin && (
@@ -689,15 +702,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           />
         </>
       )}
-
-      <GroupsPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        initialGroups={groups}
-        allCards={initialCards}
-        onCardClick={(card) => { setSelected(card); setPanelOpen(false) }}
-        onGroupsChange={setGroups}
-      />
 
       <ConfirmDialog
         open={confirmOpen}

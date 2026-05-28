@@ -4,11 +4,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { X, Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, ArrowLeftRight, Search, Loader2 } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, ArrowLeftRight, Search, Loader2, X } from 'lucide-react'
 
 interface GroupsPanelProps {
-  open: boolean
-  onClose: () => void
   initialGroups: UserGroup[]
   allCards: EquipmentCard[]
   onCardClick: (card: EquipmentCard) => void
@@ -57,7 +55,6 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
     return fuse.search(q).map(r => r.item).slice(0, 20)
   }, [searchQ, allCards, fuse])
 
-  // 包含此料卡的群組
   const containingGroups = groups.filter(g => g.group_items.some(i => i.equipment_id === card.equipment_id))
 
   function toggleGroup(id: string) {
@@ -89,7 +86,6 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
           </button>
         </div>
         <div className="p-4 space-y-3">
-          {/* 搜尋新料卡 */}
           <div>
             <p className="text-xs text-[#a08060] mb-1.5 font-medium">搜尋新料卡</p>
             <div className="relative mb-2">
@@ -127,7 +123,6 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
             </div>
           </div>
 
-          {/* 選擇目標群組 */}
           {containingGroups.length > 0 && (
             <div>
               <p className="text-xs text-[#a08060] mb-1.5 font-medium">此料卡同時存在於</p>
@@ -172,31 +167,26 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
 }
 
 // ── 主元件 ────────────────────────────────────────────────────────
-export default function GroupsPanel({ open, onClose, initialGroups, allCards, onCardClick, onGroupsChange }: GroupsPanelProps) {
+export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGroupsChange }: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
 
-  // 新增群組
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [savingNew, setSavingNew] = useState(false)
   const newGroupInputRef = useRef<HTMLInputElement>(null)
 
-  // 刪除群組
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmTarget, setConfirmTarget] = useState<UserGroup | null>(null)
 
-  // 重命名
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // 替換料卡
   const [replaceTarget, setReplaceTarget] = useState<{ card: EquipmentCard } | null>(null)
 
-  // Panel 開啟時重新載入資料（觸發懶遷移）
+  // 掛載時載入資料（觸發懶遷移）
   useEffect(() => {
-    if (!open) return
     setIsLoading(true)
     fetch('/api/groups')
       .then(r => r.ok ? r.json() : null)
@@ -208,7 +198,7 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
       })
       .catch(() => {})
       .finally(() => setIsLoading(false))
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (addingGroup && newGroupInputRef.current) {
@@ -229,7 +219,6 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
     onGroupsChange(next)
   }
 
-  // ── 新增群組 ──
   async function handleAddGroup() {
     const name = newGroupName.trim()
     if (!name) { setAddingGroup(false); return }
@@ -251,7 +240,6 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
     }
   }
 
-  // ── 刪除群組 ──
   function askDelete(group: UserGroup) {
     setConfirmTarget(group)
     setConfirmOpen(true)
@@ -267,7 +255,6 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
     setConfirmTarget(null)
   }
 
-  // ── 重命名 ──
   function startRename(group: UserGroup) {
     setRenamingId(group.id)
     setRenameValue(group.name)
@@ -287,7 +274,6 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
     setRenamingId(null)
   }
 
-  // ── 替換料卡 ──
   const handleReplace = useCallback(async (
     oldCard: EquipmentCard,
     newCard: EquipmentCard,
@@ -316,214 +302,181 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
     setReplaceTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const panelClass = open
-    ? 'translate-x-0 md:translate-x-0 translate-y-0'
-    : 'translate-x-full md:translate-x-full translate-y-full md:translate-y-0'
-
   return (
     <>
-      {/* 遮罩 */}
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Panel 本體：桌面右側，手機底部 */}
-      <div
-        className={`fixed z-50 bg-[#faf6f0] shadow-2xl transition-transform duration-300 ease-in-out
-          bottom-0 left-0 right-0 h-[80vh] rounded-t-2xl
-          md:bottom-auto md:top-0 md:left-auto md:right-0 md:h-full md:w-80 md:rounded-none md:rounded-l-2xl
-          flex flex-col ${panelClass}`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(122,82,48,.15)] flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
-            <span className="text-sm font-semibold text-[#5a3820]">我的群組</span>
+      <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20 text-[#a08060]">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            <span className="text-sm">載入中…</span>
           </div>
-          <button onClick={onClose} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            {groups.map(group => {
+              const isExpanded = expandedIds.has(group.id)
+              const itemCount = group.group_items.length
 
-        {/* 群組列表 */}
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12 text-[#a08060]">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              <span className="text-sm">載入中…</span>
-            </div>
-          ) : (
-            <div className="divide-y divide-[rgba(122,82,48,.08)]">
-              {groups.map(group => {
-                const isExpanded = expandedIds.has(group.id)
-                const itemCount = group.group_items.length
-
-                return (
-                  <div key={group.id}>
-                    {/* 群組列標題 */}
-                    <div className="flex items-center gap-1 px-3 py-2.5 hover:bg-[rgba(122,82,48,.04)] group">
-                      {/* 展開/收起 */}
-                      <button
-                        onClick={() => toggleExpand(group.id)}
-                        className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
-                      >
-                        {group.is_default && (
-                          <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
-                        )}
-                        {renamingId === group.id ? (
-                          <input
-                            autoFocus
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleRenameSubmit(group.id)
-                              if (e.key === 'Escape') setRenamingId(null)
-                            }}
-                            onBlur={() => handleRenameSubmit(group.id)}
-                            onClick={e => e.stopPropagation()}
-                            className="flex-1 text-sm font-medium text-[#5a3820] bg-white border border-[#c49a72] rounded px-1.5 py-0.5 focus:outline-none min-w-0"
-                          />
-                        ) : (
-                          <span className="text-sm font-medium text-[#5a3820] truncate flex-1">{group.name}</span>
-                        )}
-                        <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">{itemCount}筆</span>
-                        {isExpanded
-                          ? <ChevronDown className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                          : <ChevronRight className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                        }
-                      </button>
-
-                      {/* 非預設群組的操作按鈕 */}
-                      {!group.is_default && (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                          <button
-                            onClick={e => { e.stopPropagation(); startRename(group) }}
-                            className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
-                            title="重命名"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); askDelete(group) }}
-                            className="p-1 text-[#a08060] hover:text-red-500 transition-colors rounded"
-                            title="刪除群組"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+              return (
+                <div key={group.id} className="border border-[rgba(122,82,48,.15)] rounded-xl overflow-hidden bg-white">
+                  {/* 群組標題列 */}
+                  <div className="flex items-center gap-1 px-4 py-3 hover:bg-[rgba(122,82,48,.03)] group">
+                    <button
+                      onClick={() => toggleExpand(group.id)}
+                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                    >
+                      {group.is_default && (
+                        <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
                       )}
-                    </div>
+                      {renamingId === group.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleRenameSubmit(group.id)
+                            if (e.key === 'Escape') setRenamingId(null)
+                          }}
+                          onBlur={() => handleRenameSubmit(group.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="flex-1 text-sm font-medium text-[#5a3820] bg-white border border-[#c49a72] rounded px-2 py-0.5 focus:outline-none min-w-0"
+                        />
+                      ) : (
+                        <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
+                      )}
+                      <span className="text-xs text-[#a08060] flex-shrink-0">{itemCount} 筆</span>
+                      {isExpanded
+                        ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                        : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                      }
+                    </button>
 
-                    {/* 展開的料卡列表 */}
-                    {isExpanded && (
-                      <div className="bg-[rgba(122,82,48,.02)] divide-y divide-[rgba(122,82,48,.06)]">
-                        {itemCount === 0 ? (
-                          <p className="text-xs text-[#b0967a] px-4 py-3 italic">此群組尚無料卡</p>
-                        ) : (
-                          group.group_items.map(item => {
+                    {!group.is_default && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                        <button
+                          onClick={e => { e.stopPropagation(); startRename(group) }}
+                          className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
+                          title="重命名"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); askDelete(group) }}
+                          className="p-1.5 text-[#a08060] hover:text-red-500 transition-colors rounded"
+                          title="刪除群組"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 展開的料卡網格 */}
+                  {isExpanded && (
+                    <div className="border-t border-[rgba(122,82,48,.1)] bg-[rgba(122,82,48,.02)] px-4 py-3">
+                      {itemCount === 0 ? (
+                        <p className="text-sm text-[#b0967a] italic py-2">此群組尚無料卡</p>
+                      ) : (
+                        <div className="divide-y divide-[rgba(122,82,48,.06)]">
+                          {group.group_items.map(item => {
                             const card = allCards.find(c => c.equipment_id === item.equipment_id)
                             if (!card) {
                               return (
-                                <div key={item.equipment_id} className="flex items-center gap-2 px-4 py-2">
-                                  <div className="h-10 w-10 rounded bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0">
+                                <div key={item.equipment_id} className="flex items-center gap-3 py-2.5">
+                                  <div className="h-12 w-12 rounded-lg bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0">
                                     <span className="text-[10px] text-[#a08060]">—</span>
                                   </div>
-                                  <span className="text-xs text-[#b0967a] italic flex-1">料卡已刪除</span>
+                                  <span className="text-sm text-[#b0967a] italic">料卡已刪除</span>
                                 </div>
                               )
                             }
                             return (
-                              <div key={item.equipment_id} className="flex items-center gap-2 px-4 py-2 hover:bg-[rgba(122,82,48,.05)] group/item">
-                                {/* 縮圖 */}
+                              <div key={item.equipment_id} className="flex items-center gap-3 py-2.5 hover:bg-[rgba(122,82,48,.04)] -mx-4 px-4 rounded group/item transition-colors">
                                 {card.main_photo ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
                                     src={card.main_photo}
                                     alt={card.name}
-                                    width={40}
-                                    height={40}
-                                    className="h-10 w-10 object-cover rounded flex-shrink-0 border border-[rgba(122,82,48,.15)]"
+                                    width={48}
+                                    height={48}
+                                    className="h-12 w-12 object-cover rounded-lg flex-shrink-0 border border-[rgba(122,82,48,.15)]"
                                   />
                                 ) : (
-                                  <div className="h-10 w-10 rounded bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0 border border-[rgba(122,82,48,.1)]">
+                                  <div className="h-12 w-12 rounded-lg bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0 border border-[rgba(122,82,48,.1)]">
                                     <span className="text-[10px] text-[#a08060]">無圖</span>
                                   </div>
                                 )}
-                                {/* 料號 + 品名 */}
                                 <button
                                   onClick={() => onCardClick(card)}
                                   className="flex-1 min-w-0 text-left"
                                 >
-                                  <p className="text-[10px] font-mono text-[#a08060] leading-none">{card.equipment_id}</p>
-                                  <p className="text-xs text-[#4a3422] mt-0.5 truncate leading-snug">{card.name}</p>
+                                  <p className="text-[11px] font-mono text-[#a08060] leading-none">{card.equipment_id}</p>
+                                  <p className="text-sm text-[#4a3422] mt-0.5 truncate leading-snug font-medium">{card.name}</p>
+                                  {card.vendor && (
+                                    <p className="text-xs text-[#a08060] mt-0.5 truncate">{card.vendor}</p>
+                                  )}
                                 </button>
-                                {/* 替換按鈕 */}
                                 <button
                                   onClick={e => { e.stopPropagation(); setReplaceTarget({ card }) }}
-                                  className="p-1.5 text-[#c49a72] hover:text-[#7a5230] transition-colors rounded opacity-0 group-hover/item:opacity-100 flex-shrink-0"
+                                  className="p-2 text-[#c49a72] hover:text-[#7a5230] transition-colors rounded-lg opacity-0 group-hover/item:opacity-100 flex-shrink-0"
                                   title="替換料卡"
                                 >
-                                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                                  <ArrowLeftRight className="h-4 w-4" />
                                 </button>
                               </div>
                             )
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
 
-              {/* 新增群組按鈕 / 輸入框 */}
-              <div className="px-3 py-2.5">
-                {addingGroup ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={newGroupInputRef}
-                      type="text"
-                      value={newGroupName}
-                      onChange={e => setNewGroupName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleAddGroup()
-                        if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName('') }
-                      }}
-                      placeholder="群組名稱…"
-                      className="flex-1 text-sm border border-[#c49a72] rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
-                    />
-                    <button
-                      onClick={handleAddGroup}
-                      disabled={savingNew}
-                      className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
-                    >
-                      {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => { setAddingGroup(false); setNewGroupName('') }}
-                      className="flex items-center justify-center w-8 h-8 border border-[#e8ddd0] text-[#a08060] rounded-lg hover:text-[#7a5230] transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
+            {/* 新增群組 */}
+            <div className="border border-dashed border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3">
+              {addingGroup ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={newGroupInputRef}
+                    type="text"
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleAddGroup()
+                      if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName('') }
+                    }}
+                    placeholder="群組名稱…"
+                    className="flex-1 text-sm border border-[#c49a72] rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
+                  />
                   <button
-                    onClick={() => setAddingGroup(true)}
-                    className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors w-full"
+                    onClick={handleAddGroup}
+                    disabled={savingNew}
+                    className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
                   >
-                    <Plus className="h-4 w-4" />
-                    新增群組
+                    {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={() => { setAddingGroup(false); setNewGroupName('') }}
+                    className="flex items-center justify-center w-8 h-8 border border-[#e8ddd0] text-[#a08060] rounded-lg hover:text-[#7a5230] transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingGroup(true)}
+                  className="flex items-center gap-2 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors w-full"
+                >
+                  <Plus className="h-4 w-4" />
+                  新增群組
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* 刪除確認 Dialog */}
       <ConfirmDialog
         open={confirmOpen}
         title={`刪除「${confirmTarget?.name ?? ''}」群組？`}
@@ -534,7 +487,6 @@ export default function GroupsPanel({ open, onClose, initialGroups, allCards, on
         onCancel={() => { setConfirmOpen(false); setConfirmTarget(null) }}
       />
 
-      {/* 替換料卡 Dialog */}
       {replaceTarget && (
         <ReplaceDialog
           card={replaceTarget.card}
