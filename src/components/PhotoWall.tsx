@@ -13,7 +13,7 @@ import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -76,6 +76,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
 
+  // 加入群組 popup
+  const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
+  const addToGroupPopupRef = useRef<HTMLDivElement>(null)
+
   // 個人備註 state（只有自己看得到，儲存於 user_bookmarks.notes）
   const [bookmarkNotes, setBookmarkNotes] = useState<Record<string, string>>(initialBookmarkNotes ?? {})
   const bookmarkSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -85,6 +89,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const bookmarkedIds = useMemo(() =>
     new Set(defaultGroup?.group_items.map(i => i.equipment_id) ?? []),
   [defaultGroup])
+
+  // 非預設群組（用於加入群組 popup）
+  const nonDefaultGroups = useMemo(() => groups.filter(g => !g.is_default), [groups])
 
   function askConfirm(cfg: typeof confirmConfig) {
     setConfirmConfig(cfg)
@@ -239,6 +246,43 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       }
     }
   }, [groups])
+
+  useEffect(() => {
+    if (!addToGroupPopup) return
+    const close = (e: MouseEvent) => {
+      if (addToGroupPopupRef.current && !addToGroupPopupRef.current.contains(e.target as Node)) {
+        setAddToGroupPopup(null)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [addToGroupPopup])
+
+  const handleOpenAddToGroupPopup = useCallback((card: EquipmentCard, rect: DOMRect) => {
+    setAddToGroupPopup(prev =>
+      prev?.card.equipment_id === card.equipment_id ? null : { card, rect }
+    )
+  }, [])
+
+  const handleAddCardToGroup = useCallback(async (groupId: string) => {
+    if (!addToGroupPopup) return
+    const { card } = addToGroupPopup
+    const now = new Date().toISOString()
+    setGroups(prev => prev.map(g =>
+      g.id !== groupId ? g : { ...g, group_items: [{ equipment_id: card.equipment_id, added_at: now }, ...g.group_items] }
+    ))
+    setAddToGroupPopup(null)
+    const res = await fetch(`/api/groups/${groupId}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ equipment_id: card.equipment_id }),
+    })
+    if (!res.ok) {
+      setGroups(prev => prev.map(g =>
+        g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
+      ))
+    }
+  }, [addToGroupPopup]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateBookmarkNotes = useCallback((card: EquipmentCard, notes: string) => {
     setBookmarkNotes(prev => ({ ...prev, [card.equipment_id]: notes }))
@@ -644,6 +688,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                   isNew={card.is_new}
                   isBookmarked={bookmarkedIds.has(card.equipment_id)}
                   onToggleBookmark={() => toggleDefaultGroup(card)}
+                  onAddToGroup={nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
                 />
               ))}
             </div>
@@ -748,6 +793,47 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             settings={settings}
           />
         </>
+      )}
+
+      {/* 加入群組 popup（fixed，定位在按鈕上方） */}
+      {addToGroupPopup && (
+        <div
+          ref={addToGroupPopupRef}
+          style={{
+            position: 'fixed',
+            top: addToGroupPopup.rect.top - 6,
+            left: addToGroupPopup.rect.left,
+            zIndex: 9999,
+            transform: 'translateY(-100%)',
+          }}
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-xl overflow-hidden min-w-[10rem] max-w-[14rem]"
+        >
+          <div className="px-3 py-2 border-b border-[rgba(122,82,48,.08)]">
+            <p className="text-[10px] font-semibold text-[#a08060] uppercase tracking-wider">加入群組</p>
+          </div>
+          {nonDefaultGroups.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-[#a08060]">尚無群組，請至「我的關注」建立</p>
+          ) : (
+            nonDefaultGroups.map(group => {
+              const isInGroup = group.group_items.some(i => i.equipment_id === addToGroupPopup.card.equipment_id)
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => { if (!isInGroup) handleAddCardToGroup(group.id) }}
+                  className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${
+                    isInGroup
+                      ? 'text-[#7a5230] bg-[rgba(122,82,48,.04)] cursor-default'
+                      : 'text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+                  }`}
+                >
+                  <Folder className="h-3.5 w-3.5 flex-shrink-0 text-[#c49a72]" />
+                  <span className="flex-1 truncate text-xs">{group.name}</span>
+                  {isInGroup && <Check className="h-3 w-3 flex-shrink-0 text-[#7a5230]" />}
+                </button>
+              )
+            })
+          )}
+        </div>
       )}
 
       <ConfirmDialog

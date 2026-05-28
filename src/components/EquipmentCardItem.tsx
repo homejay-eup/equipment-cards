@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, Minus } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, Minus, FolderPlus } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -19,9 +19,10 @@ interface Props {
   onToggleBookmark?: () => void
   onReplace?: () => void
   onRemoveFromGroup?: () => void
+  onAddToGroup?: (rect: DOMRect) => void
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace, onRemoveFromGroup }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace, onRemoveFromGroup, onAddToGroup }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -80,7 +81,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </button>
 
-      {/* 替換按鈕：與圖片區等高的覆蓋層，button 定位在照片左下角 */}
+      {/* 替換按鈕：群組視圖，照片左下角 */}
       {onReplace && !selectMode && (
         <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
           <button
@@ -90,6 +91,20 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
             title="替換料卡"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* 加入群組按鈕：主網格視圖，照片左下角 */}
+      {onAddToGroup && !selectMode && (
+        <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
+          <button
+            onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
+            style={{ pointerEvents: 'auto' }}
+            className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+            title="加入群組"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
