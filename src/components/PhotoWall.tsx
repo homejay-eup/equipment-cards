@@ -368,16 +368,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {isAdmin && (
-              <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
-            )}
-            {canManage && (
+            {canManage ? (
               <Link href="/admin/users"
-                className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">帳號管理</span>
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
+                <Users className="h-4 w-4 text-[#a08060]" />
+                <span className="hidden sm:inline text-xs text-[#a08060]">帳號管理</span>
               </Link>
-            )}
+            ) : isAdmin ? (
+              <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
+            ) : null}
             {userEmail && <UserMenu email={userEmail} />}
           </div>
         </div>
