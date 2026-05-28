@@ -37,13 +37,14 @@ export async function POST(req: NextRequest) {
   if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     return NextResponse.json({ error: 'Email 格式不正確' }, { status: 400 })
   }
-  if (!['admin', 'viewer'].includes(role ?? 'viewer')) {
+  const resolvedRole = role ?? '一般使用者'
+  if (!resolvedRole) {
     return NextResponse.json({ error: '角色參數錯誤' }, { status: 400 })
   }
 
   const { error } = await getSupabase()
     .from('allowed_emails')
-    .insert({ email: normalizedEmail, role: role ?? 'viewer' })
+    .insert({ email: normalizedEmail, role: resolvedRole })
 
   if (error) {
     if (error.code === '23505') {
@@ -62,7 +63,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { email, role } = await req.json()
-  if (!email || !['admin', 'viewer'].includes(role)) {
+  if (!email || !role) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 

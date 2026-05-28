@@ -13,6 +13,7 @@ interface Props {
   activeStatus: string
   isAdmin?: boolean
   onEdit?: () => void
+  permissions?: string[]
   bookmarkNotes?: string
   onBookmarkNotesChange?: (notes: string) => void
 }
@@ -36,7 +37,7 @@ function emailPrefix(email: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, bookmarkNotes, onBookmarkNotesChange }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
@@ -214,7 +215,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       {card.category}
                     </span>
                   )}
-                  {card.vendor && (
+                  {permissions.includes('read_vendor') && card.vendor && (
                     <span className="text-xs text-[#a08060]">{card.vendor}</span>
                   )}
                 </div>
@@ -244,7 +245,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     />
                   </div>
                 )}
-                {card.notes && (
+                {permissions.includes('read_notes') && card.notes && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">備註</p>
                     <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
@@ -256,7 +257,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
                   </div>
                 )}
-                {card.documents?.length > 0 && (
+                {permissions.includes('read_documents') && card.documents?.length > 0 && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">文件</p>
                     <div className="flex flex-col gap-1.5">
@@ -281,10 +282,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                 <div className="pt-1 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
                   <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                   <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
-                  {isAdmin && card.updated_by && (
+                  {permissions.includes('read_updated_by') && card.updated_by && (
                     <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                   )}
-                  {card.updated_fields && card.updated_fields.length > 0 && (
+                  {permissions.includes('read_updated_content') && card.updated_fields && card.updated_fields.length > 0 && (
                     <p className="text-xs text-[#b0967a]">更新內容：{card.updated_fields.join('、')}</p>
                   )}
                 </div>
@@ -313,7 +314,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           {card.category}
                         </span>
                       )}
-                      {card.vendor && (
+                      {permissions.includes('read_vendor') && card.vendor && (
                         <span className="text-xs text-[#a08060]">{card.vendor}</span>
                       )}
                     </div>
@@ -343,7 +344,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         />
                       </div>
                     )}
-                    {card.notes && (
+                    {permissions.includes('read_notes') && card.notes && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">備註</p>
                         <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
@@ -355,7 +356,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
                       </div>
                     )}
-                    {card.documents?.length > 0 && (
+                    {permissions.includes('read_documents') && card.documents?.length > 0 && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">文件</p>
                         <div className="flex flex-col gap-2">
@@ -380,10 +381,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <div className="pt-2 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
                       <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                       <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
-                      {isAdmin && card.updated_by && (
+                      {permissions.includes('read_updated_by') && card.updated_by && (
                         <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                       )}
-                      {card.updated_fields && card.updated_fields.length > 0 && (
+                      {permissions.includes('read_updated_content') && card.updated_fields && card.updated_fields.length > 0 && (
                         <p className="text-xs text-[#b0967a]">更新內容：{card.updated_fields.join('、')}</p>
                       )}
                     </div>

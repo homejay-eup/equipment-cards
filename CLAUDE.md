@@ -86,9 +86,10 @@
 
 ### 目前進度
 
-- **已完成**：Step 1–15（2026-04-27 至 2026-05-23）、Step 16 Phase 1（2026-05-23）
+- **已完成**：Step 1–19（2026-04-27 至 2026-05-28）
 - **Step 16 Phase 2 待執行**：批次淨重照片上傳腳本（等照片提供後）
-- **需手動執行**：`_開發檔案/sql/add-documents.sql`、`_開發檔案/sql/add-user-bookmarks.sql`、`_開發檔案/sql/add-net-weight.sql`（Supabase Dashboard SQL Editor）
+- **需手動執行**：`_開發檔案/sql/add-groups.sql`、`_開發檔案/sql/add-roles-permissions.sql`（Supabase Dashboard SQL Editor）
+  - 執行 add-roles-permissions.sql 後，allowed_emails.role 值會從 'admin'/'viewer' 變為 '管理員'/'一般使用者'
 
 ### 規範與約定
 
