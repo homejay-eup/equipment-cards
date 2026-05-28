@@ -174,6 +174,145 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
   )
 }
 
+// ── 加入料卡彈窗 ────────────────────────────────────────────────
+interface AddCardDialogProps {
+  group: UserGroup
+  allCards: EquipmentCard[]
+  onConfirm: (equipmentIds: string[]) => Promise<void>
+  onCancel: () => void
+}
+
+function AddCardDialog({ group, allCards, onConfirm, onCancel }: AddCardDialogProps) {
+  const [searchQ, setSearchQ] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+
+  const existingIds = useMemo(
+    () => new Set(group.group_items.map(i => i.equipment_id)),
+    [group.group_items]
+  )
+
+  const availableCards = useMemo(
+    () => allCards.filter(c => !existingIds.has(c.equipment_id)),
+    [allCards, existingIds]
+  )
+
+  const fuse = useMemo(() => new Fuse(availableCards, {
+    keys: [
+      { name: 'equipment_id', weight: 2 },
+      { name: 'name', weight: 2 },
+      { name: 'vendor', weight: 1 },
+    ],
+    threshold: 0.3,
+    minMatchCharLength: 1,
+  }), [availableCards])
+
+  const results = useMemo(() => {
+    const q = searchQ.trim()
+    if (!q) return availableCards.slice(0, 30)
+    if (/^\d+$/.test(q)) {
+      return availableCards.filter(c => c.equipment_id.includes(q) || c.name.includes(q)).slice(0, 30)
+    }
+    return fuse.search(q).map(r => r.item).slice(0, 30)
+  }, [searchQ, availableCards, fuse])
+
+  function toggleCard(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
+
+  async function handleConfirm() {
+    if (selectedIds.size === 0) return
+    setSaving(true)
+    try {
+      await onConfirm(Array.from(selectedIds))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-[#faf6f0] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="px-4 py-3 border-b border-[rgba(122,82,48,.15)] flex items-center justify-between flex-shrink-0">
+          <p className="text-sm font-semibold text-[#5a3820]">加入料卡到「{group.name}」</p>
+          <button onClick={onCancel} className="text-[#a08060] hover:text-[#7a5230]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
+            <input
+              autoFocus
+              type="text"
+              value={searchQ}
+              onChange={e => setSearchQ(e.target.value)}
+              placeholder="料號、品名、廠商…"
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
+            />
+          </div>
+          {selectedIds.size > 0 && (
+            <p className="text-xs text-[#7a5230] mt-1.5 font-medium">已選 {selectedIds.size} 張</p>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-2 min-h-0">
+          <div className="border border-[#e8ddd0] rounded-lg divide-y divide-[rgba(122,82,48,.08)]">
+            {results.map(c => {
+              const isSelected = selectedIds.has(c.equipment_id)
+              return (
+                <button
+                  key={c.equipment_id}
+                  onClick={() => toggleCard(c.equipment_id)}
+                  className={`w-full text-left px-3 py-2 flex items-center gap-2 text-xs transition-colors ${
+                    isSelected
+                      ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230]'
+                      : 'hover:bg-[rgba(122,82,48,.04)] text-[#4a3422]'
+                  }`}
+                >
+                  <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    isSelected ? 'bg-[#7a5230] border-[#7a5230]' : 'border-[#d0b898]'
+                  }`}>
+                    {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                  </span>
+                  <span className="font-mono text-[10px] text-[#a08060] flex-shrink-0 w-16">{c.equipment_id}</span>
+                  <span className="truncate">{c.name}</span>
+                </button>
+              )
+            })}
+            {results.length === 0 && (
+              <p className="text-xs text-[#a08060] px-3 py-6 text-center">找不到可加入的料卡</p>
+            )}
+          </div>
+        </div>
+
+        <div className="px-4 py-3 border-t border-[rgba(122,82,48,.1)] flex gap-2 justify-end flex-shrink-0">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs border border-[#e8ddd0] rounded-lg text-[#a08060] hover:text-[#7a5230] hover:border-[rgba(122,82,48,.3)] transition-colors"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={selectedIds.size === 0 || saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+            加入 {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── 主元件 ────────────────────────────────────────────────────────
 export default function GroupsPanel({
   initialGroups,
@@ -206,14 +345,20 @@ export default function GroupsPanel({
   const [renameValue, setRenameValue] = useState('')
 
   const [replaceTarget, setReplaceTarget] = useState<{ card: EquipmentCard } | null>(null)
+  const [addTarget, setAddTarget] = useState<{ groupId: string } | null>(null)
 
   // 搜尋篩選 Set：O(1) 查詢用
   const filteredSet = useMemo(() =>
     filteredCards ? new Set(filteredCards.map(c => c.equipment_id)) : null,
   [filteredCards])
 
-  // 掛載時載入資料（觸發懶遷移）
+  // 只在沒有初始資料時才 fetch（觸發懶遷移）；有資料直接用 prop
   useEffect(() => {
+    if (initialGroups.length > 0) {
+      setGroups(initialGroups)
+      setExpandedIds(new Set(initialGroups.map(g => g.id)))
+      return
+    }
     setIsLoading(true)
     fetch('/api/groups')
       .then(r => r.ok ? r.json() : null)
@@ -259,7 +404,12 @@ export default function GroupsPanel({
       })
       if (res.ok) {
         const newGroup: UserGroup = await res.json()
-        applyGroups([...groups, newGroup])
+        // 插在預設群組後面，而非最尾端
+        const defaultIdx = groups.findIndex(g => g.is_default)
+        const insertIdx = defaultIdx >= 0 ? defaultIdx + 1 : groups.length
+        const next = [...groups]
+        next.splice(insertIdx, 0, newGroup)
+        applyGroups(next)
         setExpandedIds(prev => { const next = new Set(prev); next.add(newGroup.id); return next })
         setNewGroupName('')
         setAddingGroup(false)
@@ -331,6 +481,35 @@ export default function GroupsPanel({
     setReplaceTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleAddCards = useCallback(async (groupId: string, equipmentIds: string[]) => {
+    const now = new Date().toISOString()
+    const results = await Promise.allSettled(
+      equipmentIds.map(id =>
+        fetch(`/api/groups/${groupId}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ equipment_id: id }),
+        })
+      )
+    )
+    const successIds = equipmentIds.filter((_, i) => {
+      const r = results[i]
+      return r.status === 'fulfilled' && r.value.ok
+    })
+    if (successIds.length > 0) {
+      applyGroups(groups.map(g => {
+        if (g.id !== groupId) return g
+        const newItems = successIds
+          .filter(id => !g.group_items.some(i => i.equipment_id === id))
+          .map(id => ({ equipment_id: id, added_at: now }))
+        return { ...g, group_items: [...newItems, ...g.group_items] }
+      }))
+    }
+    setAddTarget(null)
+  }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addTargetGroup = addTarget ? groups.find(g => g.id === addTarget.groupId) : null
+
   return (
     <>
       <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
@@ -341,6 +520,47 @@ export default function GroupsPanel({
           </div>
         ) : (
           <div className="space-y-6">
+            {/* 新增群組：置頂在所有群組之前 */}
+            <div>
+              {addingGroup ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={newGroupInputRef}
+                    type="text"
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleAddGroup()
+                      if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName('') }
+                    }}
+                    placeholder="群組名稱…"
+                    className="flex-1 text-sm border border-[#c49a72] rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
+                  />
+                  <button
+                    onClick={handleAddGroup}
+                    disabled={savingNew}
+                    className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
+                  >
+                    {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => { setAddingGroup(false); setNewGroupName('') }}
+                    className="flex items-center justify-center w-8 h-8 border border-[#e8ddd0] text-[#a08060] rounded-lg hover:text-[#7a5230] transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingGroup(true)}
+                  className="flex items-center gap-2 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  新增群組
+                </button>
+              )}
+            </div>
+
             {groups.map(group => {
               const isExpanded = expandedIds.has(group.id)
               const itemCount = group.group_items.length
@@ -395,6 +615,13 @@ export default function GroupsPanel({
                     {!group.is_default && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity flex-shrink-0 ml-2">
                         <button
+                          onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
+                          className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
+                          title="加入料卡"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={e => { e.stopPropagation(); startRename(group) }}
                           className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
                           title="重命名"
@@ -415,7 +642,16 @@ export default function GroupsPanel({
                   {/* 展開的大圖網格 */}
                   {isExpanded && (
                     itemCount === 0 ? (
-                      <p className="text-sm text-[#b0967a] italic py-4">此群組尚無料卡</p>
+                      <div className="py-4 flex items-center gap-3">
+                        <p className="text-sm text-[#b0967a] italic">此群組尚無料卡</p>
+                        <button
+                          onClick={() => setAddTarget({ groupId: group.id })}
+                          className="flex items-center gap-1 text-xs text-[#a08060] hover:text-[#7a5230] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] px-2 py-1 rounded-lg transition-colors"
+                        >
+                          <Plus className="h-3 w-3" />
+                          加入料卡
+                        </button>
+                      </div>
                     ) : displayCards.length === 0 ? (
                       <p className="text-sm text-[#b0967a] italic py-4">篩選後無符合結果</p>
                     ) : (
@@ -444,47 +680,6 @@ export default function GroupsPanel({
                 </div>
               )
             })}
-
-            {/* 新增群組 */}
-            <div>
-              {addingGroup ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={newGroupInputRef}
-                    type="text"
-                    value={newGroupName}
-                    onChange={e => setNewGroupName(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') handleAddGroup()
-                      if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName('') }
-                    }}
-                    placeholder="群組名稱…"
-                    className="flex-1 text-sm border border-[#c49a72] rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
-                  />
-                  <button
-                    onClick={handleAddGroup}
-                    disabled={savingNew}
-                    className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
-                  >
-                    {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  </button>
-                  <button
-                    onClick={() => { setAddingGroup(false); setNewGroupName('') }}
-                    className="flex items-center justify-center w-8 h-8 border border-[#e8ddd0] text-[#a08060] rounded-lg hover:text-[#7a5230] transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setAddingGroup(true)}
-                  className="flex items-center gap-2 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  新增群組
-                </button>
-              )}
-            </div>
           </div>
         )}
       </div>
@@ -508,6 +703,15 @@ export default function GroupsPanel({
             handleReplace(replaceTarget.card, newCard, targetGroupIds)
           }
           onCancel={() => setReplaceTarget(null)}
+        />
+      )}
+
+      {addTarget && addTargetGroup && (
+        <AddCardDialog
+          group={addTargetGroup}
+          allCards={allCards}
+          onConfirm={(ids) => handleAddCards(addTarget.groupId, ids)}
+          onCancel={() => setAddTarget(null)}
         />
       )}
     </>
