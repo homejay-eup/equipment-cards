@@ -138,7 +138,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
           <UserPlus className="h-4 w-4 text-[#7a5230]" />
           指派角色
         </h2>
-        <p className="text-xs text-[#a08060] mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員</p>
+        <p className="text-xs text-[#a08060] mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員。角色變更將於對方重新整理頁面後生效。</p>
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
           <input
             type="email"

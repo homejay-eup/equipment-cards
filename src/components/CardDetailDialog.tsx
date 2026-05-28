@@ -239,7 +239,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <textarea
                       value={bookmarkNotes ?? ''}
                       onChange={e => onBookmarkNotesChange(e.target.value)}
-                      rows={2}
+                      rows={6}
                       placeholder="記錄你的私人備忘…"
                       className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                     />
@@ -338,7 +338,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <textarea
                           value={bookmarkNotes ?? ''}
                           onChange={e => onBookmarkNotesChange(e.target.value)}
-                          rows={2}
+                          rows={6}
                           placeholder="記錄你的私人備忘…"
                           className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                         />

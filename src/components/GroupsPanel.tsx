@@ -593,17 +593,15 @@ export default function GroupsPanel({
 
                 return (
                   <div key={group.id} className="py-2">
-                    {/* 群組標題列：按鈕 full-width，編輯按鈕 absolute 不影響計數位置 */}
+                    {/* 群組標題列 */}
                     <div className="relative flex items-center group/header">
-                      <button
-                        onClick={() => toggleExpand(group.id)}
-                        className="flex items-center gap-2 w-full min-w-0 text-left py-1"
-                      >
-                        {group.is_default
-                          ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
-                          : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
-                        }
-                        {renamingId === group.id ? (
+                      {renamingId === group.id ? (
+                        /* 重命名模式：flat div，不巢狀在 button 內，有 ✓ / ✗ 按鈕 */
+                        <div className="flex items-center gap-1.5 w-full min-w-0 py-1">
+                          {group.is_default
+                            ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
+                            : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
+                          }
                           <input
                             autoFocus
                             value={renameValue}
@@ -613,26 +611,51 @@ export default function GroupsPanel({
                               if (e.key === 'Escape') setRenamingId(null)
                             }}
                             onBlur={() => handleRenameSubmit(group.id)}
-                            onClick={e => e.stopPropagation()}
-                            className="flex-1 text-sm font-medium text-[#5a3820] bg-white border border-[#c49a72] rounded px-2 py-0.5 focus:outline-none min-w-0"
+                            className="flex-1 min-w-0 text-sm font-medium text-[#5a3820] bg-white border border-[#c49a72] rounded px-2 py-0.5 focus:outline-none"
                           />
-                        ) : (
-                          <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
-                        )}
-                        <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">
-                          {filteredSet && displayCards.length !== itemCount
-                            ? `${displayCards.length} / ${itemCount} 筆`
-                            : `${itemCount} 筆`
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => handleRenameSubmit(group.id)}
+                            className="p-1 text-[#7a5230] hover:bg-[rgba(122,82,48,.1)] rounded flex-shrink-0 transition-colors"
+                            title="確認"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => setRenamingId(null)}
+                            className="p-1 text-[#a08060] hover:bg-[rgba(122,82,48,.06)] rounded flex-shrink-0 transition-colors"
+                            title="取消"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        /* 一般模式：點擊展開/收合 */
+                        <button
+                          onClick={() => toggleExpand(group.id)}
+                          className="flex items-center gap-2 w-full min-w-0 text-left py-1"
+                        >
+                          {group.is_default
+                            ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
+                            : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
                           }
-                        </span>
-                        {isExpanded
-                          ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                          : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                        }
-                      </button>
+                          <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
+                          <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">
+                            {filteredSet && displayCards.length !== itemCount
+                              ? `${displayCards.length} / ${itemCount} 筆`
+                              : `${itemCount} 筆`
+                            }
+                          </span>
+                          {isExpanded
+                            ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                          }
+                        </button>
+                      )}
 
-                      {/* 編輯按鈕：absolute 定位，不佔用計數空間 */}
-                      {!group.is_default && (
+                      {/* 編輯按鈕：重命名時隱藏，absolute 不佔計數空間 */}
+                      {!group.is_default && renamingId !== group.id && (
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity bg-gradient-to-l from-[#faf6f0] from-50% pl-8">
                           <button
                             onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
