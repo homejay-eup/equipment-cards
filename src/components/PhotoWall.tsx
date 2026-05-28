@@ -73,7 +73,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'groups'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
 
   // 計算 defaultGroup 的書籤 IDs
   const defaultGroup = groups.find(g => g.is_default)
@@ -159,11 +159,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse])
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter)
-
-  // 我的關注 tab：從已篩選結果中再過濾出書籤卡片（共用搜尋/篩選）
-  const filteredBookmarkCards = useMemo(() =>
-    filtered.filter(c => bookmarkedIds.has(c.equipment_id)),
-  [filtered, bookmarkedIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); return }
@@ -401,20 +396,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 <span className="text-xs">{bookmarkedIds.size}</span>
               )}
             </button>
-            <button
-              onClick={() => setActiveTab('groups')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                activeTab === 'groups'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
-            >
-              我的群組
-            </button>
           </div>
 
-          {/* 搜尋列 + 篩選列（群組管理 tab 不需要） */}
-          <div className={activeTab === 'groups' ? 'hidden' : ''}>
+          {/* 搜尋列 + 篩選列 */}
+          <div>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -589,44 +574,30 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       </div>
 
       {/* 主內容區 */}
-      {activeTab === 'groups' ? (
+      {activeTab === 'bookmarks' ? (
         <GroupsPanel
           initialGroups={groups}
           allCards={initialCards}
           onCardClick={(card) => setSelected(card)}
           onGroupsChange={setGroups}
+          activeStatus={activeStatus}
+          isAdmin={isAdmin}
+          bookmarkedIds={bookmarkedIds}
+          onToggleBookmark={toggleDefaultGroup}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+          filteredCards={filtered}
         />
       ) : (
         <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
           {/* 結果數量 */}
-          {activeTab === 'bookmarks' ? (
-            <p className="text-sm text-[#a08060] mb-4">
-              顯示 {filteredBookmarkCards.length} / {bookmarkedIds.size} 筆關注
-              {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
-            </p>
-          ) : (
-            <p className="text-sm text-[#a08060] mb-4">
-              顯示 {filtered.length} / {initialCards.length} 筆
-              {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
-            </p>
-          )}
+          <p className="text-sm text-[#a08060] mb-4">
+            顯示 {filtered.length} / {initialCards.length} 筆
+            {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
+          </p>
 
           {/* 網格 */}
-          {activeTab === 'bookmarks' && bookmarkedIds.size === 0 ? (
-            <div className="text-center py-20 text-gray-400">
-              <p className="text-lg">尚未關注任何料卡</p>
-              <p className="text-sm mt-1">在卡片上點擊 ★ 加入關注</p>
-            </div>
-          ) : activeTab === 'bookmarks' && filteredBookmarkCards.length === 0 ? (
-            <div className="text-center py-20 text-gray-400">
-              <p className="text-lg">關注的料卡中找不到符合條件的結果</p>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
-                  清除篩選
-                </button>
-              )}
-            </div>
-          ) : activeTab === 'all' && filtered.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <p className="text-lg">找不到符合的料卡</p>
               <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
@@ -638,7 +609,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {(activeTab === 'bookmarks' ? filteredBookmarkCards : filtered).map(card => (
+              {filtered.map(card => (
                 <EquipmentCardItem
                   key={card.equipment_id}
                   card={card}

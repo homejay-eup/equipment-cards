@@ -3,14 +3,22 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
+import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, ArrowLeftRight, Search, Loader2, X } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
   allCards: EquipmentCard[]
   onCardClick: (card: EquipmentCard) => void
   onGroupsChange: (groups: UserGroup[]) => void
+  activeStatus: string
+  isAdmin?: boolean
+  bookmarkedIds: Set<string>
+  onToggleBookmark: (card: EquipmentCard) => void
+  onEdit?: (card: EquipmentCard) => void
+  onDelete?: (card: EquipmentCard) => void
+  filteredCards?: EquipmentCard[]
 }
 
 // ── 替換料卡彈窗 ────────────────────────────────────────────────
@@ -167,9 +175,23 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
 }
 
 // ── 主元件 ────────────────────────────────────────────────────────
-export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGroupsChange }: GroupsPanelProps) {
+export default function GroupsPanel({
+  initialGroups,
+  allCards,
+  onCardClick,
+  onGroupsChange,
+  activeStatus,
+  isAdmin,
+  bookmarkedIds,
+  onToggleBookmark,
+  onEdit,
+  onDelete,
+  filteredCards,
+}: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
+    new Set(initialGroups.map(g => g.id))
+  )
   const [isLoading, setIsLoading] = useState(false)
 
   const [addingGroup, setAddingGroup] = useState(false)
@@ -185,6 +207,11 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
 
   const [replaceTarget, setReplaceTarget] = useState<{ card: EquipmentCard } | null>(null)
 
+  // 搜尋篩選 Set：O(1) 查詢用
+  const filteredSet = useMemo(() =>
+    filteredCards ? new Set(filteredCards.map(c => c.equipment_id)) : null,
+  [filteredCards])
+
   // 掛載時載入資料（觸發懶遷移）
   useEffect(() => {
     setIsLoading(true)
@@ -193,6 +220,7 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
       .then(data => {
         if (data) {
           setGroups(data)
+          setExpandedIds(new Set((data as UserGroup[]).map(g => g.id)))
           onGroupsChange(data)
         }
       })
@@ -232,6 +260,7 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
       if (res.ok) {
         const newGroup: UserGroup = await res.json()
         applyGroups([...groups, newGroup])
+        setExpandedIds(prev => { const next = new Set(prev); next.add(newGroup.id); return next })
         setNewGroupName('')
         setAddingGroup(false)
       }
@@ -311,15 +340,23 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
             <span className="text-sm">載入中…</span>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-6">
             {groups.map(group => {
               const isExpanded = expandedIds.has(group.id)
               const itemCount = group.group_items.length
 
+              // 計算此群組的可顯示卡片（過濾已刪除 + 搜尋篩選）
+              const groupCards = group.group_items
+                .map(item => allCards.find(c => c.equipment_id === item.equipment_id))
+              const validCards = groupCards.filter(Boolean) as EquipmentCard[]
+              const displayCards = filteredSet
+                ? validCards.filter(c => filteredSet.has(c.equipment_id))
+                : validCards
+
               return (
-                <div key={group.id} className="border border-[rgba(122,82,48,.15)] rounded-xl overflow-hidden bg-white">
+                <div key={group.id}>
                   {/* 群組標題列 */}
-                  <div className="flex items-center gap-1 px-4 py-3 hover:bg-[rgba(122,82,48,.03)] group">
+                  <div className="flex items-center gap-1 pb-3 group/header">
                     <button
                       onClick={() => toggleExpand(group.id)}
                       className="flex items-center gap-2 flex-1 min-w-0 text-left"
@@ -343,7 +380,12 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
                       ) : (
                         <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
                       )}
-                      <span className="text-xs text-[#a08060] flex-shrink-0">{itemCount} 筆</span>
+                      <span className="text-xs text-[#a08060] flex-shrink-0">
+                        {filteredSet && displayCards.length !== itemCount
+                          ? `${displayCards.length} / ${itemCount} 筆`
+                          : `${itemCount} 筆`
+                        }
+                      </span>
                       {isExpanded
                         ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
                         : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
@@ -351,7 +393,7 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
                     </button>
 
                     {!group.is_default && (
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity flex-shrink-0 ml-2">
                         <button
                           onClick={e => { e.stopPropagation(); startRename(group) }}
                           className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
@@ -370,71 +412,41 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
                     )}
                   </div>
 
-                  {/* 展開的料卡網格 */}
+                  {/* 展開的大圖網格 */}
                   {isExpanded && (
-                    <div className="border-t border-[rgba(122,82,48,.1)] bg-[rgba(122,82,48,.02)] px-4 py-3">
-                      {itemCount === 0 ? (
-                        <p className="text-sm text-[#b0967a] italic py-2">此群組尚無料卡</p>
-                      ) : (
-                        <div className="divide-y divide-[rgba(122,82,48,.06)]">
-                          {group.group_items.map(item => {
-                            const card = allCards.find(c => c.equipment_id === item.equipment_id)
-                            if (!card) {
-                              return (
-                                <div key={item.equipment_id} className="flex items-center gap-3 py-2.5">
-                                  <div className="h-12 w-12 rounded-lg bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0">
-                                    <span className="text-[10px] text-[#a08060]">—</span>
-                                  </div>
-                                  <span className="text-sm text-[#b0967a] italic">料卡已刪除</span>
-                                </div>
-                              )
-                            }
-                            return (
-                              <div key={item.equipment_id} className="flex items-center gap-3 py-2.5 hover:bg-[rgba(122,82,48,.04)] -mx-4 px-4 rounded group/item transition-colors">
-                                {card.main_photo ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={card.main_photo}
-                                    alt={card.name}
-                                    width={48}
-                                    height={48}
-                                    className="h-12 w-12 object-cover rounded-lg flex-shrink-0 border border-[rgba(122,82,48,.15)]"
-                                  />
-                                ) : (
-                                  <div className="h-12 w-12 rounded-lg bg-[rgba(122,82,48,.08)] flex items-center justify-center flex-shrink-0 border border-[rgba(122,82,48,.1)]">
-                                    <span className="text-[10px] text-[#a08060]">無圖</span>
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => onCardClick(card)}
-                                  className="flex-1 min-w-0 text-left"
-                                >
-                                  <p className="text-[11px] font-mono text-[#a08060] leading-none">{card.equipment_id}</p>
-                                  <p className="text-sm text-[#4a3422] mt-0.5 truncate leading-snug font-medium">{card.name}</p>
-                                  {card.vendor && (
-                                    <p className="text-xs text-[#a08060] mt-0.5 truncate">{card.vendor}</p>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={e => { e.stopPropagation(); setReplaceTarget({ card }) }}
-                                  className="p-2 text-[#c49a72] hover:text-[#7a5230] transition-colors rounded-lg opacity-0 group-hover/item:opacity-100 flex-shrink-0"
-                                  title="替換料卡"
-                                >
-                                  <ArrowLeftRight className="h-4 w-4" />
-                                </button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    itemCount === 0 ? (
+                      <p className="text-sm text-[#b0967a] italic py-4">此群組尚無料卡</p>
+                    ) : displayCards.length === 0 ? (
+                      <p className="text-sm text-[#b0967a] italic py-4">篩選後無符合結果</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {displayCards.map(card => (
+                          <EquipmentCardItem
+                            key={card.equipment_id}
+                            card={card}
+                            onClick={() => onCardClick(card)}
+                            isAdmin={isAdmin}
+                            onEdit={onEdit ? () => onEdit(card) : undefined}
+                            onDelete={onDelete ? () => onDelete(card) : undefined}
+                            activeStatus={activeStatus}
+                            isNew={card.is_new}
+                            isBookmarked={bookmarkedIds.has(card.equipment_id)}
+                            onToggleBookmark={() => onToggleBookmark(card)}
+                            onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
+                          />
+                        ))}
+                      </div>
+                    )
                   )}
+
+                  {/* 群組間分隔線（除最後一組外） */}
+                  <div className="mt-6 border-b border-[rgba(122,82,48,.1)]" />
                 </div>
               )
             })}
 
             {/* 新增群組 */}
-            <div className="border border-dashed border-[rgba(122,82,48,.25)] rounded-xl px-4 py-3">
+            <div>
               {addingGroup ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -466,7 +478,7 @@ export default function GroupsPanel({ initialGroups, allCards, onCardClick, onGr
               ) : (
                 <button
                   onClick={() => setAddingGroup(true)}
-                  className="flex items-center gap-2 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors w-full"
+                  className="flex items-center gap-2 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                   新增群組

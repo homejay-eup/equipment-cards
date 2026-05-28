@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -17,9 +17,10 @@ interface Props {
   isNew?: boolean
   isBookmarked?: boolean
   onToggleBookmark?: () => void
+  onReplace?: () => void
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -77,6 +78,17 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           <p className="text-sm font-medium text-[#2c1e12] mt-0.5 line-clamp-2 leading-tight">{card.name}</p>
         </div>
       </button>
+
+      {/* 替換按鈕：圖片區左下，僅在群組內顯示 */}
+      {onReplace && !selectMode && (
+        <button
+          onClick={e => { e.stopPropagation(); onReplace() }}
+          className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+          title="替換料卡"
+        >
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* 收藏星號：資訊區右下角，避免與圖片區按鈕及 NEW badge 衝突 */}
       {onToggleBookmark && !selectMode && (
