@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Loader2, Shield, Trash2, UserPlus, ChevronDown } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
@@ -37,9 +38,10 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
-  // 每行的角色下拉開關（key: email）
-  const [rowRoleOpenMap, setRowRoleOpenMap] = useState<Record<string, boolean>>({})
-  const rowRoleRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  // 每行的角色下拉：改用 fixed 定位避免被 overflow-hidden 截斷
+  const [openRoleEmail, setOpenRoleEmail] = useState<string | null>(null)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!roleOpen) return
@@ -51,20 +53,14 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
   }, [roleOpen])
 
   useEffect(() => {
-    const hasOpen = Object.values(rowRoleOpenMap).some(Boolean)
-    if (!hasOpen) return
+    if (!openRoleEmail) return
     const close = (e: MouseEvent) => {
-      const target = e.target as Node
-      const anyOpen = Object.entries(rowRoleOpenMap).some(([email, open]) => {
-        if (!open) return false
-        const ref = rowRoleRefs.current[email]
-        return ref ? ref.contains(target) : false
-      })
-      if (!anyOpen) setRowRoleOpenMap({})
+      if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) return
+      setOpenRoleEmail(null)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
-  }, [rowRoleOpenMap])
+  }, [openRoleEmail])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -220,7 +216,15 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
               <thead>
                 <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">角色</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">
+                    <span className="flex items-center gap-2">
+                      角色
+                      <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)]">
+                        <ShieldCheck className="h-2.5 w-2.5" />
+                        角色管理
+                      </Link>
+                    </span>
+                  </th>
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">加入日期</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -229,7 +233,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                 {users.map(user => {
                   const isSelf = user.email === currentUserEmail
                   const isLoading = loadingEmail === user.email
-                  const isRowRoleOpen = rowRoleOpenMap[user.email] ?? false
+                  const isRowRoleOpen = openRoleEmail === user.email
                   return (
                     <tr key={user.email} className="hover:bg-[rgba(122,82,48,.03)] transition-colors">
                       <td className="px-4 py-3 text-[#2c1e12]">
@@ -237,52 +241,29 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                         {isSelf && <span className="ml-2 text-xs text-[#a08060]">（你）</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div
-                          ref={el => { rowRoleRefs.current[user.email] = el }}
-                          className="relative inline-block"
+                        <button
+                          type="button"
+                          disabled={isLoading || isSelf}
+                          onClick={e => {
+                            if (isSelf) return
+                            if (isRowRoleOpen) { setOpenRoleEmail(null); return }
+                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                            setDropdownPos({ top: rect.bottom + 4, left: rect.left })
+                            setOpenRoleEmail(user.email)
+                          }}
+                          className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed ${
+                            isSelf
+                              ? 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)] opacity-60'
+                              : 'bg-[rgba(122,82,48,.07)] text-[#6b4f38] border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230]'
+                          }`}
                         >
-                          <button
-                            type="button"
-                            disabled={isLoading || isSelf}
-                            onClick={() => {
-                              if (isSelf) return
-                              setRowRoleOpenMap(prev => ({ ...prev, [user.email]: !prev[user.email] }))
-                            }}
-                            className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed ${
-                              isSelf
-                                ? 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)] opacity-60'
-                                : 'bg-[rgba(122,82,48,.07)] text-[#6b4f38] border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230]'
-                            }`}
-                          >
-                            {isLoading
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <Shield className="h-3 w-3" />
-                            }
-                            {user.role}
-                            {!isSelf && <ChevronDown className={`h-3 w-3 transition-transform duration-150 ${isRowRoleOpen ? 'rotate-180' : ''}`} />}
-                          </button>
-                          {isRowRoleOpen && !isSelf && (
-                            <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-[8rem]">
-                              {availableRoles.map(role => (
-                                <button
-                                  key={role}
-                                  type="button"
-                                  onClick={() => {
-                                    setRowRoleOpenMap(prev => ({ ...prev, [user.email]: false }))
-                                    if (role !== user.role) changeRole(user, role)
-                                  }}
-                                  className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
-                                    role === user.role
-                                      ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
-                                      : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
-                                  }`}
-                                >
-                                  {role}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                          {isLoading
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Shield className="h-3 w-3" />
+                          }
+                          {user.role}
+                          {!isSelf && <ChevronDown className={`h-3 w-3 transition-transform duration-150 ${isRowRoleOpen ? 'rotate-180' : ''}`} />}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
                         {formatDate(user.created_at)}
@@ -307,6 +288,37 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
           )}
         </div>
       </div>
+
+      {/* 角色下拉：fixed 定位，不受 overflow-hidden 截斷 */}
+      {openRoleEmail && (
+        <div
+          ref={dropdownRef}
+          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden min-w-[8rem]"
+        >
+          {availableRoles.map(role => {
+            const currentRole = users.find(u => u.email === openRoleEmail)?.role
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => {
+                  const user = users.find(u => u.email === openRoleEmail)
+                  setOpenRoleEmail(null)
+                  if (user && role !== user.role) changeRole(user, role)
+                }}
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                  role === currentRole
+                    ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
+                    : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+                }`}
+              >
+                {role}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}

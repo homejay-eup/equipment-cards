@@ -13,7 +13,7 @@ import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, ShieldCheck } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -36,7 +36,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const searchParams = useSearchParams()
 
   const canManage   = permissions.includes('manage_users')
-  const canRoles    = permissions.includes('manage_roles')
 
   const activeStatus = settings.statuses[0] ?? '現役'
 
@@ -377,12 +376,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">帳號管理</span>
-              </Link>
-            )}
-            {canRoles && (
-              <Link href="/admin/roles" className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
-                <ShieldCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">角色管理</span>
               </Link>
             )}
             {userEmail && <UserMenu email={userEmail} />}

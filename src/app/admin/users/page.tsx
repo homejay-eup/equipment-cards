@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import UserManagementTable from '@/components/UserManagementTable'
-import { ArrowLeft, Users, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Users } from 'lucide-react'
 
 function getServiceClient() {
   return createClient(
@@ -52,14 +52,10 @@ export default async function AdminUsersPage() {
           <Link href="/" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-[#7a5230]" />
             <h1 className="text-xl font-bold text-[#7a5230]">帳號管理</h1>
           </div>
-          <Link href="/admin/roles" className="flex items-center gap-2 text-sm text-[#7a5230] hover:text-[#9c6b42] transition-colors">
-            <ShieldCheck className="h-4 w-4" />
-            角色管理
-          </Link>
         </div>
       </header>
 
