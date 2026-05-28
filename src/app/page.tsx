@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
-import type { BookmarkRecord } from '@/types/equipment'
+import type { UserGroup } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRoleWithPermissions } from '@/lib/admin'
@@ -25,35 +25,52 @@ async function getEquipmentCards(): Promise<EquipmentCard[]> {
   return data ?? []
 }
 
-async function getActiveEquipmentCards(activeStatus: string): Promise<EquipmentCard[]> {
+async function getUserGroups(userId: string): Promise<UserGroup[]> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
-  const { data, error } = await supabase
-    .from('equipment_cards')
-    .select('*')
-    .eq('status', activeStatus)
-    .order('equipment_id')
 
-  if (error) {
-    console.error('Supabase error:', error)
-    return []
-  }
-  return data ?? []
-}
-
-async function getUserBookmarks(userId: string): Promise<BookmarkRecord[]> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-  const { data } = await supabase
-    .from('user_bookmarks')
-    .select('*')
+  let { data: groups } = await supabase
+    .from('user_groups')
+    .select('*, group_items(equipment_id, added_at)')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  return (data ?? []) as BookmarkRecord[]
+    .order('is_default', { ascending: false })
+    .order('sort_order')
+
+  // 懶遷移：若完全沒有群組，從 user_bookmarks 建立預設群組並遷移
+  if (!groups || groups.length === 0) {
+    const { data: bookmarks } = await supabase
+      .from('user_bookmarks')
+      .select('equipment_id, created_at')
+      .eq('user_id', userId)
+
+    const { data: newGroup } = await supabase
+      .from('user_groups')
+      .insert({ user_id: userId, name: '我的關注', is_default: true })
+      .select()
+      .single()
+
+    if (newGroup && bookmarks && bookmarks.length > 0) {
+      await supabase.from('group_items').insert(
+        bookmarks.map((b: { equipment_id: string; created_at: string }) => ({
+          group_id: newGroup.id,
+          equipment_id: b.equipment_id,
+          added_at: b.created_at,
+        }))
+      )
+    }
+
+    const { data: fresh } = await supabase
+      .from('user_groups')
+      .select('*, group_items(equipment_id, added_at)')
+      .eq('user_id', userId)
+      .order('is_default', { ascending: false })
+      .order('sort_order')
+    groups = fresh
+  }
+
+  return (groups ?? []) as UserGroup[]
 }
 
 export default async function HomePage() {
@@ -62,19 +79,21 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const [{ permissions }, settings, initialBookmarks] = await Promise.all([
+  const [cards, roleData, settings, initialGroups] = await Promise.all([
+    getEquipmentCards(),
     getUserRoleWithPermissions(),
     getSettings(),
-    getUserBookmarks(user.id),
+    getUserGroups(user.id),
   ])
 
+  const { permissions } = roleData
   const isAdmin = permissions.includes('crud_cards')
-  const canReadAll = permissions.includes('read_all_cards')
-  const activeStatus = settings.statuses[0] ?? '現役'
 
-  const cards = canReadAll
-    ? await getEquipmentCards()
-    : await getActiveEquipmentCards(activeStatus)
+  // 伺服器端依權限過濾料卡（read_active_only → 只回現役）
+  const activeStatus = settings.statuses[0] ?? '現役'
+  const filteredCards = permissions.includes('read_all_cards')
+    ? cards
+    : cards.filter(c => c.status === activeStatus)
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
@@ -84,11 +103,11 @@ export default async function HomePage() {
         </div>
       }>
         <PhotoWall
-          initialCards={cards}
+          initialCards={filteredCards}
           isAdmin={isAdmin}
           settings={settings}
           userEmail={user?.email ?? ''}
-          initialBookmarks={initialBookmarks}
+          initialGroups={initialGroups}
           permissions={permissions}
         />
       </Suspense>

@@ -51,3 +51,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   statuses: ['現役', '停產'],
   documentTypes: ['規格書', '合約書', '其他'],
 }
+
+export interface GroupItem {
+  equipment_id: string
+  added_at: string
+}
+
+export interface UserGroup {
+  id: string
+  name: string
+  is_default: boolean
+  sort_order: number
+  created_at: string
+  group_items: GroupItem[]
+}
+
+export interface Role {
+  id: string
+  name: string
+  is_system: boolean
+  created_at: string
+  permissions: string[]  // 由 API JOIN 填入
+}
