@@ -5,7 +5,7 @@ import { EquipmentCard } from '@/types/equipment'
 import type { BookmarkRecord } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getUserRole } from '@/lib/admin'
+import { getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
@@ -16,6 +16,24 @@ async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const { data, error } = await supabase
     .from('equipment_cards')
     .select('*')
+    .order('equipment_id')
+
+  if (error) {
+    console.error('Supabase error:', error)
+    return []
+  }
+  return data ?? []
+}
+
+async function getActiveEquipmentCards(activeStatus: string): Promise<EquipmentCard[]> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+  const { data, error } = await supabase
+    .from('equipment_cards')
+    .select('*')
+    .eq('status', activeStatus)
     .order('equipment_id')
 
   if (error) {
@@ -44,13 +62,19 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const [cards, role, settings, initialBookmarks] = await Promise.all([
-    getEquipmentCards(),
-    getUserRole(),
+  const [{ permissions }, settings, initialBookmarks] = await Promise.all([
+    getUserRoleWithPermissions(),
     getSettings(),
     getUserBookmarks(user.id),
   ])
-  const isAdmin = role === 'admin'
+
+  const isAdmin = permissions.includes('crud_cards')
+  const canReadAll = permissions.includes('read_all_cards')
+  const activeStatus = settings.statuses[0] ?? '現役'
+
+  const cards = canReadAll
+    ? await getEquipmentCards()
+    : await getActiveEquipmentCards(activeStatus)
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
@@ -65,6 +89,7 @@ export default async function HomePage() {
           settings={settings}
           userEmail={user?.email ?? ''}
           initialBookmarks={initialBookmarks}
+          permissions={permissions}
         />
       </Suspense>
     </main>

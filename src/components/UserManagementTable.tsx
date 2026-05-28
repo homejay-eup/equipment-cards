@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Loader2, Shield, ShieldOff, Trash2, UserPlus, ChevronDown } from 'lucide-react'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
   email: string
-  role: 'admin' | 'viewer'
+  role: string
   created_at: string
 }
 
 interface Props {
   initialUsers: UserRow[]
   currentUserEmail: string
+  availableRoles: string[]
 }
 
 function formatDate(iso: string) {
@@ -22,12 +23,7 @@ function formatDate(iso: string) {
   })
 }
 
-const ROLE_OPTIONS: { value: 'admin' | 'viewer'; label: string }[] = [
-  { value: 'viewer', label: '一般使用者' },
-  { value: 'admin',  label: '管理員' },
-]
-
-export default function UserManagementTable({ initialUsers, currentUserEmail }: Props) {
+export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,11 +31,15 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
   const [pendingRemove, setPendingRemove] = useState<UserRow | null>(null)
 
   const [newEmail, setNewEmail] = useState('')
-  const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer')
+  const [newRole, setNewRole] = useState<string>(availableRoles[0] ?? 'viewer')
   const [roleOpen, setRoleOpen] = useState(false)
   const roleRef = useRef<HTMLDivElement>(null)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  // 每行的角色下拉開關（key: email）
+  const [rowRoleOpenMap, setRowRoleOpenMap] = useState<Record<string, boolean>>({})
+  const rowRoleRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     if (!roleOpen) return
@@ -49,6 +49,22 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [roleOpen])
+
+  useEffect(() => {
+    const hasOpen = Object.values(rowRoleOpenMap).some(Boolean)
+    if (!hasOpen) return
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node
+      const anyOpen = Object.entries(rowRoleOpenMap).some(([email, open]) => {
+        if (!open) return false
+        const ref = rowRoleRefs.current[email]
+        return ref ? ref.contains(target) : false
+      })
+      if (!anyOpen) setRowRoleOpenMap({})
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [rowRoleOpenMap])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -68,7 +84,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
         created_at: new Date().toISOString(),
       }])
       setNewEmail('')
-      setNewRole('viewer')
+      setNewRole(availableRoles[0] ?? 'viewer')
     } catch {
       setAddError('新增失敗，請重試')
     } finally {
@@ -76,18 +92,17 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
     }
   }
 
-  async function toggleRole(user: UserRow) {
-    const next = user.role === 'admin' ? 'viewer' : 'admin'
+  async function changeRole(user: UserRow, nextRole: string) {
     setLoadingEmail(user.email)
     setError(null)
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, role: next }),
+        body: JSON.stringify({ email: user.email, role: nextRole }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.error ?? '更新失敗'); return }
-      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, role: next } : u))
+      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, role: nextRole } : u))
     } catch {
       setError('更新失敗，請重試')
     } finally {
@@ -117,8 +132,6 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
       setLoadingEmail(null)
     }
   }
-
-  const adminCount = users.filter(u => u.role === 'admin').length
 
   return (
     <div className="space-y-6">
@@ -153,20 +166,20 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
                   : 'border-[#e8ddd0] hover:border-[rgba(122,82,48,.35)] hover:shadow-[0_0_6px_rgba(122,82,48,.18)]'
               }`}
             >
-              {ROLE_OPTIONS.find(o => o.value === newRole)?.label}
+              {newRole}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${roleOpen ? 'rotate-180' : ''}`} />
             </button>
             {roleOpen && (
-              <div className="absolute top-full mt-1 left-0 right-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50">
-                {ROLE_OPTIONS.map(o => (
-                  <button key={o.value} type="button"
-                    onClick={() => { setNewRole(o.value); setRoleOpen(false) }}
-                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
-                      newRole === o.value
+              <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-full">
+                {availableRoles.map(role => (
+                  <button key={role} type="button"
+                    onClick={() => { setNewRole(role); setRoleOpen(false) }}
+                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                      newRole === role
                         ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                         : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
                     }`}>
-                    {o.label}
+                    {role}
                   </button>
                 ))}
               </div>
@@ -196,7 +209,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
         )}
 
         <div className="mb-3 text-sm text-[#a08060]">
-          共 {users.length} 位使用者，{adminCount} 位管理員
+          共 {users.length} 位使用者
         </div>
 
         <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
@@ -216,6 +229,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
                 {users.map(user => {
                   const isSelf = user.email === currentUserEmail
                   const isLoading = loadingEmail === user.email
+                  const isRowRoleOpen = rowRoleOpenMap[user.email] ?? false
                   return (
                     <tr key={user.email} className="hover:bg-[rgba(122,82,48,.03)] transition-colors">
                       <td className="px-4 py-3 text-[#2c1e12]">
@@ -223,34 +237,58 @@ export default function UserManagementTable({ initialUsers, currentUserEmail }: 
                         {isSelf && <span className="ml-2 text-xs text-[#a08060]">（你）</span>}
                       </td>
                       <td className="px-4 py-3">
-                        {user.role === 'admin' ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.25)] px-2 py-0.5 rounded-full shadow-[0_0_6px_rgba(122,82,48,.2)]">
-                            <Shield className="h-3 w-3" />
-                            管理員
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium bg-[rgba(122,82,48,.05)] text-[#a08060] border border-[rgba(122,82,48,.15)] px-2 py-0.5 rounded-full">
-                            <ShieldOff className="h-3 w-3" />
-                            一般使用者
-                          </span>
-                        )}
+                        <div
+                          ref={el => { rowRoleRefs.current[user.email] = el }}
+                          className="relative inline-block"
+                        >
+                          <button
+                            type="button"
+                            disabled={isLoading || isSelf}
+                            onClick={() => {
+                              if (isSelf) return
+                              setRowRoleOpenMap(prev => ({ ...prev, [user.email]: !prev[user.email] }))
+                            }}
+                            className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed ${
+                              isSelf
+                                ? 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)] opacity-60'
+                                : 'bg-[rgba(122,82,48,.07)] text-[#6b4f38] border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230]'
+                            }`}
+                          >
+                            {isLoading
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Shield className="h-3 w-3" />
+                            }
+                            {user.role}
+                            {!isSelf && <ChevronDown className={`h-3 w-3 transition-transform duration-150 ${isRowRoleOpen ? 'rotate-180' : ''}`} />}
+                          </button>
+                          {isRowRoleOpen && !isSelf && (
+                            <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-[8rem]">
+                              {availableRoles.map(role => (
+                                <button
+                                  key={role}
+                                  type="button"
+                                  onClick={() => {
+                                    setRowRoleOpenMap(prev => ({ ...prev, [user.email]: false }))
+                                    if (role !== user.role) changeRole(user, role)
+                                  }}
+                                  className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                                    role === user.role
+                                      ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
+                                      : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
+                                  }`}
+                                >
+                                  {role}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
                         {formatDate(user.created_at)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => toggleRole(user)}
-                            disabled={isLoading || isSelf}
-                            title={isSelf ? '無法修改自己的角色' : user.role === 'admin' ? '降為一般使用者' : '升為管理員'}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-[rgba(122,82,48,.07)] text-[#6b4f38] border border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.22)]"
-                          >
-                            {isLoading
-                              ? <Loader2 className="h-3 w-3 animate-spin inline" />
-                              : user.role === 'admin' ? '撤銷' : '升為管理員'
-                            }
-                          </button>
                           <button
                             onClick={() => handleRemove(user)}
                             disabled={isLoading || isSelf}

@@ -12,7 +12,7 @@ import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, ShieldCheck } from 'lucide-react'
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -20,6 +20,7 @@ interface Props {
   settings: AppSettings
   userEmail: string
   initialBookmarks?: BookmarkRecord[]
+  permissions?: string[]
 }
 
 const SORT_OPTIONS = [
@@ -28,9 +29,13 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialBookmarks }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialBookmarks, permissions = [] }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
+
+  const canManage   = permissions.includes('manage_users')
+  const canRoles    = permissions.includes('manage_roles')
+  const canBookmark = permissions.includes('use_bookmarks')
 
   const activeStatus = settings.statuses[0] ?? '現役'
 
@@ -331,14 +336,20 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (
-              <>
-                <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
-                <Link href="/admin/users"
-                  className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
-                  <Users className="h-4 w-4" />
-                  <span className="hidden sm:inline">帳號管理</span>
-                </Link>
-              </>
+              <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">管理員</span>
+            )}
+            {canManage && (
+              <Link href="/admin/users"
+                className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">帳號管理</span>
+              </Link>
+            )}
+            {canRoles && (
+              <Link href="/admin/roles" className="flex items-center gap-1.5 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors">
+                <ShieldCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">角色管理</span>
+              </Link>
             )}
             {userEmail && <UserMenu email={userEmail} />}
           </div>
@@ -356,20 +367,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             >
               全部料卡
             </button>
-            <button
-              onClick={() => setActiveTab('bookmarks')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                activeTab === 'bookmarks'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
-            >
-              <Star className={`h-3.5 w-3.5 ${bookmarks.length > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
-              我的關注
-              {bookmarks.length > 0 && (
-                <span className="text-xs">{bookmarks.length}</span>
-              )}
-            </button>
+            {canBookmark && (
+              <button
+                onClick={() => setActiveTab('bookmarks')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                  activeTab === 'bookmarks'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Star className={`h-3.5 w-3.5 ${bookmarks.length > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
+                我的關注
+                {bookmarks.length > 0 && (
+                  <span className="text-xs">{bookmarks.length}</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* 搜尋列 */}
@@ -632,6 +645,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             activeStatus={activeStatus}
             isAdmin={isAdmin}
             onEdit={() => { openEdit(selected); setSelected(null) }}
+            permissions={permissions}
             bookmarkNotes={bookmarkNotes[selected.equipment_id] ?? ''}
             onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}
           />
