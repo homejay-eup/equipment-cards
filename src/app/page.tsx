@@ -25,6 +25,23 @@ async function getEquipmentCards(): Promise<EquipmentCard[]> {
   return data ?? []
 }
 
+async function getUserBookmarkNotes(userId: string): Promise<Record<string, string>> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+  const { data } = await supabase
+    .from('user_bookmarks')
+    .select('equipment_id, notes')
+    .eq('user_id', userId)
+    .not('notes', 'is', null)
+  const result: Record<string, string> = {}
+  ;(data ?? []).forEach((b: { equipment_id: string; notes: string | null }) => {
+    if (b.notes) result[b.equipment_id] = b.notes
+  })
+  return result
+}
+
 async function getUserGroups(userId: string): Promise<UserGroup[]> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -79,11 +96,12 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const [cards, roleData, settings, initialGroups] = await Promise.all([
+  const [cards, roleData, settings, initialGroups, initialBookmarkNotes] = await Promise.all([
     getEquipmentCards(),
     getUserRoleWithPermissions(),
     getSettings(),
     getUserGroups(user.id),
+    getUserBookmarkNotes(user.id),
   ])
 
   const { permissions } = roleData
@@ -108,6 +126,7 @@ export default async function HomePage() {
           settings={settings}
           userEmail={user?.email ?? ''}
           initialGroups={initialGroups}
+          initialBookmarkNotes={initialBookmarkNotes}
           permissions={permissions}
         />
       </Suspense>

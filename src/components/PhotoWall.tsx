@@ -21,6 +21,7 @@ interface Props {
   settings: AppSettings
   userEmail: string
   initialGroups?: UserGroup[]
+  initialBookmarkNotes?: Record<string, string>
   permissions?: string[]
 }
 
@@ -30,7 +31,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, permissions = [] }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [] }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -74,6 +75,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
+
+  // 個人備註 state（只有自己看得到，儲存於 user_bookmarks.notes）
+  const [bookmarkNotes, setBookmarkNotes] = useState<Record<string, string>>(initialBookmarkNotes ?? {})
+  const bookmarkSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // 計算 defaultGroup 的書籤 IDs
   const defaultGroup = groups.find(g => g.is_default)
@@ -234,6 +239,20 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       }
     }
   }, [groups])
+
+  const updateBookmarkNotes = useCallback((card: EquipmentCard, notes: string) => {
+    setBookmarkNotes(prev => ({ ...prev, [card.equipment_id]: notes }))
+    if (bookmarkSaveTimerRef.current[card.equipment_id]) {
+      clearTimeout(bookmarkSaveTimerRef.current[card.equipment_id])
+    }
+    bookmarkSaveTimerRef.current[card.equipment_id] = setTimeout(async () => {
+      await fetch('/api/bookmarks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ equipment_id: card.equipment_id, notes }),
+      })
+    }, 800)
+  }, [])
 
   const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false); setNoPhotoFilter(false) }
 
@@ -641,6 +660,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           isAdmin={isAdmin}
           onEdit={() => { openEdit(selected); setSelected(null) }}
           permissions={permissions}
+          bookmarkNotes={bookmarkedIds.has(selected.equipment_id) ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
+          onBookmarkNotesChange={activeTab === 'bookmarks' && bookmarkedIds.has(selected.equipment_id)
+            ? (notes) => updateBookmarkNotes(selected, notes)
+            : undefined}
         />
       )}
 

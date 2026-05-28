@@ -14,6 +14,8 @@ interface Props {
   isAdmin?: boolean
   onEdit?: () => void
   permissions?: string[]
+  bookmarkNotes?: string
+  onBookmarkNotesChange?: (notes: string) => void
 }
 
 const SWIPE_THRESHOLD = 50
@@ -35,7 +37,7 @@ function emailPrefix(email: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [] }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
@@ -231,6 +233,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </div>
                 )}
+                {onBookmarkNotesChange && (
+                  <div>
+                    <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
+                    <textarea
+                      value={bookmarkNotes ?? ''}
+                      onChange={e => onBookmarkNotesChange(e.target.value)}
+                      rows={2}
+                      placeholder="記錄你的私人備忘…"
+                      className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                    />
+                  </div>
+                )}
                 {permissions.includes('read_notes') && card.notes && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">備註</p>
@@ -316,6 +330,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                             </span>
                           ))}
                         </div>
+                      </div>
+                    )}
+                    {onBookmarkNotesChange && (
+                      <div>
+                        <p className="text-xs text-[#a08060] mb-1">⭐ 個人備註 <span className="text-[10px]">（只有你看得到）</span></p>
+                        <textarea
+                          value={bookmarkNotes ?? ''}
+                          onChange={e => onBookmarkNotesChange(e.target.value)}
+                          rows={2}
+                          placeholder="記錄你的私人備忘…"
+                          className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                        />
                       </div>
                     )}
                     {permissions.includes('read_notes') && card.notes && (
