@@ -95,15 +95,18 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       )}
 
-      {/* 加入群組按鈕：主網格視圖，左下角（與右側星號同層定位，避免名稱換行造成錯位） */}
+      {/* 加入群組按鈕：主網格視圖，圖片區左下角（與右側 +N 標籤同高） */}
       {onAddToGroup && !selectMode && (
-        <button
-          onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
-          className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
-          title="加入群組"
-        >
-          <FolderPlus className="h-3.5 w-3.5" />
-        </button>
+        <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
+          <button
+            onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
+            style={{ pointerEvents: 'auto' }}
+            className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+            title="加入群組"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* 收藏星號：資訊區右下角，避免與圖片區按鈕及 NEW badge 衝突 */}
