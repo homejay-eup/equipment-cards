@@ -52,11 +52,11 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
 
   const results = useMemo(() => {
     const q = searchQ.trim()
-    if (!q) return allCards.slice(0, 20)
+    if (!q) return allCards
     if (/^\d+$/.test(q)) {
-      return allCards.filter(c => c.equipment_id.includes(q) || c.name.includes(q)).slice(0, 20)
+      return allCards.filter(c => c.equipment_id.includes(q) || c.name.includes(q))
     }
-    return fuse.search(q).map(r => r.item).slice(0, 20)
+    return fuse.search(q).map(r => r.item)
   }, [searchQ, allCards, fuse])
 
   const containingGroups = groups.filter(g => g.group_items.some(i => i.equipment_id === card.equipment_id))
@@ -82,7 +82,7 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm mx-4 bg-[#faf6f0] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-lg mx-4 bg-[#faf6f0] rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-[rgba(122,82,48,.15)] flex items-center justify-between">
           <p className="text-sm font-semibold text-[#5a3820]">替換「{card.name}」</p>
           <button onClick={onCancel} className="text-[#a08060] hover:text-[#7a5230]">
@@ -102,7 +102,7 @@ function ReplaceDialog({ card, groups, allCards, onConfirm, onCancel }: ReplaceD
                 className="w-full pl-8 pr-3 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
               />
             </div>
-            <div className="max-h-36 overflow-y-auto border border-[#e8ddd0] rounded-lg divide-y divide-[rgba(122,82,48,.08)]">
+            <div className="max-h-[50vh] overflow-y-auto border border-[#e8ddd0] rounded-lg divide-y divide-[rgba(122,82,48,.08)]">
               {results.map(c => (
                 <button
                   key={c.equipment_id}
