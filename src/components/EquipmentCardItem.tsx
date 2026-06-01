@@ -87,7 +87,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           <button
             onClick={e => { e.stopPropagation(); onReplace() }}
             style={{ pointerEvents: 'auto' }}
-            className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+            className="absolute top-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
             title="替換料卡"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />

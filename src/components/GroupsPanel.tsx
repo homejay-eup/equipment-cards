@@ -13,10 +13,8 @@ interface GroupsPanelProps {
   onCardClick: (card: EquipmentCard) => void
   onGroupsChange: (groups: UserGroup[]) => void
   activeStatus: string
-  isAdmin?: boolean
   bookmarkedIds: Set<string>
   onToggleBookmark: (card: EquipmentCard) => void
-  onEdit?: (card: EquipmentCard) => void
   onDelete?: (card: EquipmentCard) => void
   filteredCards?: EquipmentCard[]
 }
@@ -320,10 +318,8 @@ export default function GroupsPanel({
   onCardClick,
   onGroupsChange,
   activeStatus,
-  isAdmin,
   bookmarkedIds,
   onToggleBookmark,
-  onEdit,
   onDelete,
   filteredCards,
 }: GroupsPanelProps) {
@@ -702,8 +698,7 @@ export default function GroupsPanel({
                               key={card.equipment_id}
                               card={card}
                               onClick={() => onCardClick(card)}
-                              isAdmin={isAdmin}
-                              onEdit={onEdit ? () => onEdit(card) : undefined}
+                              isAdmin={false}
                               onDelete={group.is_default ? (onDelete ? () => onDelete(card) : undefined) : undefined}
                               activeStatus={activeStatus}
                               isNew={card.is_new}
