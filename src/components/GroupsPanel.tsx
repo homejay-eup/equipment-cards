@@ -325,8 +325,14 @@ export default function GroupsPanel({
 }: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
-    new Set(initialGroups.map(g => g.id))
-  )
+    new Set(initialGroups.map(g => g.id)))
+
+  // 同步外部 groups 變更（例如從全部料卡的加入群組 popup 更新）
+  // 當 initialGroups 參考改變時才更新（即 PhotoWall setGroups 被呼叫時）
+  useEffect(() => {
+    setGroups(initialGroups)
+  }, [initialGroups]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [isLoading, setIsLoading] = useState(false)
 
   const [addingGroup, setAddingGroup] = useState(false)

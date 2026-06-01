@@ -75,6 +75,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
+  // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
+  const [groupsMounted, setGroupsMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'bookmarks') setGroupsMounted(true)
+  }, [activeTab])
 
   // 加入群組 popup
   const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
@@ -652,20 +657,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         </div>
       </div>
 
-      {/* 主內容區 */}
-      {activeTab === 'bookmarks' ? (
-        <GroupsPanel
-          initialGroups={groups}
-          allCards={initialCards}
-          onCardClick={(card) => setSelected(card)}
-          onGroupsChange={setGroups}
-          activeStatus={activeStatus}
-          onDelete={handleDelete}
-          filteredCards={filtered}
-          bookmarkedIds={bookmarkedIds}
-          onToggleBookmark={toggleDefaultGroup}
-        />
-      ) : (
+      {/* 主內容區：兩個 view 皆常駐 DOM，以 hidden 切換，避免重複 mount 的延遲 */}
+
+      {/* 全部料卡網格 */}
+      <div className={activeTab !== 'all' ? 'hidden' : ''}>
         <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
           {/* 結果數量 */}
           <p className="text-sm text-[#a08060] mb-4">
@@ -706,6 +701,23 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 我的關注：首次切入才 mount，之後 CSS hide/show 不 unmount */}
+      {groupsMounted && (
+        <div className={activeTab !== 'bookmarks' ? 'hidden' : ''}>
+          <GroupsPanel
+            initialGroups={groups}
+            allCards={initialCards}
+            onCardClick={(card) => setSelected(card)}
+            onGroupsChange={setGroups}
+            activeStatus={activeStatus}
+            onDelete={handleDelete}
+            filteredCards={filtered}
+            bookmarkedIds={bookmarkedIds}
+            onToggleBookmark={toggleDefaultGroup}
+          />
         </div>
       )}
 

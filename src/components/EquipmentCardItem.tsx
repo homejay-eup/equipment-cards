@@ -95,9 +95,9 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       )}
 
-      {/* 加入群組按鈕：主網格視圖，圖片區左下角（與右側 +N 標籤同高） */}
+      {/* 加入群組按鈕：主網格視圖，圖片區左下角（inset-px 對齊圖片內容邊緣，與 +N 標籤同高） */}
       {onAddToGroup && !selectMode && (
-        <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
+        <div className="absolute top-px left-px right-px aspect-square pointer-events-none">
           <button
             onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
             style={{ pointerEvents: 'auto' }}
