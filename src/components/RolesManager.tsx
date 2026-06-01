@@ -16,18 +16,31 @@ interface Props {
 }
 
 const PERM_LABELS: Record<string, string> = {
-  read_all_cards:       '看全部料卡（含非現役）',
-  read_active_only:     '只看現役料卡',
-  read_documents:       '看文件/規格書',
-  read_notes:           '看備註',
-  read_vendor:          '看廠商',
-  read_updated_by:      '看更新人員',
-  read_updated_content: '看更新內容',
-  use_bookmarks:        '我的關注（書籤）',
-  crud_cards:           '新增/編輯/刪除料卡',
-  manage_users:         '帳號管理/指派角色',
-  manage_roles:         '角色與權限設定',
-  use_groups:           '群組功能',
+  read_all_cards:          '看全部料卡（含非現役）',
+  read_active_only:        '只看現役料卡',
+  read_documents:          '看文件/規格書',
+  read_notes:              '看備註',
+  read_vendor:             '看廠商',
+  read_updated_by:         '看更新人員',
+  read_updated_content:    '看更新內容',
+  use_bookmarks:           '我的關注（書籤）',
+  add_delete_cards:        '新增/刪除料卡',
+  edit_cards:              '編輯料卡',
+  edit_field_id:           '└ 料號',
+  edit_field_name:         '└ 品名',
+  edit_field_category:     '└ 分類',
+  edit_field_status:       '└ 狀態',
+  edit_field_vendor:       '└ 廠商',
+  edit_field_tags:         '└ 標籤',
+  edit_field_notes:        '└ 備註',
+  edit_field_net_weight:   '└ 淨重／淨重照片',
+  edit_field_documents:    '└ 文件連結',
+  edit_field_is_new:       '└ 新品標記',
+  edit_field_main_photo:   '└ 主照片',
+  edit_field_detail_photos:'└ 細節照片',
+  manage_users:            '帳號管理/指派角色',
+  manage_roles:            '角色與權限設定',
+  use_groups:              '群組功能',
 }
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
@@ -40,10 +53,17 @@ const DETAIL_PERMS = [
 ] as const
 const FEATURE_PERMS = [
   'use_bookmarks',
-  'crud_cards',
+  'add_delete_cards',
+  'edit_cards',
   'manage_users',
   'manage_roles',
   'use_groups',
+] as const
+
+const EDIT_FIELD_PERMS = [
+  'edit_field_id', 'edit_field_name', 'edit_field_category', 'edit_field_status',
+  'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
+  'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
 ] as const
 
 export default function RolesManager({ initialRoles }: Props) {
@@ -240,21 +260,45 @@ export default function RolesManager({ initialRoles }: Props) {
             />
             <p className="text-xs text-[#a08060]">初始權限（可新增後再調整）</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {Object.entries(PERM_LABELS).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={newRolePerms.includes(key)}
-                    onChange={() => {
-                      setNewRolePerms(prev =>
-                        prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                      )
-                    }}
-                    className="accent-[#7a5230]"
-                  />
-                  <span className="text-xs text-[#4a3422]">{label}</span>
-                </label>
-              ))}
+              {Object.entries(PERM_LABELS)
+                .filter(([key]) => !(EDIT_FIELD_PERMS as readonly string[]).includes(key))
+                .map(([key, label]) => (
+                  <div key={key} className="col-span-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={newRolePerms.includes(key)}
+                        onChange={() => {
+                          setNewRolePerms(prev =>
+                            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+                          )
+                        }}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-xs text-[#4a3422]">{label}</span>
+                    </label>
+                    {key === 'edit_cards' && newRolePerms.includes('edit_cards') && (
+                      <div className="pl-5 mt-1 space-y-1 col-span-2">
+                        {EDIT_FIELD_PERMS.map(fkey => (
+                          <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={newRolePerms.includes(fkey)}
+                              onChange={() => {
+                                setNewRolePerms(prev =>
+                                  prev.includes(fkey) ? prev.filter(p => p !== fkey) : [...prev, fkey]
+                                )
+                              }}
+                              className="accent-[#7a5230]"
+                            />
+                            <span className="text-xs text-[#4a3422]">{PERM_LABELS[fkey]}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              }
             </div>
             {createError && <p className="text-xs text-[#b5451b]">{createError}</p>}
             <div className="flex gap-2 justify-end">
@@ -441,16 +485,34 @@ export default function RolesManager({ initialRoles }: Props) {
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">功能權限</p>
                   <div className="space-y-1.5">
                     {FEATURE_PERMS.map(key => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={role.permissions.includes(key)}
-                          onChange={() => handleDetailToggle(role, key)}
-                          disabled={isSavingPerm}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
-                      </label>
+                      <div key={key}>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={role.permissions.includes(key)}
+                            onChange={() => handleDetailToggle(role, key)}
+                            disabled={isSavingPerm}
+                            className="accent-[#7a5230]"
+                          />
+                          <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                        </label>
+                        {key === 'edit_cards' && role.permissions.includes('edit_cards') && (
+                          <div className="pl-5 mt-1 space-y-1.5">
+                            {EDIT_FIELD_PERMS.map(fkey => (
+                              <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={role.permissions.includes(fkey)}
+                                  onChange={() => handleDetailToggle(role, fkey)}
+                                  disabled={isSavingPerm}
+                                  className="accent-[#7a5230]"
+                                />
+                                <span className="text-sm text-[#4a3422]">{PERM_LABELS[fkey]}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

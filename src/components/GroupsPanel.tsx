@@ -15,6 +15,8 @@ interface GroupsPanelProps {
   activeStatus: string
   onDelete?: (card: EquipmentCard) => void
   filteredCards?: EquipmentCard[]
+  bookmarkedIds?: Set<string>
+  onToggleBookmark?: (card: EquipmentCard) => void
 }
 
 // ── 替換料卡彈窗 ────────────────────────────────────────────────
@@ -318,6 +320,8 @@ export default function GroupsPanel({
   activeStatus,
   onDelete,
   filteredCards,
+  bookmarkedIds,
+  onToggleBookmark,
 }: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
@@ -702,6 +706,8 @@ export default function GroupsPanel({
                               isNew={card.is_new}
                               onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
                               onRemoveFromGroup={!group.is_default ? () => setRemoveCardTarget({ card, groupId: group.id }) : undefined}
+                              isBookmarked={group.is_default ? bookmarkedIds?.has(card.equipment_id) : undefined}
+                              onToggleBookmark={group.is_default && onToggleBookmark ? () => onToggleBookmark(card) : undefined}
                             />
                           ))}
                         </div>

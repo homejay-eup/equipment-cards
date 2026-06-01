@@ -662,6 +662,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           activeStatus={activeStatus}
           onDelete={handleDelete}
           filteredCards={filtered}
+          bookmarkedIds={bookmarkedIds}
+          onToggleBookmark={toggleDefaultGroup}
         />
       ) : (
         <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
@@ -795,6 +797,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             open={formOpen}
             onClose={() => setFormOpen(false)}
             settings={settings}
+            permissions={permissions}
           />
           <BatchImportDialog
             open={importOpen}
