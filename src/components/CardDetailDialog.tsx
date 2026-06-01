@@ -40,8 +40,8 @@ function emailPrefix(email: string) {
 export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange }: Props) {
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
-    ...card.detail_photos.map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
-    ...(card.weight_photos ?? []).map((p, i) => ({ url: p.url, label: `淨重 ${i + 1}`, caption: undefined as string | undefined })),
+    ...card.detail_photos.filter(Boolean).map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
+    ...(card.weight_photos ?? []).filter(Boolean).map((p, i) => ({ url: p.url, label: `淨重 ${i + 1}`, caption: undefined as string | undefined })),
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
