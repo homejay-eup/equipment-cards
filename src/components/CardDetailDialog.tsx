@@ -216,7 +216,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                 </div>
               </div>
               <div className="px-4 py-2 space-y-2">
-                {allPhotos[photoIndex].caption && (
+                {allPhotos[photoIndex]?.caption && (
                   <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
                     <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
                     {allPhotos[photoIndex].caption}
@@ -321,7 +321,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </DialogHeader>
                   <div className="px-5 py-4 space-y-4">
-                    {allPhotos[photoIndex].caption && (
+                    {allPhotos[photoIndex]?.caption && (
                       <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
                         <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
                         {allPhotos[photoIndex].caption}
