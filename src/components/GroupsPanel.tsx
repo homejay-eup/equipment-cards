@@ -13,8 +13,6 @@ interface GroupsPanelProps {
   onCardClick: (card: EquipmentCard) => void
   onGroupsChange: (groups: UserGroup[]) => void
   activeStatus: string
-  bookmarkedIds: Set<string>
-  onToggleBookmark: (card: EquipmentCard) => void
   onDelete?: (card: EquipmentCard) => void
   filteredCards?: EquipmentCard[]
 }
@@ -318,8 +316,6 @@ export default function GroupsPanel({
   onCardClick,
   onGroupsChange,
   activeStatus,
-  bookmarkedIds,
-  onToggleBookmark,
   onDelete,
   filteredCards,
 }: GroupsPanelProps) {
@@ -331,7 +327,6 @@ export default function GroupsPanel({
 
   const [addingGroup, setAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
-  const [savingNew, setSavingNew] = useState(false)
   const newGroupInputRef = useRef<HTMLInputElement>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -392,27 +387,31 @@ export default function GroupsPanel({
   async function handleAddGroup() {
     const name = newGroupName.trim()
     if (!name) { setAddingGroup(false); return }
-    setSavingNew(true)
-    try {
-      const res = await fetch('/api/groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      if (res.ok) {
-        const newGroup: UserGroup = await res.json()
-        // 插在預設群組後面，而非最尾端
-        const defaultIdx = groups.findIndex(g => g.is_default)
-        const insertIdx = defaultIdx >= 0 ? defaultIdx + 1 : groups.length
-        const next = [...groups]
-        next.splice(insertIdx, 0, newGroup)
-        applyGroups(next)
-        setExpandedIds(prev => { const next = new Set(prev); next.add(newGroup.id); return next })
-        setNewGroupName('')
-        setAddingGroup(false)
-      }
-    } finally {
-      setSavingNew(false)
+
+    // Optimistic: 立即關閉輸入框並顯示群組
+    setAddingGroup(false)
+    setNewGroupName('')
+    const tempId = `temp-${Date.now()}`
+    const tempGroup: UserGroup = { id: tempId, name, is_default: false, sort_order: 999, created_at: new Date().toISOString(), group_items: [] }
+    const defaultIdx = groups.findIndex(g => g.is_default)
+    const insertIdx = defaultIdx >= 0 ? defaultIdx + 1 : groups.length
+    const withTemp = [...groups]
+    withTemp.splice(insertIdx, 0, tempGroup)
+    applyGroups(withTemp)
+    setExpandedIds(prev => { const next = new Set(prev); next.add(tempId); return next })
+
+    const res = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (res.ok) {
+      const newGroup: UserGroup = await res.json()
+      applyGroups(withTemp.map(g => g.id === tempId ? newGroup : g))
+      setExpandedIds(prev => { const next = new Set(prev); next.delete(tempId); next.add(newGroup.id); return next })
+    } else {
+      applyGroups(withTemp.filter(g => g.id !== tempId))
+      setExpandedIds(prev => { const next = new Set(prev); next.delete(tempId); return next })
     }
   }
 
@@ -545,10 +544,9 @@ export default function GroupsPanel({
                   />
                   <button
                     onClick={handleAddGroup}
-                    disabled={savingNew}
-                    className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg disabled:opacity-40 hover:bg-[#9c6b42] transition-colors"
+                    className="flex items-center justify-center w-8 h-8 bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors"
                   >
-                    {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    <Check className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => { setAddingGroup(false); setNewGroupName('') }}
@@ -702,8 +700,6 @@ export default function GroupsPanel({
                               onDelete={group.is_default ? (onDelete ? () => onDelete(card) : undefined) : undefined}
                               activeStatus={activeStatus}
                               isNew={card.is_new}
-                              isBookmarked={bookmarkedIds.has(card.equipment_id)}
-                              onToggleBookmark={() => onToggleBookmark(card)}
                               onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
                               onRemoveFromGroup={!group.is_default ? () => setRemoveCardTarget({ card, groupId: group.id }) : undefined}
                             />
