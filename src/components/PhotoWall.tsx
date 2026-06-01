@@ -706,10 +706,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           isAdmin={isAdmin}
           onEdit={() => { openEdit(selected); setSelected(null) }}
           permissions={permissions}
-          bookmarkNotes={bookmarkedIds.has(selected.equipment_id) ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
-          onBookmarkNotesChange={activeTab === 'bookmarks' && bookmarkedIds.has(selected.equipment_id)
-            ? (notes) => updateBookmarkNotes(selected, notes)
-            : undefined}
+          bookmarkNotes={activeTab === 'bookmarks' ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
+          onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}
         />
       )}
 
