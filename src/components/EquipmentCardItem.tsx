@@ -32,9 +32,13 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
 
   return (
     <div className="group relative">
-      <button
+      {/* 外層改用 div[role=button]，讓 FolderPlus 可直接放入圖片 div 內，與 +N 完全同層 */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleClick}
-        className={`bg-white rounded-xl border overflow-hidden shadow-sm transition-all duration-200 text-left w-full h-full focus:outline-none ${
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleClick() }}
+        className={`bg-white rounded-xl border overflow-hidden shadow-sm transition-all duration-200 text-left w-full h-full cursor-pointer focus:outline-none ${
           selectMode && isSelected
             ? 'border-[#7a5230] ring-2 ring-[#c49a72] shadow-[0_0_10px_rgba(122,82,48,.3)]'
             : 'border-[rgba(122,82,48,.12)] hover:border-[#c49a72] hover:shadow-[0_0_10px_rgba(122,82,48,.25),0_4px_16px_rgba(122,82,48,.08)]'
@@ -72,6 +76,16 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
               +{card.detail_photos.length}
             </span>
           )}
+          {/* 加入群組：與 +N 同在圖片 div 內，位置完全對稱 */}
+          {onAddToGroup && !selectMode && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
+              className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
+              title="加入群組"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* 資訊區 */}
@@ -79,9 +93,9 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           <p className="text-[11px] text-[#a08060] font-mono truncate">{card.equipment_id}</p>
           <p className="text-sm font-medium text-[#2c1e12] mt-0.5 line-clamp-2 leading-tight">{card.name}</p>
         </div>
-      </button>
+      </div>
 
-      {/* 替換按鈕：群組視圖，照片左下角 */}
+      {/* 替換按鈕：群組視圖，照片左上角 */}
       {onReplace && !selectMode && (
         <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
           <button
@@ -91,20 +105,6 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
             title="替換料卡"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* 加入群組按鈕：主網格視圖，圖片區左下角（inset-px 對齊圖片內容邊緣，與 +N 標籤同高） */}
-      {onAddToGroup && !selectMode && (
-        <div className="absolute top-px left-px right-px aspect-square pointer-events-none">
-          <button
-            onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
-            style={{ pointerEvents: 'auto' }}
-            className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
-            title="加入群組"
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
