@@ -209,11 +209,11 @@ function AddCardDialog({ group, allCards, onConfirm, onCancel }: AddCardDialogPr
 
   const results = useMemo(() => {
     const q = searchQ.trim()
-    if (!q) return availableCards.slice(0, 30)
+    if (!q) return availableCards
     if (/^\d+$/.test(q)) {
-      return availableCards.filter(c => c.equipment_id.includes(q) || c.name.includes(q)).slice(0, 30)
+      return availableCards.filter(c => c.equipment_id.includes(q) || c.name.includes(q))
     }
-    return fuse.search(q).map(r => r.item).slice(0, 30)
+    return fuse.search(q).map(r => r.item)
   }, [searchQ, availableCards, fuse])
 
   function toggleCard(id: string) {
@@ -442,16 +442,14 @@ export default function GroupsPanel({
 
   async function handleRenameSubmit(groupId: string) {
     const name = renameValue.trim()
-    if (!name) { setRenamingId(null); return }
-    const res = await fetch(`/api/groups/${groupId}`, {
+    setRenamingId(null)
+    if (!name) return
+    applyGroups(groups.map(g => g.id === groupId ? { ...g, name } : g))
+    await fetch(`/api/groups/${groupId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
-    if (res.ok) {
-      applyGroups(groups.map(g => g.id === groupId ? { ...g, name } : g))
-    }
-    setRenamingId(null)
   }
 
   const handleReplace = useCallback(async (
