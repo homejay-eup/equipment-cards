@@ -81,15 +81,21 @@ export default function RolesManager({ initialRoles }: Props) {
 
   const [savingPermId, setSavingPermId] = useState<string | null>(null)
   const [permError, setPermError] = useState<string | null>(null)
+  const [draftPerms, setDraftPerms] = useState<Record<string, string[]>>({})
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RoleData | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  function toggleExpand(id: string) {
+  function toggleExpand(id: string, role: RoleData) {
     setExpandedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+        setDraftPerms(d => ({ ...d, [id]: [...role.permissions] }))
+      }
       return next
     })
   }
@@ -148,21 +154,37 @@ export default function RolesManager({ initialRoles }: Props) {
     }
   }
 
+  function getDraft(role: RoleData): string[] {
+    return draftPerms[role.id] ?? role.permissions
+  }
+
+  function hasDraftChanges(role: RoleData): boolean {
+    const draft = getDraft(role)
+    const saved = role.permissions
+    return draft.length !== saved.length || draft.some(p => !saved.includes(p))
+  }
+
   function handleVisibilityChange(role: RoleData, selected: 'read_all_cards' | 'read_active_only') {
     const removed = selected === 'read_all_cards' ? 'read_active_only' : 'read_all_cards'
-    const newPerms = role.permissions.filter(p => p !== removed)
-    const result = newPerms.includes(selected) ? newPerms : [...newPerms, selected]
-    updatePermissions(role, result)
+    const cur = getDraft(role).filter(p => p !== removed)
+    const result = cur.includes(selected) ? cur : [...cur, selected]
+    setDraftPerms(d => ({ ...d, [role.id]: result }))
   }
 
   function handleDetailToggle(role: RoleData, key: string) {
-    let newPerms: string[]
-    if (role.permissions.includes(key)) {
-      newPerms = role.permissions.filter(p => p !== key)
-    } else {
-      newPerms = [...role.permissions, key]
-    }
-    updatePermissions(role, newPerms)
+    const cur = getDraft(role)
+    const result = cur.includes(key) ? cur.filter(p => p !== key) : [...cur, key]
+    setDraftPerms(d => ({ ...d, [role.id]: result }))
+  }
+
+  function discardDraft(role: RoleData) {
+    setDraftPerms(d => ({ ...d, [role.id]: [...role.permissions] }))
+    setPermError(null)
+  }
+
+  async function saveDraft(role: RoleData) {
+    const draft = getDraft(role)
+    await updatePermissions(role, draft)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -222,12 +244,6 @@ export default function RolesManager({ initialRoles }: Props) {
     } catch {
       setDeleteError('刪除失敗，請重試')
     }
-  }
-
-  function getVisibility(role: RoleData): 'read_all_cards' | 'read_active_only' | null {
-    if (role.permissions.includes('read_all_cards')) return 'read_all_cards'
-    if (role.permissions.includes('read_active_only')) return 'read_active_only'
-    return null
   }
 
   return (
@@ -344,7 +360,9 @@ export default function RolesManager({ initialRoles }: Props) {
         const isRenamingThis = editingId === role.id
         const isSavingPerm = savingPermId === role.id
         const isSavingName = savingNameId === role.id
-        const visibility = getVisibility(role)
+        const draft = getDraft(role)
+        const isDirty = hasDraftChanges(role)
+        const visibility = draft.includes('read_all_cards') ? 'read_all_cards' : draft.includes('read_active_only') ? 'read_active_only' : null
 
         return (
           <div key={role.id} className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] shadow-sm overflow-hidden">
@@ -422,7 +440,7 @@ export default function RolesManager({ initialRoles }: Props) {
                   </>
                 )}
                 <button
-                  onClick={() => toggleExpand(role.id)}
+                  onClick={() => toggleExpand(role.id, role)}
                   title={isExpanded ? '收合' : '展開'}
                   className="p-1.5 rounded-lg text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.06)] transition-colors"
                 >
@@ -450,7 +468,7 @@ export default function RolesManager({ initialRoles }: Props) {
                         <input
                           type="radio"
                           name={`visibility-${role.id}`}
-                          checked={role.permissions.includes(key)}
+                          checked={draft.includes(key)}
                           onChange={() => handleVisibilityChange(role, key)}
                           disabled={isSavingPerm}
                           className="accent-[#7a5230]"
@@ -469,7 +487,7 @@ export default function RolesManager({ initialRoles }: Props) {
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
-                          checked={role.permissions.includes(key)}
+                          checked={draft.includes(key)}
                           onChange={() => handleDetailToggle(role, key)}
                           disabled={isSavingPerm}
                           className="accent-[#7a5230]"
@@ -489,20 +507,20 @@ export default function RolesManager({ initialRoles }: Props) {
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={role.permissions.includes(key)}
+                            checked={draft.includes(key)}
                             onChange={() => handleDetailToggle(role, key)}
                             disabled={isSavingPerm}
                             className="accent-[#7a5230]"
                           />
                           <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
                         </label>
-                        {key === 'edit_cards' && role.permissions.includes('edit_cards') && (
+                        {key === 'edit_cards' && draft.includes('edit_cards') && (
                           <div className="pl-5 mt-1 space-y-1.5">
                             {EDIT_FIELD_PERMS.map(fkey => (
                               <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
                                 <input
                                   type="checkbox"
-                                  checked={role.permissions.includes(fkey)}
+                                  checked={draft.includes(fkey)}
                                   onChange={() => handleDetailToggle(role, fkey)}
                                   disabled={isSavingPerm}
                                   className="accent-[#7a5230]"
@@ -516,6 +534,27 @@ export default function RolesManager({ initialRoles }: Props) {
                     ))}
                   </div>
                 </div>
+
+                {/* 儲存 / 取消 */}
+                {isDirty && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-[rgba(122,82,48,.1)]">
+                    <button
+                      onClick={() => saveDraft(role)}
+                      disabled={isSavingPerm}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
+                    >
+                      {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      儲存變更
+                    </button>
+                    <button
+                      onClick={() => discardDraft(role)}
+                      disabled={isSavingPerm}
+                      className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

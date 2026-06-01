@@ -12,7 +12,11 @@ function getSupabase() {
 
 const VALID_PERMISSION_KEYS = [
   'read_all_cards', 'read_active_only', 'read_documents', 'read_notes', 'read_vendor',
-  'read_updated_by', 'read_updated_content', 'use_bookmarks', 'crud_cards',
+  'read_updated_by', 'read_updated_content', 'use_bookmarks',
+  'add_delete_cards', 'edit_cards',
+  'edit_field_id', 'edit_field_name', 'edit_field_category', 'edit_field_status',
+  'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
+  'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
   'manage_users', 'manage_roles', 'use_groups',
 ]
 
