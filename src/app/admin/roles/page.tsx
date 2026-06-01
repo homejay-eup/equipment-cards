@@ -44,10 +44,13 @@ async function fetchRoles(): Promise<RoleData[]> {
 }
 
 export default async function AdminRolesPage() {
-  const user = await requirePermission('manage_roles')
-  if (!user) redirect('/')
+  // 平行：權限驗證 + 頁面資料一起抓
+  const [user, roles] = await Promise.all([
+    requirePermission('manage_roles'),
+    fetchRoles(),
+  ])
 
-  const roles = await fetchRoles()
+  if (!user) redirect('/')
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">

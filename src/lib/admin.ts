@@ -29,9 +29,17 @@ const ALLOWED_DOMAIN = '@eup.com.tw'
 // 若 roles 表不存在或找不到角色 → 依舊 role 名稱做 fallback
 export async function getUserRoleWithPermissions(): Promise<{ roleName: string; permissions: string[] }> {
   const supabase = createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user?.email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
 
+  // 平行：驗證 session + 預載所有角色權限資料
+  const [{ data: { user } }, rolesResult] = await Promise.all([
+    supabase.auth.getUser(),
+    getServiceClient()
+      .from('roles')
+      .select('name, role_permissions(permission_key)')
+      .order('id', { ascending: true }),
+  ])
+
+  if (!user?.email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
   if (!user.email.endsWith(ALLOWED_DOMAIN)) return { roleName: '', permissions: VIEWER_PERMISSIONS }
 
   const { data: emailData } = await getServiceClient()
@@ -42,20 +50,11 @@ export async function getUserRoleWithPermissions(): Promise<{ roleName: string; 
 
   const roleName = emailData?.role ?? ''
 
-  // 嘗試從 roles 表查詢（SQL 執行後才存在）
-  try {
-    const { data: roleData, error } = await getServiceClient()
-      .from('roles')
-      .select('id, role_permissions(permission_key)')
-      .eq('name', roleName)
-      .single()
-
-    if (!error && roleData && Array.isArray(roleData.role_permissions)) {
-      const permissions = (roleData.role_permissions as { permission_key: string }[]).map(p => p.permission_key)
-      return { roleName, permissions }
-    }
-  } catch {
-    // roles 表不存在，走 fallback
+  // 從預載的 roles 資料比對（省去第三次 DB 往返）
+  const roleRow = rolesResult.data?.find((r: { name: string; role_permissions: { permission_key: string }[] }) => r.name === roleName)
+  if (roleRow && Array.isArray(roleRow.role_permissions)) {
+    const permissions = roleRow.role_permissions.map((p: { permission_key: string }) => p.permission_key)
+    return { roleName, permissions }
   }
 
   // Fallback：SQL 執行前，依舊英文 role 名稱判斷

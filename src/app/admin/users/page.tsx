@@ -37,13 +37,17 @@ async function fetchRoles(): Promise<string[]> {
 }
 
 export default async function AdminUsersPage() {
-  const admin = await requireAdmin()
-  if (!admin) redirect('/')
-
   const supabase = createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  const [users, roleNames] = await Promise.all([fetchAllowedEmails(), fetchRoles()])
+  // 平行：權限驗證 + 頁面資料一起抓
+  const [admin, { data: { user } }, users, roleNames] = await Promise.all([
+    requireAdmin(),
+    supabase.auth.getUser(),
+    fetchAllowedEmails(),
+    fetchRoles(),
+  ])
+
+  if (!admin) redirect('/')
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">

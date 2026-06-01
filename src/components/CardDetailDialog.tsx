@@ -100,11 +100,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         <span className="absolute top-3 left-3 bg-[rgba(44,30,18,.55)] text-[#f2ebe0] text-xs px-2 py-0.5 rounded-full pointer-events-none">
           {allPhotos[photoIndex].label}（{photoIndex + 1}/{allPhotos.length}）
         </span>
-        {allPhotos[photoIndex].caption && (
-          <div className="absolute bottom-3 left-3 right-3 bg-[rgba(44,30,18,.65)] backdrop-blur-sm text-[#f2ebe0] text-xs px-3 py-1.5 rounded-lg pointer-events-none leading-relaxed">
-            {allPhotos[photoIndex].caption}
-          </div>
-        )}
       </>
     )
   }
@@ -221,6 +216,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                 </div>
               </div>
               <div className="px-4 py-2 space-y-2">
+                {allPhotos[photoIndex].caption && (
+                  <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
+                    <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
+                    {allPhotos[photoIndex].caption}
+                  </div>
+                )}
                 {card.tags.length > 0 && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">標籤</p>
@@ -320,6 +321,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </DialogHeader>
                   <div className="px-5 py-4 space-y-4">
+                    {allPhotos[photoIndex].caption && (
+                      <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
+                        <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
+                        {allPhotos[photoIndex].caption}
+                      </div>
+                    )}
                     {card.tags.length > 0 && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
