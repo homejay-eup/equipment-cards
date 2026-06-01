@@ -645,10 +645,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           onCardClick={(card) => setSelected(card)}
           onGroupsChange={setGroups}
           activeStatus={activeStatus}
-          isAdmin={isAdmin}
           bookmarkedIds={bookmarkedIds}
           onToggleBookmark={toggleDefaultGroup}
-          onEdit={openEdit}
           onDelete={handleDelete}
           filteredCards={filtered}
         />
