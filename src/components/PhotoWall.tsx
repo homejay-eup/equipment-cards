@@ -79,6 +79,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 加入群組 popup
   const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
   const addToGroupPopupRef = useRef<HTMLDivElement>(null)
+  const [popupPendingIds, setPopupPendingIds] = useState<Set<string>>(new Set())
 
   // 個人備註 state（只有自己看得到，儲存於 user_bookmarks.notes）
   const [bookmarkNotes, setBookmarkNotes] = useState<Record<string, string>>(initialBookmarkNotes ?? {})
@@ -259,30 +260,44 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [addToGroupPopup])
 
   const handleOpenAddToGroupPopup = useCallback((card: EquipmentCard, rect: DOMRect) => {
-    setAddToGroupPopup(prev =>
-      prev?.card.equipment_id === card.equipment_id ? null : { card, rect }
+    setAddToGroupPopup(prev => {
+      if (prev?.card.equipment_id === card.equipment_id) return null
+      return { card, rect }
+    })
+    setPopupPendingIds(
+      new Set(nonDefaultGroups
+        .filter(g => g.group_items.some(i => i.equipment_id === card.equipment_id))
+        .map(g => g.id))
     )
-  }, [])
+  }, [nonDefaultGroups])
 
-  const handleAddCardToGroup = useCallback(async (groupId: string) => {
+  const handleConfirmAddToGroups = useCallback(async () => {
     if (!addToGroupPopup) return
     const { card } = addToGroupPopup
-    const now = new Date().toISOString()
-    setGroups(prev => prev.map(g =>
-      g.id !== groupId ? g : { ...g, group_items: [{ equipment_id: card.equipment_id, added_at: now }, ...g.group_items] }
-    ))
+    const currentIds = new Set(
+      nonDefaultGroups
+        .filter(g => g.group_items.some(i => i.equipment_id === card.equipment_id))
+        .map(g => g.id)
+    )
+    const toAdd = Array.from(popupPendingIds).filter(id => !currentIds.has(id))
+    const toRemove = Array.from(currentIds).filter(id => !popupPendingIds.has(id))
     setAddToGroupPopup(null)
-    const res = await fetch(`/api/groups/${groupId}/items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ equipment_id: card.equipment_id }),
-    })
-    if (!res.ok) {
-      setGroups(prev => prev.map(g =>
-        g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
-      ))
-    }
-  }, [addToGroupPopup]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (toAdd.length === 0 && toRemove.length === 0) return
+    const now = new Date().toISOString()
+    setGroups(prev => prev.map(g => {
+      if (toAdd.includes(g.id)) return { ...g, group_items: [{ equipment_id: card.equipment_id, added_at: now }, ...g.group_items] }
+      if (toRemove.includes(g.id)) return { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
+      return g
+    }))
+    await Promise.allSettled([
+      ...toAdd.map(id => fetch(`/api/groups/${id}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ equipment_id: card.equipment_id }),
+      })),
+      ...toRemove.map(id => fetch(`/api/groups/${id}/items/${card.equipment_id}`, { method: 'DELETE' })),
+    ])
+  }, [addToGroupPopup, nonDefaultGroups, popupPendingIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateBookmarkNotes = useCallback((card: EquipmentCard, notes: string) => {
     setBookmarkNotes(prev => ({ ...prev, [card.equipment_id]: notes }))
@@ -645,8 +660,6 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           onCardClick={(card) => setSelected(card)}
           onGroupsChange={setGroups}
           activeStatus={activeStatus}
-          bookmarkedIds={bookmarkedIds}
-          onToggleBookmark={toggleDefaultGroup}
           onDelete={handleDelete}
           filteredCards={filtered}
         />
@@ -802,7 +815,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             zIndex: 9999,
             transform: 'translateY(-100%)',
           }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-xl overflow-hidden min-w-[10rem] max-w-[14rem]"
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-xl overflow-hidden min-w-[11rem] max-w-[15rem]"
         >
           <div className="px-3 py-2 border-b border-[rgba(122,82,48,.08)]">
             <p className="text-[10px] font-semibold text-[#a08060] uppercase tracking-wider">加入群組</p>
@@ -810,24 +823,46 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           {nonDefaultGroups.length === 0 ? (
             <p className="px-3 py-3 text-xs text-[#a08060]">尚無群組，請至「我的關注」建立</p>
           ) : (
-            nonDefaultGroups.map(group => {
-              const isInGroup = group.group_items.some(i => i.equipment_id === addToGroupPopup.card.equipment_id)
-              return (
+            <>
+              <div className="max-h-48 overflow-y-auto">
+                {nonDefaultGroups.map(group => {
+                  const isPending = popupPendingIds.has(group.id)
+                  return (
+                    <button
+                      key={group.id}
+                      onClick={() => setPopupPendingIds(prev => {
+                        const next = new Set(prev)
+                        if (next.has(group.id)) next.delete(group.id); else next.add(group.id)
+                        return next
+                      })}
+                      className="w-full text-left px-3 py-2 flex items-center gap-2 transition-colors hover:bg-[rgba(122,82,48,.06)]"
+                    >
+                      <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                        isPending ? 'bg-[#7a5230] border-[#7a5230]' : 'border-[#d0b898]'
+                      }`}>
+                        {isPending && <Check className="h-2.5 w-2.5 text-white" />}
+                      </span>
+                      <Folder className="h-3.5 w-3.5 flex-shrink-0 text-[#c49a72]" />
+                      <span className="flex-1 truncate text-xs text-[#4a3422]">{group.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="px-3 py-2 border-t border-[rgba(122,82,48,.08)] flex gap-2 justify-end">
                 <button
-                  key={group.id}
-                  onClick={() => { if (!isInGroup) handleAddCardToGroup(group.id) }}
-                  className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${
-                    isInGroup
-                      ? 'text-[#7a5230] bg-[rgba(122,82,48,.04)] cursor-default'
-                      : 'text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
-                  }`}
+                  onClick={() => setAddToGroupPopup(null)}
+                  className="px-2.5 py-1 text-xs text-[#a08060] hover:text-[#7a5230] transition-colors"
                 >
-                  <Folder className="h-3.5 w-3.5 flex-shrink-0 text-[#c49a72]" />
-                  <span className="flex-1 truncate text-xs">{group.name}</span>
-                  {isInGroup && <Check className="h-3 w-3 flex-shrink-0 text-[#7a5230]" />}
+                  取消
                 </button>
-              )
-            })
+                <button
+                  onClick={handleConfirmAddToGroups}
+                  className="px-2.5 py-1 text-xs bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors"
+                >
+                  確定
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
