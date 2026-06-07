@@ -7,7 +7,6 @@ import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
-import TrackerBanner from '@/components/TrackerBanner'
 import type { Issue } from '@/app/tracker/page'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
@@ -151,25 +150,6 @@ async function getTrackerData(userEmail: string): Promise<{
   return { initialIssues, allowedEmails, issueTypes, issueTags }
 }
 
-async function getMyPendingIssueCount(userEmail: string): Promise<number> {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
-    const { data } = await supabase
-      .from('issue_assignees')
-      .select('issue_id, issues!inner(status)')
-      .eq('user_email', userEmail)
-    if (!data) return 0
-    return (data as unknown as { issues: { status: string }[] }[]).filter(
-      (r) => (r.issues ?? []).some((i) => i.status !== '已完成'),
-    ).length
-  } catch {
-    return 0
-  }
-}
-
 export default async function HomePage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -193,20 +173,11 @@ export default async function HomePage() {
     ? cards
     : cards.filter(c => c.status === activeStatus)
 
-  // 取得待處理議題數（僅 show_login_banner 權限者需要）
-  const showBanner = permissions.includes('show_login_banner')
   const hasTrackerPermission = permissions.includes('view_tracker')
-
-  const [pendingCount, trackerData] = await Promise.all([
-    showBanner ? getMyPendingIssueCount(user.email ?? '') : Promise.resolve(0),
-    hasTrackerPermission ? getTrackerData(user.email ?? '') : Promise.resolve(undefined),
-  ])
+  const trackerData = hasTrackerPermission ? await getTrackerData(user.email ?? '') : undefined
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
-      {showBanner && pendingCount > 0 && (
-        <TrackerBanner pendingCount={pendingCount} />
-      )}
       <Suspense fallback={
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
           載入中…

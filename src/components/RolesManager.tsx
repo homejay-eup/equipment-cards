@@ -44,7 +44,6 @@ const PERM_LABELS: Record<string, string> = {
   // 追蹤板
   view_tracker:            '可看追蹤板',
   view_my_tasks:           '我的任務 + badge',
-  show_login_banner:       '登入後待處理 Banner',
   create_issues:           '可新增議題',
 }
 
@@ -74,7 +73,6 @@ const EDIT_FIELD_PERMS = [
 const TRACKER_PERMS = [
   'view_tracker',
   'view_my_tasks',
-  'show_login_banner',
   'create_issues',
 ] as const
 
