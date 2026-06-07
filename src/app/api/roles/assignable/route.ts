@@ -38,10 +38,10 @@ export async function GET() {
     return NextResponse.json([])
   }
 
-  // 取得該角色的 dept_group + level
+  // 取得該角色的 dept_group + level + assignable_role_names
   const { data: roleData, error: roleError } = await service
     .from('roles')
-    .select('id, name, is_system, dept_group, level')
+    .select('id, name, is_system, dept_group, level, assignable_role_names')
     .eq('name', emailData.role)
     .single()
 
@@ -49,14 +49,27 @@ export async function GET() {
     return NextResponse.json([])
   }
 
-  const { level, dept_group } = roleData as {
+  const { level, dept_group, assignable_role_names } = roleData as {
     id: string
     name: string
     is_system: boolean
     dept_group: string | null
     level: string
+    assignable_role_names: string[] | null
   }
 
+  // If explicit list is configured, use it
+  if (assignable_role_names && assignable_role_names.length > 0) {
+    const { data, error } = await service
+      .from('roles')
+      .select('id, name, is_system, dept_group, level')
+      .in('name', assignable_role_names)
+      .order('id', { ascending: true })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data ?? [])
+  }
+
+  // Fallback: level-based logic
   if (level === 'super_admin') {
     // super_admin 可指派所有角色
     const { data, error } = await service

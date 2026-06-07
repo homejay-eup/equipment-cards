@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
-import { requirePermission } from '@/lib/admin'
+import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 import { createClient } from '@supabase/supabase-js'
 import RolesManager from '@/components/RolesManager'
 
@@ -12,6 +12,7 @@ interface RoleData {
   dept_group: string | null
   level: string | null
   permissions: string[]
+  assignable_role_names: string[] | null
 }
 
 async function fetchRoles(): Promise<RoleData[]> {
@@ -24,7 +25,7 @@ async function fetchRoles(): Promise<RoleData[]> {
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, dept_group, level, role_permissions(permission_key)')
+      .select('id, name, is_system, dept_group, level, assignable_role_names, role_permissions(permission_key)')
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -35,6 +36,7 @@ async function fetchRoles(): Promise<RoleData[]> {
       is_system: boolean
       dept_group: string | null
       level: string | null
+      assignable_role_names: string[] | null
       role_permissions: { permission_key: string }[]
     }) => ({
       id: row.id,
@@ -42,6 +44,7 @@ async function fetchRoles(): Promise<RoleData[]> {
       is_system: row.is_system ?? false,
       dept_group: row.dept_group ?? null,
       level: row.level ?? null,
+      assignable_role_names: row.assignable_role_names ?? null,
       permissions: (row.role_permissions ?? []).map(p => p.permission_key),
     }))
   } catch {
@@ -50,10 +53,11 @@ async function fetchRoles(): Promise<RoleData[]> {
 }
 
 export default async function AdminRolesPage() {
-  // 平行：權限驗證 + 頁面資料一起抓
-  const [user, roles] = await Promise.all([
+  // 平行：權限驗證 + 頁面資料 + 當前使用者角色
+  const [user, roles, roleData] = await Promise.all([
     requirePermission('manage_roles'),
     fetchRoles(),
+    getUserRoleWithPermissions(),
   ])
 
   if (!user) redirect('/')
@@ -73,7 +77,7 @@ export default async function AdminRolesPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <RolesManager initialRoles={roles} />
+        <RolesManager initialRoles={roles} currentUserRoleName={roleData.roleName} />
       </div>
     </main>
   )

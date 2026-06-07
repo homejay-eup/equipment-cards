@@ -12,10 +12,12 @@ interface RoleData {
   dept_group: string | null
   level: string | null
   permissions: string[]
+  assignable_role_names?: string[] | null
 }
 
 interface Props {
   initialRoles: RoleData[]
+  currentUserRoleName?: string
 }
 
 const PERM_LABELS: Record<string, string> = {
@@ -120,7 +122,7 @@ function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: stri
   )
 }
 
-export default function RolesManager({ initialRoles }: Props) {
+export default function RolesManager({ initialRoles, currentUserRoleName }: Props) {
   const router = useRouter()
   const [roles, setRoles] = useState<RoleData[]>(initialRoles)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -138,6 +140,10 @@ export default function RolesManager({ initialRoles }: Props) {
   const [permError, setPermError] = useState<string | null>(null)
   const [draftPerms, setDraftPerms] = useState<Record<string, string[]>>({})
 
+  const [draftAssignable, setDraftAssignable] = useState<Record<string, string[] | null>>({})
+  const [savingAssignableId, setSavingAssignableId] = useState<string | null>(null)
+  const [assignableError, setAssignableError] = useState<string | null>(null)
+
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RoleData | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -150,6 +156,10 @@ export default function RolesManager({ initialRoles }: Props) {
       } else {
         next.add(id)
         setDraftPerms(d => ({ ...d, [id]: [...role.permissions] }))
+        setDraftAssignable(d => ({
+          ...d,
+          [id]: role.assignable_role_names ?? null,
+        }))
       }
       return next
     })
@@ -188,25 +198,59 @@ export default function RolesManager({ initialRoles }: Props) {
   }
 
   async function updatePermissions(role: RoleData, newPerms: string[]) {
+    // Protect current user's own role from losing admin permissions
+    let safePerms = newPerms
+    if (role.name === currentUserRoleName) {
+      const locked = ['manage_users', 'manage_roles']
+      for (const p of locked) {
+        if (!safePerms.includes(p)) safePerms = [...safePerms, p]
+      }
+    }
     setSavingPermId(role.id)
     setPermError(null)
     try {
       const res = await fetch(`/api/roles/${role.id}/permissions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissions: newPerms }),
+        body: JSON.stringify({ permissions: safePerms }),
       })
       if (!res.ok) {
         const d = await res.json()
         setPermError(d.error ?? '權限更新失敗')
       } else {
-        setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: newPerms } : r))
+        setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: safePerms } : r))
         router.refresh()
       }
     } catch {
       setPermError('權限更新失敗，請重試')
     } finally {
       setSavingPermId(null)
+    }
+  }
+
+  async function saveAssignable(role: RoleData) {
+    const draft = draftAssignable[role.id]
+    setSavingAssignableId(role.id)
+    setAssignableError(null)
+    try {
+      const res = await fetch(`/api/roles/${role.id}/assignable`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignable_role_names: draft ?? [] }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setAssignableError(d.error ?? '儲存失敗')
+      } else {
+        setRoles(prev => prev.map(r => r.id === role.id
+          ? { ...r, assignable_role_names: draft && draft.length > 0 ? draft : null }
+          : r
+        ))
+      }
+    } catch {
+      setAssignableError('儲存失敗，請重試')
+    } finally {
+      setSavingAssignableId(null)
     }
   }
 
@@ -699,18 +743,29 @@ export default function RolesManager({ initialRoles }: Props) {
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">帳號管理</p>
                   <div className="space-y-1.5">
-                    {ACCOUNT_PERMS.map(key => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={draft.includes(key)}
-                          onChange={() => handleDetailToggle(role, key)}
-                          disabled={isSavingPerm}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
-                      </label>
-                    ))}
+                    {ACCOUNT_PERMS.map(key => {
+                      const isCurrentUserRole = role.name === currentUserRoleName
+                      const isLocked = isCurrentUserRole
+                      return (
+                        <label
+                          key={key}
+                          className={`flex items-center gap-2 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                          title={isLocked ? '當前帳號所屬角色，不可移除此權限' : undefined}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isLocked ? true : draft.includes(key)}
+                            disabled={isLocked || isSavingPerm}
+                            onChange={() => { if (!isLocked) handleDetailToggle(role, key) }}
+                            className="accent-[#7a5230]"
+                          />
+                          <span className="text-sm text-[#4a3422]">
+                            {PERM_LABELS[key]}
+                            {isLocked && <span className="ml-1 text-[10px] text-[#a08060]">（鎖定）</span>}
+                          </span>
+                        </label>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -731,6 +786,62 @@ export default function RolesManager({ initialRoles }: Props) {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                {/* 可指派角色 */}
+                <div className="mt-4 pt-4 border-t border-[rgba(122,82,48,.08)]">
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-1">可指派角色</p>
+                  <p className="text-[10px] text-[#a08060] mb-2">
+                    此角色在帳號管理頁可指派的角色清單。不勾選代表依系統規則（level）決定。
+                  </p>
+                  <div className="space-y-1.5">
+                    {roles.map(r => {
+                      const assignableDraft = draftAssignable[role.id]
+                      const isChecked = Array.isArray(assignableDraft)
+                        ? assignableDraft.includes(r.name)
+                        : false
+                      return (
+                        <label key={r.id} className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setDraftAssignable(d => {
+                                const cur: string[] = Array.isArray(d[role.id]) ? (d[role.id] as string[]) : []
+                                const next = isChecked
+                                  ? cur.filter(n => n !== r.name)
+                                  : [...cur, r.name]
+                                return { ...d, [role.id]: next }
+                              })
+                            }}
+                            className="accent-[#7a5230]"
+                          />
+                          <span className="text-xs text-[#4a3422]">{r.name}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => saveAssignable(role)}
+                      disabled={savingAssignableId === role.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
+                    >
+                      {savingAssignableId === role.id
+                        ? <><Loader2 className="h-3 w-3 animate-spin" />儲存中…</>
+                        : <><Check className="h-3 w-3" />儲存可指派角色</>}
+                    </button>
+                    <button
+                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: null }))}
+                      className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors"
+                      title="清除設定，改用系統規則"
+                    >
+                      清除（用系統規則）
+                    </button>
+                  </div>
+                  {assignableError && (
+                    <p className="text-xs text-[#b5451b] mt-1">{assignableError}</p>
+                  )}
                 </div>
 
                 {/* 儲存 / 取消 */}

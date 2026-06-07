@@ -67,7 +67,7 @@ export default function IssueDetailDialog({
   const canViewTracker = permissions.includes('view_tracker')
   const isAuthor = localIssue.created_by === userEmail
   const isAssignee = localIssue.assignee_emails.includes(userEmail)
-  const canFullEdit = canCreateIssues || canEditIssue
+  const canFullEdit = (isAuthor && canCreateIssues) || canEditIssue
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 
