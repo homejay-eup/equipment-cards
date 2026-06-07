@@ -101,22 +101,24 @@
 
 #### 核心既有元件保護原則（強制）
 
-新功能實作時，以下元件**除非規格明確指定，否則禁止修改**：
+**這條規則是針對「新功能實作」的範圍限制，不是永久凍結。** 若有新需求或優化要調整現有元件，在該 Step 的規格中明確說明即可。
 
-| 元件 | 禁止原因 |
-|------|----------|
-| `src/components/PhotoWall.tsx` | 主頁照片牆，視覺與互動已定案 |
-| `src/components/EquipmentCardItem.tsx` | 卡片縮圖版面已定案 |
-| `src/components/CardDetailDialog.tsx` | Lightbox 分頁與互動已定案 |
-| `src/components/CardFormDialog.tsx` | 新增/編輯欄位已定案 |
-| `src/components/BatchImportDialog.tsx` | CSV 匯入已定案 |
-| `src/app/page.tsx` | 首頁入口，僅允許加新功能連結 |
+新功能實作時，**未在規格中明確列出的既有元件一律不得修改**：
+
+| 元件 | 說明 |
+|------|------|
+| `src/components/PhotoWall.tsx` | 主頁照片牆 |
+| `src/components/EquipmentCardItem.tsx` | 卡片縮圖 |
+| `src/components/CardDetailDialog.tsx` | Lightbox |
+| `src/components/CardFormDialog.tsx` | 新增/編輯料卡 |
+| `src/components/BatchImportDialog.tsx` | CSV 匯入 |
+| `src/app/page.tsx` | 首頁入口 |
 
 **允許的最小侵入**（需在規格中明確列出）：
 - 加新 prop，且必須有預設值不破壞現有呼叫端
 - 加一個入口連結或圖示，不改變版面結構
 
-**絕對禁止**：
+**未列在規格的既有元件，禁止**：
 - 改 className / 樣式
 - 改現有 handler 邏輯
 - 改 layout 結構
