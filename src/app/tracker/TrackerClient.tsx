@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Plus, AlertCircle, ChevronDown } from 'lucide-react'
 import type { Issue } from './page'
@@ -14,6 +14,7 @@ interface Props {
   allowedEmails: string[]
   issueTypes: string[]
   issueTags: string[]
+  onMyTasksCountChange?: (count: number) => void
 }
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -52,6 +53,7 @@ export default function TrackerClient({
   allowedEmails,
   issueTypes,
   issueTags,
+  onMyTasksCountChange,
 }: Props) {
   const searchParams = useSearchParams()
 
@@ -87,6 +89,10 @@ export default function TrackerClient({
       (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
     ).length
   }, [issues, userEmail])
+
+  useEffect(() => {
+    onMyTasksCountChange?.(myPendingCount)
+  }, [myPendingCount, onMyTasksCountChange])
 
   const handleIssueCreated = useCallback((newIssue: Issue) => {
     setIssues((prev) => [newIssue, ...prev])

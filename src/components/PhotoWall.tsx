@@ -90,6 +90,12 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'bookmarks') setGroupsMounted(true)
   }, [activeTab])
+  // 若 use_bookmarks 權限被移除，回退到全部料卡
+  useEffect(() => {
+    if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
+      setActiveTab('all')
+    }
+  }, [permissions, activeTab])
 
   // 加入群組 popup
   const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
@@ -101,11 +107,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const bookmarkSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // 追蹤板待處理計數（以指派給我且未完成的議題計算）
-  const trackerPendingCount = trackerData
-    ? trackerData.initialIssues.filter(
-        (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
-      ).length
-    : 0
+  const [trackerPendingCount, setTrackerPendingCount] = useState(() =>
+    trackerData
+      ? trackerData.initialIssues.filter(
+          (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
+        ).length
+      : 0,
+  )
 
   // 計算 defaultGroup 的書籤 IDs
   const defaultGroup = groups.find(g => g.is_default)
@@ -483,20 +491,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             >
               全部料卡
             </button>
-            <button
-              onClick={() => setActiveTab('bookmarks')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                activeTab === 'bookmarks'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
-            >
-              <Star className={`h-3.5 w-3.5 ${activeTab === 'bookmarks' ? 'fill-white text-white' : bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
-              我的關注
-              {bookmarkedIds.size > 0 && (
-                <span className="text-xs">{bookmarkedIds.size}</span>
-              )}
-            </button>
+            {permissions.includes('use_bookmarks') && (
+              <button
+                onClick={() => setActiveTab('bookmarks')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'bookmarks'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Star className={`h-3.5 w-3.5 ${activeTab === 'bookmarks' ? 'fill-white text-white' : bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
+                我的關注
+                {bookmarkedIds.size > 0 && (
+                  <span className="text-xs">{bookmarkedIds.size}</span>
+                )}
+              </button>
+            )}
             {permissions.includes('view_tracker') && (
               <button
                 onClick={() => { setActiveTab('tracker'); router.refresh() }}
@@ -763,6 +773,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           allowedEmails={trackerData.allowedEmails}
           issueTypes={trackerData.issueTypes}
           issueTags={trackerData.issueTags}
+          onMyTasksCountChange={setTrackerPendingCount}
         />
       )}
 

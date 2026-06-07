@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
@@ -117,6 +118,7 @@ function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: stri
 }
 
 export default function RolesManager({ initialRoles }: Props) {
+  const router = useRouter()
   const [roles, setRoles] = useState<RoleData[]>(initialRoles)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -196,6 +198,7 @@ export default function RolesManager({ initialRoles }: Props) {
         setPermError(d.error ?? '權限更新失敗')
       } else {
         setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: newPerms } : r))
+        router.refresh()
       }
     } catch {
       setPermError('權限更新失敗，請重試')
