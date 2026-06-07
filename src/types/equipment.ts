@@ -43,13 +43,17 @@ export interface EquipmentCard {
 export interface AppSettings {
   categories: string[]
   statuses: string[]        // 第一個為預設「現役」狀態
-  documentTypes: string[]   // 新增：文件連結類型清單
+  documentTypes: string[]   // 文件連結類型清單
+  issueTypes: string[]      // 追蹤板議題類型
+  issueTags: string[]       // 追蹤板議題標籤
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   categories: ['主機', '鏡頭', '螢幕', '天線', '儲存媒體', '線材', '配件', '耗材', '工具', '國外設備'],
   statuses: ['現役', '停產'],
   documentTypes: ['規格書', '合約書', '其他'],
+  issueTypes: ['設備異常', '維修需求', '庫存問題', '其他'],
+  issueTags: [],
 }
 
 export interface GroupItem {
