@@ -210,6 +210,12 @@ export default function IssueDetailDialog({
     onUpdated(updated)
   }, [onUpdated])
 
+  const handleEditRevert = useCallback((original: Issue) => {
+    setLocalIssue(original)
+    onUpdated(original)
+    setError('編輯儲存失敗，已還原')
+  }, [onUpdated])
+
   if (!open) return null
 
   return (
@@ -453,6 +459,7 @@ export default function IssueDetailDialog({
           allowedEmails={allowedEmails}
           onClose={() => setEditOpen(false)}
           onUpdated={handleEditUpdated}
+          onRevert={handleEditRevert}
         />
       )}
 

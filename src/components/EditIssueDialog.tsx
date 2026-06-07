@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { X, Loader2, Check, Save } from 'lucide-react'
+import { X, Check, Save } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
 
 interface Props {
@@ -12,10 +12,11 @@ interface Props {
   allowedEmails: string[]
   onClose: () => void
   onUpdated: (updated: Issue) => void
+  onRevert?: (original: Issue) => void
 }
 
 export default function EditIssueDialog({
-  open, issue, issueTypes, issueTags, allowedEmails, onClose, onUpdated,
+  open, issue, issueTypes, issueTags, allowedEmails, onClose, onUpdated, onRevert,
 }: Props) {
   const [title, setTitle] = useState(issue.title)
   const [type, setType] = useState(issue.type)
@@ -65,9 +66,27 @@ export default function EditIssueDialog({
     e?.preventDefault()
     if (!title.trim()) { setError('標題為必填'); return }
     if (!type) { setError('類型為必填'); return }
+    if (submitting) return
 
     setSubmitting(true)
-    setError(null)
+
+    // Optimistic：立即用表單值更新 UI，對話框隨即關閉
+    const optimistic: Issue = {
+      ...issue,
+      title: title.trim(),
+      type,
+      priority,
+      status,
+      due_date: dueDate || null,
+      description: description.trim() || null,
+      tags: selectedTags,
+      assignee_emails: selectedAssignees,
+      assignees: selectedAssignees.map((e) => e.split('@')[0]),
+      updated_at: new Date().toISOString(),
+    }
+    onUpdated(optimistic)
+
+    // 背景同步到伺服器
     try {
       const res = await fetch(`/api/issues/${issue.id}`, {
         method: 'PATCH',
@@ -84,33 +103,25 @@ export default function EditIssueDialog({
         }),
       })
       if (!res.ok) {
-        const d = await res.json()
-        if (d.partial) {
-          // 議題主體已更新，但負責人同步失敗
-          setError(d.error ?? '議題已更新，但負責人同步失敗，請重新編輯')
-        } else {
-          setError(d.error ?? '更新失敗')
-        }
+        onRevert?.(issue)
         return
       }
       const data = await res.json()
       const emails: string[] = (data.issue_assignees ?? []).map(
         (a: { user_email: string }) => a.user_email,
       )
-      const updated: Issue = {
+      const real: Issue = {
         ...data,
         issue_assignees: undefined,
         issue_updates: undefined,
         assignee_emails: emails,
         assignees: emails.map((e: string) => e.split('@')[0]),
       }
-      onUpdated(updated)
+      onUpdated(real)
     } catch {
-      setError('更新失敗，請重試')
-    } finally {
-      setSubmitting(false)
+      onRevert?.(issue)
     }
-  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue.id, onUpdated])
+  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue, submitting, onUpdated, onRevert])
 
   if (!open) return null
 
@@ -346,7 +357,7 @@ export default function EditIssueDialog({
             disabled={submitting || !title.trim() || !type}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
           >
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            <Save className="h-3.5 w-3.5" />
             儲存
           </button>
         </div>
