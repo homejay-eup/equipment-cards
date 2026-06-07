@@ -13,7 +13,16 @@ import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList } from 'lucide-react'
+import TrackerClient from '@/app/tracker/TrackerClient'
+import type { Issue } from '@/app/tracker/page'
+
+interface TrackerData {
+  initialIssues: Issue[]
+  allowedEmails: string[]
+  issueTypes: string[]
+  issueTags: string[]
+}
 
 interface Props {
   initialCards: EquipmentCard[]
@@ -24,6 +33,7 @@ interface Props {
   initialBookmarkNotes?: Record<string, string>
   permissions?: string[]
   userRole?: string
+  trackerData?: TrackerData
 }
 
 const SORT_OPTIONS = [
@@ -32,7 +42,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -74,7 +84,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -480,10 +490,23 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 <span className="text-xs">{bookmarkedIds.size}</span>
               )}
             </button>
+            {permissions.includes('view_tracker') && (
+              <button
+                onClick={() => setActiveTab('tracker')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'tracker'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                追蹤板
+              </button>
+            )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div>
+          <div className={activeTab === 'tracker' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -719,6 +742,18 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             onToggleBookmark={toggleDefaultGroup}
           />
         </div>
+      )}
+
+      {/* 追蹤板：有 view_tracker 權限且有 trackerData 時顯示 */}
+      {activeTab === 'tracker' && trackerData && (
+        <TrackerClient
+          initialIssues={trackerData.initialIssues}
+          permissions={permissions}
+          userEmail={userEmail}
+          allowedEmails={trackerData.allowedEmails}
+          issueTypes={trackerData.issueTypes}
+          issueTags={trackerData.issueTags}
+        />
       )}
 
       {/* 細節 Dialog（在兩個 view 都可開啟） */}

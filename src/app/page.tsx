@@ -8,6 +8,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
 import TrackerBanner from '@/components/TrackerBanner'
+import type { Issue } from '@/app/tracker/page'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -91,6 +92,65 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
   return (groups ?? []) as UserGroup[]
 }
 
+async function getTrackerData(userEmail: string): Promise<{
+  initialIssues: Issue[]
+  allowedEmails: string[]
+  issueTypes: string[]
+  issueTags: string[]
+}> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+
+  const [issuesResult, allowedEmailsResult, settingsResult] = await Promise.allSettled([
+    supabase
+      .from('issues')
+      .select(`
+        id, title, type, priority, status, due_date, description, tags,
+        created_by, created_at, updated_at,
+        issue_assignees(user_email)
+      `)
+      .order('created_at', { ascending: false }),
+    supabase.from('allowed_emails').select('email'),
+    supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['issueTypes', 'issueTags']),
+  ])
+
+  const issuesData = issuesResult.status === 'fulfilled' ? (issuesResult.value.data ?? []) : []
+  const initialIssues: Issue[] = issuesData.map((issue) => {
+    const emails: string[] = ((issue.issue_assignees ?? []) as { user_email: string }[]).map(
+      (a) => a.user_email,
+    )
+    return {
+      ...issue,
+      issue_assignees: undefined,
+      assignee_emails: emails,
+      assignees: emails.map((e) => e.split('@')[0]),
+    }
+  })
+
+  const allowedEmails: string[] =
+    allowedEmailsResult.status === 'fulfilled'
+      ? ((allowedEmailsResult.value.data ?? []) as { email: string }[]).map((r) => r.email)
+      : []
+
+  const settingsRows =
+    settingsResult.status === 'fulfilled' ? (settingsResult.value.data ?? []) : []
+  let issueTypes = ['缺貨', '韌體', '維修', '客戶反應', '其他']
+  let issueTags: string[] = []
+  for (const row of settingsRows as { key: string; value: unknown }[]) {
+    if (row.key === 'issueTypes' && Array.isArray(row.value)) issueTypes = row.value as string[]
+    if (row.key === 'issueTags' && Array.isArray(row.value)) issueTags = row.value as string[]
+  }
+
+  void userEmail // 保留參數供未來擴充（如個人化篩選）
+  return { initialIssues, allowedEmails, issueTypes, issueTags }
+}
+
 async function getMyPendingIssueCount(userEmail: string): Promise<number> {
   try {
     const supabase = createClient(
@@ -135,7 +195,12 @@ export default async function HomePage() {
 
   // 取得待處理議題數（僅 show_login_banner 權限者需要）
   const showBanner = permissions.includes('show_login_banner')
-  const pendingCount = showBanner ? await getMyPendingIssueCount(user.email ?? '') : 0
+  const hasTrackerPermission = permissions.includes('view_tracker')
+
+  const [pendingCount, trackerData] = await Promise.all([
+    showBanner ? getMyPendingIssueCount(user.email ?? '') : Promise.resolve(0),
+    hasTrackerPermission ? getTrackerData(user.email ?? '') : Promise.resolve(undefined),
+  ])
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
@@ -156,6 +221,7 @@ export default async function HomePage() {
           initialBookmarkNotes={initialBookmarkNotes}
           permissions={permissions}
           userRole={roleName}
+          trackerData={trackerData ?? undefined}
         />
       </Suspense>
     </main>
