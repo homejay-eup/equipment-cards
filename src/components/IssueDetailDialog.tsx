@@ -37,11 +37,14 @@ const STATUS_BADGE: Record<string, string> = {
   '已完成': 'bg-green-50 text-green-700 border-green-200',
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('zh-TW', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  })
+function formatDatetime(dateStr: string): string {
+  const d = new Date(dateStr)
+  const y = d.getFullYear()
+  const mo = d.getMonth() + 1
+  const day = d.getDate()
+  const h = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${y}/${mo}/${day} ${h}:${mi}`
 }
 
 export default function IssueDetailDialog({
@@ -147,6 +150,15 @@ export default function IssueDetailDialog({
   const handleSubmitUpdate = useCallback(async () => {
     const content = updateContent.trim()
     if (!content) return
+    const pendingId = `pending-${Date.now()}`
+    const optimistic: IssueUpdate = {
+      id: pendingId,
+      content,
+      created_by: userEmail,
+      created_at: new Date().toISOString(),
+    }
+    setUpdates((prev) => [optimistic, ...prev])
+    setUpdateContent('')
     setSubmittingUpdate(true)
     setError(null)
     try {
@@ -158,17 +170,20 @@ export default function IssueDetailDialog({
       if (!res.ok) {
         const d = await res.json()
         setError(d.error ?? '新增更新紀錄失敗')
+        setUpdates((prev) => prev.filter((u) => u.id !== pendingId))
+        setUpdateContent(content)
         return
       }
-      const newUpdate: IssueUpdate = await res.json()
-      setUpdates((prev) => [newUpdate, ...prev])
-      setUpdateContent('')
+      const real: IssueUpdate = await res.json()
+      setUpdates((prev) => prev.map((u) => u.id === pendingId ? real : u))
     } catch {
       setError('新增更新紀錄失敗，請重試')
+      setUpdates((prev) => prev.filter((u) => u.id !== pendingId))
+      setUpdateContent(content)
     } finally {
       setSubmittingUpdate(false)
     }
-  }, [updateContent, localIssue.id])
+  }, [updateContent, localIssue.id, userEmail])
 
   const handleDelete = useCallback(async () => {
     setDeleting(true)
@@ -213,9 +228,6 @@ export default function IssueDetailDialog({
               <h2 className="text-base font-semibold text-[#2c1e12] leading-snug">
                 {localIssue.title}
               </h2>
-              <p className="text-xs text-[#a08060] mt-0.5">
-                建立者 {localIssue.created_by.split('@')[0]}・{formatDate(localIssue.created_at)}
-              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {canChangeStatus && (
@@ -290,6 +302,14 @@ export default function IssueDetailDialog({
                   {localIssue.assignees.length > 0 ? localIssue.assignees.join('、') : '—'}
                 </p>
               </div>
+              <div>
+                <p className="text-xs text-[#a08060] mb-1">建立者</p>
+                <p className="text-sm text-[#4a3422]">{localIssue.created_by.split('@')[0]}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[#a08060] mb-1">建立日期</p>
+                <p className="text-sm text-[#4a3422]">{formatDatetime(localIssue.created_at)}</p>
+              </div>
             </div>
 
             {/* 標籤 */}
@@ -343,7 +363,7 @@ export default function IssueDetailDialog({
                           {upd.created_by.split('@')[0]}
                         </span>
                         <span className="text-xs text-[#c0a882]">
-                          {formatDate(upd.created_at)}
+                          {formatDatetime(upd.created_at)}
                         </span>
                       </div>
                       <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">

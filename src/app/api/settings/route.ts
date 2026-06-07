@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { key, value } = await req.json()
-  if (!['categories', 'statuses', 'documentTypes'].includes(key) || !Array.isArray(value)) {
+  if (!['categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags'].includes(key) || !Array.isArray(value)) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 

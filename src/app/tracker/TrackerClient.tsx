@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { Plus, ArrowLeft, AlertCircle } from 'lucide-react'
+import { Plus, AlertCircle } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
@@ -36,20 +35,14 @@ const STATUS_BADGE: Record<string, string> = {
   '已完成': 'bg-green-50 text-green-700 border-green-200',
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffSeconds = Math.floor(diffMs / 1000)
-  const diffMinutes = Math.floor(diffSeconds / 60)
-  const diffHours = Math.floor(diffMinutes / 60)
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffSeconds < 60) return '剛剛'
-  if (diffMinutes < 60) return `${diffMinutes} 分鐘前`
-  if (diffHours < 24) return `${diffHours} 小時前`
-  if (diffDays < 30) return `${diffDays} 天前`
-  return date.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+function formatDatetime(dateStr: string): string {
+  const d = new Date(dateStr)
+  const y = d.getFullYear()
+  const mo = d.getMonth() + 1
+  const day = d.getDate()
+  const h = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${y}/${mo}/${day} ${h}:${mi}`
 }
 
 export default function TrackerClient({
@@ -130,13 +123,6 @@ export default function TrackerClient({
     <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">料卡</span>
-        </Link>
         <h1 className="text-xl font-semibold text-[#2c1e12]">追蹤板</h1>
         {canViewMyTasks && myPendingCount > 0 && (
           <span className="px-2 py-0.5 text-xs font-semibold bg-[#7a5230] text-white rounded-full">
@@ -247,72 +233,46 @@ export default function TrackerClient({
               <li key={issue.id}>
                 <button
                   onClick={() => handleIssueClick(issue)}
-                  className="w-full text-left px-4 py-3.5 hover:bg-[rgba(122,82,48,.03)] transition-colors group"
+                  className="w-full text-left px-4 py-3 hover:bg-[rgba(122,82,48,.04)] transition-colors flex flex-col gap-1.5"
                 >
-                  <div className="flex items-center gap-3">
-                    {/* 優先度圓點 */}
+                  {/* 第一行：優先度・類型・標題・狀態 */}
+                  <div className="flex items-start gap-2.5">
                     <span
-                      className={`shrink-0 w-2.5 h-2.5 rounded-full ${
+                      className={`shrink-0 mt-1.5 w-2.5 h-2.5 rounded-full ${
                         PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'
                       }`}
                       title={PRIORITY_LABEL[issue.priority]}
                     />
-
-                    {/* 類型標籤 */}
-                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded border border-[rgba(122,82,48,.2)] bg-[rgba(122,82,48,.05)] text-[#7a5230] font-medium">
+                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.18)] self-start">
                       {issue.type}
                     </span>
-
-                    {/* 標題 */}
-                    <span className="flex-1 text-sm text-[#2c1e12] font-medium group-hover:text-[#7a5230] transition-colors truncate">
+                    <span className="flex-1 min-w-0 text-sm text-[#2c1e12] break-words">
                       {issue.title}
                     </span>
-
-                    {/* 狀態徽章 */}
                     <span
-                      className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-medium hidden sm:inline-flex ${
+                      className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
                         STATUS_BADGE[issue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
                       }`}
                     >
                       {issue.status}
-                    </span>
-
-                    {/* 預計日期 */}
-                    <span className="shrink-0 text-xs text-[#a08060] hidden md:block w-16 text-right">
-                      {issue.due_date
-                        ? new Date(issue.due_date).toLocaleDateString('zh-TW', {
-                            month: 'numeric',
-                            day: 'numeric',
-                          })
-                        : '—'}
-                    </span>
-
-                    {/* 負責人 */}
-                    <span className="shrink-0 text-xs text-[#a08060] hidden md:block w-24 text-right truncate">
-                      {issue.assignees.length > 0 ? issue.assignees.join(', ') : '—'}
-                    </span>
-
-                    {/* 建立時間 */}
-                    <span className="shrink-0 text-xs text-[#c0a882] hidden lg:block w-14 text-right">
-                      {formatRelativeTime(issue.created_at)}
                     </span>
                   </div>
 
-                  {/* 手機版：第二行補充資訊 */}
-                  <div className="flex items-center gap-2 mt-1 sm:hidden pl-5">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                        STATUS_BADGE[issue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      {issue.status}
+                  {/* 第二行：日期・負責人・更新時間 */}
+                  <div className="flex items-center gap-3 pl-[26px] text-xs text-[#a08060] flex-wrap">
+                    <span className="shrink-0">
+                      {issue.due_date ? issue.due_date.slice(5, 10).replace('-', '/') : '—'}
                     </span>
                     {issue.assignees.length > 0 && (
-                      <span className="text-xs text-[#a08060]">{issue.assignees.join(', ')}</span>
+                      <span className="flex flex-wrap gap-x-1 gap-y-0.5">
+                        {issue.assignees.map((a, i) => (
+                          <span key={a} className="whitespace-nowrap">
+                            {a}{i < issue.assignees.length - 1 ? '、' : ''}
+                          </span>
+                        ))}
+                      </span>
                     )}
-                    <span className="text-xs text-[#c0a882] ml-auto">
-                      {formatRelativeTime(issue.created_at)}
-                    </span>
+                    <span className="ml-auto shrink-0">{formatDatetime(issue.updated_at)}</span>
                   </div>
                 </button>
               </li>

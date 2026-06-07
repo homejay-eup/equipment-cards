@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { X, Loader2, Plus, Check } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
+import SettingsPopover from '@/components/SettingsPopover'
 
 interface Props {
   open: boolean
@@ -25,6 +26,7 @@ export default function NewIssueDialog({
   const [description, setDescription] = useState('')
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(issueTypes)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
@@ -158,8 +160,16 @@ export default function NewIssueDialog({
           {/* 類型 + 優先度 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-[#6b4f38] mb-1.5 block">
+              <label className="flex items-center gap-1 text-xs font-semibold text-[#6b4f38] mb-1.5">
                 類型 <span className="text-[#b5451b]">*</span>
+                <SettingsPopover
+                  settingKey="issueTypes"
+                  items={localIssueTypes}
+                  onConfirm={(newTypes) => {
+                    setLocalIssueTypes(newTypes)
+                    if (!newTypes.includes(type)) setType(newTypes[0] ?? '')
+                  }}
+                />
               </label>
               <select
                 value={type}
@@ -169,7 +179,7 @@ export default function NewIssueDialog({
                 className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
               >
                 <option value="">請選擇</option>
-                {issueTypes.map((t) => (
+                {localIssueTypes.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
