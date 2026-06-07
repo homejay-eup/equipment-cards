@@ -49,8 +49,8 @@ const PERM_LABELS: Record<string, string> = {
   manage_roles:               '角色與權限設定',
   // 追蹤板
   view_tracker:               '可看追蹤板',
-  tracker_my_tasks:           '我的任務 + badge',
-  tracker_create_issue:       '可新增議題',
+  view_my_tasks:              '我的任務 + badge',
+  create_issues:              '可新增議題',
   tracker_edit_issue:         '可編輯議題',
 }
 
@@ -80,8 +80,8 @@ const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
 
 const TRACKER_PERMS = [
   'view_tracker',
-  'tracker_my_tasks',
-  'tracker_create_issue',
+  'view_my_tasks',
+  'create_issues',
   'tracker_edit_issue',
 ] as const
 
