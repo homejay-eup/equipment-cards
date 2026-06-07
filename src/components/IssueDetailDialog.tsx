@@ -63,10 +63,11 @@ export default function IssueDetailDialog({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const canCreateIssues = permissions.includes('create_issues')
+  const canEditIssue = permissions.includes('tracker_edit_issue')
   const canViewTracker = permissions.includes('view_tracker')
   const isAuthor = localIssue.created_by === userEmail
   const isAssignee = localIssue.assignee_emails.includes(userEmail)
-  const canFullEdit = isAuthor || canCreateIssues
+  const canFullEdit = canCreateIssues || canEditIssue
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 

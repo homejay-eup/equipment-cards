@@ -2,9 +2,9 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, AlertCircle, ChevronDown } from 'lucide-react'
+import { Plus, AlertTriangle, ArrowUpDown } from 'lucide-react'
 import type { Issue } from './page'
-import IssueExpandedContent from '@/components/IssueExpandedContent'
+import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
 
 interface Props {
@@ -23,27 +23,37 @@ const PRIORITY_DOT: Record<string, string> = {
   low:    'bg-[#22c55e]',
 }
 
-const PRIORITY_LABEL: Record<string, string> = {
-  high:   '緊急',
-  medium: '重要',
-  low:    '普通',
+const COLUMNS = [
+  { key: '待處理', label: '待處理', dotClass: 'bg-gray-400' },
+  { key: '進行中', label: '進行中', dotClass: 'bg-blue-500' },
+  { key: '等待中', label: '等待中', dotClass: 'bg-amber-500' },
+  { key: '已完成', label: '已完成', dotClass: 'bg-green-500' },
+] as const
+
+const P_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  '待處理': 'bg-gray-100 text-gray-600 border-gray-200',
-  '進行中': 'bg-blue-50 text-blue-700 border-blue-200',
-  '等待中': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  '已完成': 'bg-green-50 text-green-700 border-green-200',
+function dueDateChip(due: string | null): { label: string; cls: string } | null {
+  if (!due) return null
+  const today = todayStr()
+  const [, m, day] = due.split('-')
+  const label = `${m}/${day}`
+  if (due < today) return { label: `⚠ ${label}`, cls: 'bg-red-50 text-red-600 border-red-200' }
+  if (due === today) return { label: '今天', cls: 'bg-amber-50 text-amber-600 border-amber-200' }
+  return { label, cls: 'bg-[rgba(122,82,48,.06)] text-[#a08060] border-[rgba(122,82,48,.15)]' }
 }
 
-function formatDatetime(dateStr: string): string {
-  const d = new Date(dateStr)
-  const y = d.getFullYear()
-  const mo = d.getMonth() + 1
-  const day = d.getDate()
-  const h = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${y}/${mo}/${day} ${h}:${mi}`
+function sortByPriorityThenDue(a: Issue, b: Issue) {
+  const pd = (P_ORDER[a.priority] ?? 2) - (P_ORDER[b.priority] ?? 2)
+  if (pd !== 0) return pd
+  if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+  if (a.due_date) return -1
+  if (b.due_date) return 1
+  return 0
 }
 
 export default function TrackerClient({
@@ -58,94 +68,122 @@ export default function TrackerClient({
   const searchParams = useSearchParams()
 
   const canCreateIssues = permissions.includes('create_issues')
-  const canViewMyTasks = permissions.includes('view_my_tasks')
+  const canViewMyTasks  = permissions.includes('view_my_tasks')
 
-  const [issues, setIssues] = useState<Issue[]>(initialIssues)
-  const [activeTab, setActiveTab] = useState<'all' | 'my'>(() => {
-    return searchParams.get('tab') === 'my' ? 'my' : 'all'
-  })
-  const [filterType, setFilterType] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterPriority, setFilterPriority] = useState('')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [newIssueOpen, setNewIssueOpen] = useState(false)
+  const [issues,          setIssues]          = useState<Issue[]>(initialIssues)
+  const [myTasksOnly,     setMyTasksOnly]     = useState(() => searchParams.get('tab') === 'my')
+  const [filterPriority,  setFilterPriority]  = useState<'' | 'high' | 'medium' | 'low'>('')
+  const [selectedIssue,   setSelectedIssue]   = useState<Issue | null>(null)
+  const [newIssueOpen,    setNewIssueOpen]    = useState(false)
+  const [newIssueStatus,  setNewIssueStatus]  = useState('待處理')
 
-  const filteredIssues = useMemo(() => {
-    let list = issues
-
-    if (activeTab === 'my') {
-      list = list.filter((i) => i.assignee_emails.includes(userEmail))
-    }
-
-    if (filterType) list = list.filter((i) => i.type === filterType)
-    if (filterStatus) list = list.filter((i) => i.status === filterStatus)
-    if (filterPriority) list = list.filter((i) => i.priority === filterPriority)
-
-    return list
-  }, [issues, activeTab, filterType, filterStatus, filterPriority, userEmail])
-
-  const myPendingCount = useMemo(() => {
-    return issues.filter(
-      (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
-    ).length
-  }, [issues, userEmail])
+  const myPendingCount = useMemo(() =>
+    issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
+  [issues, userEmail])
 
   useEffect(() => {
     onMyTasksCountChange?.(myPendingCount)
   }, [myPendingCount, onMyTasksCountChange])
 
+  // 依篩選後的 base list
+  const baseIssues = useMemo(() => {
+    let list = issues
+    if (myTasksOnly)    list = list.filter(i => i.assignee_emails.includes(userEmail))
+    if (filterPriority) list = list.filter(i => i.priority === filterPriority)
+    return list
+  }, [issues, myTasksOnly, filterPriority, userEmail])
+
+  // 分欄
+  const columnIssues = useMemo(() => {
+    const map: Record<string, Issue[]> = {}
+    for (const col of COLUMNS) map[col.key] = baseIssues.filter(i => i.status === col.key)
+    return map
+  }, [baseIssues])
+
+  // 優先級計數（未完成、不受 priority filter 影響）
+  const priCounts = useMemo(() => {
+    const base = (myTasksOnly
+      ? issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail))
+      : issues.filter(i => i.status !== '已完成'))
+    return {
+      all:    base.length,
+      high:   base.filter(i => i.priority === 'high').length,
+      medium: base.filter(i => i.priority === 'medium').length,
+      low:    base.filter(i => i.priority === 'low').length,
+    }
+  }, [issues, myTasksOnly, userEmail])
+
+  // 提醒：逾期 + 今日（未完成）
+  const today = todayStr()
+  const reminders = useMemo(() => {
+    const base = (myTasksOnly
+      ? issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail))
+      : issues.filter(i => i.status !== '已完成'))
+    return {
+      overdue: base.filter(i => i.due_date && i.due_date < today),
+      today:   base.filter(i => i.due_date === today),
+    }
+  }, [issues, myTasksOnly, userEmail, today])
+
   const handleIssueCreated = useCallback((newIssue: Issue) => {
-    setIssues((prev) => [newIssue, ...prev])
+    setIssues(prev => [newIssue, ...prev])
     setNewIssueOpen(false)
   }, [])
 
-  const handleIssueUpdated = useCallback((updatedIssue: Issue) => {
-    setIssues((prev) =>
-      prev.map((i) => (i.id === updatedIssue.id ? updatedIssue : i)),
-    )
+  const handleIssueUpdated = useCallback((updated: Issue) => {
+    setIssues(prev => prev.map(i => i.id === updated.id ? updated : i))
+    setSelectedIssue(prev => prev?.id === updated.id ? updated : prev)
   }, [])
 
-  const handleIssueDeleted = useCallback((issueId: string) => {
-    setIssues((prev) => prev.filter((i) => i.id !== issueId))
-    setExpandedId(null)
+  const handleIssueDeleted = useCallback((id: string) => {
+    setIssues(prev => prev.filter(i => i.id !== id))
+    setSelectedIssue(null)
   }, [])
 
-  const allStatuses = ['待處理', '進行中', '等待中', '已完成']
+  const handleSort = useCallback(() => {
+    setIssues(prev => {
+      const colOrder = COLUMNS.reduce((acc, c, i) => ({ ...acc, [c.key]: i }), {} as Record<string, number>)
+      return [...prev].sort((a, b) => {
+        const cd = (colOrder[a.status] ?? 0) - (colOrder[b.status] ?? 0)
+        return cd !== 0 ? cd : sortByPriorityThenDue(a, b)
+      })
+    })
+  }, [])
+
+  const openNewIssue = useCallback((status = '待處理') => {
+    setNewIssueStatus(status)
+    setNewIssueOpen(true)
+  }, [])
+
+  const hasReminders = reminders.overdue.length > 0 || reminders.today.length > 0
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
-      {/* 篩選列 */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        {/* Tab */}
+    <div className="max-w-6xl mx-auto px-4 py-6 sm:px-6">
+
+      {/* ── 頂部控制列 ── */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* 全部 / 我的任務 toggle */}
         <div className="flex items-center gap-1 bg-white border border-[rgba(122,82,48,.15)] rounded-lg p-1 shadow-sm">
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => setMyTasksOnly(false)}
             className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-              activeTab === 'all'
-                ? 'bg-[#7a5230] text-white font-medium'
-                : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
+              !myTasksOnly ? 'bg-[#7a5230] text-white font-medium' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
             }`}
           >
             全部
           </button>
           {canViewMyTasks && (
             <button
-              onClick={() => setActiveTab('my')}
+              onClick={() => setMyTasksOnly(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                activeTab === 'my'
-                  ? 'bg-[#7a5230] text-white font-medium'
-                  : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
+                myTasksOnly ? 'bg-[#7a5230] text-white font-medium' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
               }`}
             >
               我的任務
-              {canViewMyTasks && myPendingCount > 0 && (
-                <span
-                  className={`px-1.5 py-0.5 text-xs rounded-full font-semibold ${
-                    activeTab === 'my'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-[#7a5230] text-white'
-                  }`}
-                >
+              {myPendingCount > 0 && (
+                <span className={`px-1.5 py-0.5 text-xs rounded-full font-semibold ${
+                  myTasksOnly ? 'bg-white/20 text-white' : 'bg-[#7a5230] text-white'
+                }`}>
                   {myPendingCount}
                 </span>
               )}
@@ -153,141 +191,185 @@ export default function TrackerClient({
           )}
         </div>
 
-        {/* 篩選下拉 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="text-sm border border-[rgba(122,82,48,.2)] rounded-lg px-2.5 py-1.5 bg-white text-[#4a3422] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
-          >
-            <option value="">類型：全部</option>
-            {issueTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="text-sm border border-[rgba(122,82,48,.2)] rounded-lg px-2.5 py-1.5 bg-white text-[#4a3422] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
-          >
-            <option value="">狀態：全部</option>
-            {allStatuses.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="text-sm border border-[rgba(122,82,48,.2)] rounded-lg px-2.5 py-1.5 bg-white text-[#4a3422] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
-          >
-            <option value="">優先度：全部</option>
-            <option value="high">緊急</option>
-            <option value="medium">重要</option>
-            <option value="low">普通</option>
-          </select>
-        </div>
-
-        {/* 新增議題 */}
-        {canCreateIssues && (
+        {/* 排序 + 新增（右側） */}
+        <div className="flex items-center gap-2 ml-auto">
           <button
-            onClick={() => setNewIssueOpen(true)}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.25)] whitespace-nowrap"
+            onClick={handleSort}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#6b4f38] border border-[rgba(122,82,48,.2)] rounded-lg hover:bg-[rgba(122,82,48,.06)] transition-colors bg-white"
+            title="依優先級＋日期排序各欄（一次性）"
           >
-            <Plus className="h-4 w-4" />
-            新增議題
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            排序
           </button>
-        )}
+          {canCreateIssues && (
+            <button
+              onClick={() => openNewIssue()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.25)]"
+            >
+              <Plus className="h-4 w-4" />
+              新增議題
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 議題清單 */}
-      <div className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] shadow-sm overflow-hidden">
-        {filteredIssues.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[#a08060]">
-            <AlertCircle className="h-8 w-8 mb-2 opacity-40" />
-            <p className="text-sm">
-              {activeTab === 'my' ? '目前沒有指派給你的議題' : '目前沒有符合條件的議題'}
-            </p>
+      {/* ── 優先級篩選 chips ── */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-xs text-[#a08060]">優先級：</span>
+        {(
+          [
+            { key: '' as const,        label: '全部',      count: priCounts.all    },
+            { key: 'high' as const,    label: '🔴 緊急',   count: priCounts.high   },
+            { key: 'medium' as const,  label: '🟡 重要',   count: priCounts.medium },
+            { key: 'low' as const,     label: '⚪ 普通',   count: priCounts.low    },
+          ] as const
+        ).map(chip => (
+          <button
+            key={chip.key}
+            onClick={() => setFilterPriority(chip.key)}
+            className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
+              filterPriority === chip.key
+                ? chip.key === 'high'   ? 'bg-red-500   border-red-500   text-white'
+                : chip.key === 'medium' ? 'bg-amber-500 border-amber-500 text-white'
+                : chip.key === 'low'    ? 'bg-green-500 border-green-500 text-white'
+                :                         'bg-[#7a5230] border-[#7a5230] text-white'
+                : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
+            }`}
+          >
+            {chip.label}
+            <span className="opacity-70 ml-0.5">{chip.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── 提醒橫幅 ── */}
+      {hasReminders && (
+        <div className="mb-4 bg-[#fdf4f0] border border-[rgba(201,74,46,.3)] rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-[#c94a2e] shrink-0" />
+            <span className="text-[10px] font-semibold text-[#c94a2e] uppercase tracking-widest">待處理提醒</span>
           </div>
-        ) : (
-          <ul className="divide-y divide-[rgba(122,82,48,.08)]">
-            {filteredIssues.map((issue) => {
-              const isExpanded = expandedId === issue.id
+          <ul className="space-y-1">
+            {reminders.today.map(i => (
+              <li key={i.id} className="text-xs text-[#4a3422] flex items-center gap-2 flex-wrap">
+                <span>📌 [今日] {i.title}</span>
+                {i.assignees.length > 0 && <span className="text-[#a08060]">@ {i.assignees.join('、')}</span>}
+              </li>
+            ))}
+            {reminders.overdue.map(i => {
+              const days = Math.round((new Date(today).getTime() - new Date(i.due_date!).getTime()) / 86400000)
               return (
-                <li key={issue.id}>
-                  {/* 摺疊標題列 */}
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : issue.id)}
-                    className="w-full text-left px-4 py-3 hover:bg-[rgba(122,82,48,.04)] transition-colors flex flex-col gap-1.5"
-                  >
-                    {/* 第一行：優先度・類型・標題・狀態・展開箭頭 */}
-                    <div className="flex items-start gap-2.5">
-                      <span
-                        className={`shrink-0 mt-1.5 w-2.5 h-2.5 rounded-full ${
-                          PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'
-                        }`}
-                        title={PRIORITY_LABEL[issue.priority]}
-                      />
-                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.18)] self-start">
-                        {issue.type}
-                      </span>
-                      <span className="flex-1 min-w-0 text-sm text-[#2c1e12] break-words">
-                        {issue.title}
-                      </span>
-                      <span
-                        className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
-                          STATUS_BADGE[issue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
-                        }`}
-                      >
-                        {issue.status}
-                      </span>
-                      <ChevronDown
-                        className={`shrink-0 h-4 w-4 text-[#a08060] transition-transform duration-200 mt-0.5 ${
-                          isExpanded ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </div>
-
-                    {/* 第二行：日期・負責人・更新時間 */}
-                    <div className="flex items-center gap-3 pl-[26px] text-xs text-[#a08060] flex-wrap">
-                      <span className="shrink-0">
-                        {issue.due_date ? issue.due_date.slice(5, 10).replace('-', '/') : '—'}
-                      </span>
-                      {issue.assignees.length > 0 && (
-                        <span className="flex flex-wrap gap-x-1 gap-y-0.5">
-                          {issue.assignees.map((a, i) => (
-                            <span key={a} className="whitespace-nowrap">
-                              {a}{i < issue.assignees.length - 1 ? '、' : ''}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                      <span className="ml-auto shrink-0">{formatDatetime(issue.updated_at)}</span>
-                    </div>
-                  </button>
-
-                  {/* 展開內容 */}
-                  {isExpanded && (
-                    <IssueExpandedContent
-                      issue={issue}
-                      permissions={permissions}
-                      userEmail={userEmail}
-                      allowedEmails={allowedEmails}
-                      issueTypes={issueTypes}
-                      issueTags={issueTags}
-                      onUpdated={handleIssueUpdated}
-                      onDeleted={handleIssueDeleted}
-                    />
-                  )}
+                <li key={i.id} className="text-xs text-[#4a3422] flex items-center gap-2 flex-wrap">
+                  <span>⚠️ [逾期 +{days}天] {i.title}</span>
+                  {i.assignees.length > 0 && <span className="text-[#a08060]">@ {i.assignees.join('、')}</span>}
                 </li>
               )
             })}
           </ul>
-        )}
+        </div>
+      )}
+
+      {/* ── Kanban 看板 ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {COLUMNS.map(col => {
+          const colItems = columnIssues[col.key] ?? []
+          return (
+            <div
+              key={col.key}
+              className="bg-white rounded-xl border border-[rgba(122,82,48,.12)] shadow-sm flex flex-col"
+            >
+              {/* 欄標題 */}
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-[rgba(122,82,48,.08)]">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${col.dotClass}`} />
+                  <span className="text-sm font-semibold text-[#4a3422]">{col.label}</span>
+                </div>
+                <span className="text-[11px] bg-[rgba(122,82,48,.07)] text-[#a08060] px-2 py-0.5 rounded-full border border-[rgba(122,82,48,.12)]">
+                  {colItems.length}
+                </span>
+              </div>
+
+              {/* 卡片列表 */}
+              <div className="flex-1 p-2 space-y-2 min-h-[100px]">
+                {colItems.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-[#c0a882] text-xs">
+                    無項目
+                  </div>
+                ) : (
+                  colItems.map(issue => {
+                    const due = dueDateChip(issue.due_date)
+                    return (
+                      <button
+                        key={issue.id}
+                        onClick={() => setSelectedIssue(issue)}
+                        className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group ${
+                          col.key === '已完成'
+                            ? 'bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100'
+                            : 'bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px'
+                        }`}
+                      >
+                        {/* 標題行 */}
+                        <div className="flex items-start gap-1.5 mb-1.5">
+                          <span className={`shrink-0 mt-[3px] w-2 h-2 rounded-full ${PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'}`} />
+                          <span className={`flex-1 text-xs font-medium leading-snug break-words ${
+                            col.key === '已完成' ? 'line-through text-[#a08060]' : 'text-[#2c1e12]'
+                          }`}>
+                            {issue.title}
+                          </span>
+                        </div>
+                        {/* meta 行 */}
+                        <div className="flex items-center gap-1.5 pl-3.5 flex-wrap">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
+                            {issue.type}
+                          </span>
+                          {due && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
+                              {due.label}
+                            </span>
+                          )}
+                          {issue.assignees.length > 0 && (
+                            <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
+                              @ {issue.assignees.join('、')}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* 新增到此欄 */}
+              {canCreateIssues && (
+                <button
+                  onClick={() => openNewIssue(col.key)}
+                  className="mx-2 mb-2 py-1.5 text-[11px] text-[#a08060] border border-dashed border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] hover:bg-[rgba(122,82,48,.03)] transition-all"
+                >
+                  + 新增到此欄
+                </button>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* 新增議題 Dialog */}
+      {/* ── Issue 詳細 Dialog ── */}
+      {selectedIssue && (
+        <IssueDetailDialog
+          open={!!selectedIssue}
+          issue={selectedIssue}
+          permissions={permissions}
+          userEmail={userEmail}
+          allowedEmails={allowedEmails}
+          issueTypes={issueTypes}
+          issueTags={issueTags}
+          onClose={() => setSelectedIssue(null)}
+          onUpdated={handleIssueUpdated}
+          onDeleted={handleIssueDeleted}
+        />
+      )}
+
+      {/* ── 新增 Dialog ── */}
       {canCreateIssues && (
         <NewIssueDialog
           open={newIssueOpen}
@@ -297,6 +379,7 @@ export default function TrackerClient({
           issueTags={issueTags}
           allowedEmails={allowedEmails}
           userEmail={userEmail}
+          defaultStatus={newIssueStatus}
         />
       )}
     </div>

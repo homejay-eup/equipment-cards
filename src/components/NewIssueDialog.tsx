@@ -13,10 +13,11 @@ interface Props {
   issueTags: string[]
   allowedEmails: string[]
   userEmail?: string
+  defaultStatus?: string
 }
 
 export default function NewIssueDialog({
-  open, onClose, onCreated, issueTypes, issueTags, allowedEmails,
+  open, onClose, onCreated, issueTypes, issueTags, allowedEmails, defaultStatus,
 }: Props) {
   const [title, setTitle] = useState('')
   const [type, setType] = useState('')
@@ -36,7 +37,7 @@ export default function NewIssueDialog({
     setTitle('')
     setType('')
     setPriority('medium')
-    setStatus('待處理')
+    setStatus(defaultStatus ?? '待處理')
     setDueDate('')
     setDescription('')
     setSelectedAssignees([])
@@ -44,7 +45,7 @@ export default function NewIssueDialog({
     setError(null)
     setAssigneeInput('')
     setTagInput('')
-  }, [])
+  }, [defaultStatus])
 
   const handleClose = useCallback(() => {
     reset()
