@@ -18,9 +18,9 @@ interface Props {
 }
 
 const PRIORITY_DOT: Record<string, string> = {
-  high:   'bg-[#ef4444]',
-  medium: 'bg-[#eab308]',
-  low:    'bg-[#22c55e]',
+  high:   'bg-[#7a3b1e]',
+  medium: 'bg-[#9c6b42]',
+  low:    'bg-[#b8956a]',
 }
 
 const COLUMNS = [
@@ -76,6 +76,8 @@ export default function TrackerClient({
   const [selectedIssue,   setSelectedIssue]   = useState<Issue | null>(null)
   const [newIssueOpen,    setNewIssueOpen]    = useState(false)
   const [newIssueStatus,  setNewIssueStatus]  = useState('待處理')
+  const [draggingId,      setDraggingId]      = useState<string | null>(null)
+  const [dragOverCol,     setDragOverCol]     = useState<string | null>(null)
 
   const myPendingCount = useMemo(() =>
     issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
@@ -155,6 +157,31 @@ export default function TrackerClient({
     setNewIssueOpen(true)
   }, [])
 
+  const handleDrop = useCallback(async (targetStatus: string) => {
+    if (!draggingId) return
+    const issue = issues.find(i => i.id === draggingId)
+    if (!issue || issue.status === targetStatus) {
+      setDraggingId(null)
+      setDragOverCol(null)
+      return
+    }
+    const originalStatus = issue.status
+    const id = draggingId
+    setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
+    setDraggingId(null)
+    setDragOverCol(null)
+    try {
+      const res = await fetch(`/api/issues/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: targetStatus }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      setIssues(prev => prev.map(i => i.id === id ? { ...i, status: originalStatus } : i))
+    }
+  }, [draggingId, issues])
+
   const hasReminders = reminders.overdue.length > 0 || reminders.today.length > 0
 
   return (
@@ -218,10 +245,10 @@ export default function TrackerClient({
         <span className="text-xs text-[#a08060]">優先級：</span>
         {(
           [
-            { key: '' as const,        label: '全部',      count: priCounts.all    },
-            { key: 'high' as const,    label: '🔴 緊急',   count: priCounts.high   },
-            { key: 'medium' as const,  label: '🟡 重要',   count: priCounts.medium },
-            { key: 'low' as const,     label: '⚪ 普通',   count: priCounts.low    },
+            { key: '' as const,        label: '全部',  count: priCounts.all    },
+            { key: 'high' as const,    label: '緊急',  count: priCounts.high   },
+            { key: 'medium' as const,  label: '重要',  count: priCounts.medium },
+            { key: 'low' as const,     label: '普通',  count: priCounts.low    },
           ] as const
         ).map(chip => (
           <button
@@ -229,9 +256,9 @@ export default function TrackerClient({
             onClick={() => setFilterPriority(chip.key)}
             className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
               filterPriority === chip.key
-                ? chip.key === 'high'   ? 'bg-red-500   border-red-500   text-white'
-                : chip.key === 'medium' ? 'bg-amber-500 border-amber-500 text-white'
-                : chip.key === 'low'    ? 'bg-green-500 border-green-500 text-white'
+                ? chip.key === 'high'   ? 'bg-[#7a3b1e] border-[#7a3b1e] text-white'
+                : chip.key === 'medium' ? 'bg-[#9c6b42] border-[#9c6b42] text-white'
+                : chip.key === 'low'    ? 'bg-[#b8956a] border-[#b8956a] text-white'
                 :                         'bg-[#7a5230] border-[#7a5230] text-white'
                 : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
             }`}
@@ -247,12 +274,13 @@ export default function TrackerClient({
         <div className="mb-4 bg-[#fdf4f0] border border-[rgba(201,74,46,.3)] rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-[#c94a2e] shrink-0" />
-            <span className="text-[10px] font-semibold text-[#c94a2e] uppercase tracking-widest">待處理提醒</span>
+            <span className="text-xs font-semibold text-[#c94a2e] tracking-wider">待完成提醒</span>
           </div>
           <ul className="space-y-1">
             {reminders.today.map(i => (
               <li key={i.id} className="text-xs text-[#4a3422] flex items-center gap-2 flex-wrap">
-                <span>📌 [今日] {i.title}</span>
+                <AlertTriangle className="h-3 w-3 text-[#c94a2e] shrink-0" />
+                <span>[今日] {i.title}</span>
                 {i.assignees.length > 0 && <span className="text-[#a08060]">@ {i.assignees.join('、')}</span>}
               </li>
             ))}
@@ -260,7 +288,8 @@ export default function TrackerClient({
               const days = Math.round((new Date(today).getTime() - new Date(i.due_date!).getTime()) / 86400000)
               return (
                 <li key={i.id} className="text-xs text-[#4a3422] flex items-center gap-2 flex-wrap">
-                  <span>⚠️ [逾期 +{days}天] {i.title}</span>
+                  <AlertTriangle className="h-3 w-3 text-[#c94a2e] shrink-0" />
+                  <span>[逾期 +{days}天] {i.title}</span>
                   {i.assignees.length > 0 && <span className="text-[#a08060]">@ {i.assignees.join('、')}</span>}
                 </li>
               )
@@ -270,13 +299,19 @@ export default function TrackerClient({
       )}
 
       {/* ── Kanban 看板 ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6">
+      <div className="grid grid-cols-4 gap-3 min-w-[700px]">
         {COLUMNS.map(col => {
           const colItems = columnIssues[col.key] ?? []
           return (
             <div
               key={col.key}
-              className="bg-white rounded-xl border border-[rgba(122,82,48,.12)] shadow-sm flex flex-col"
+              className={`bg-white rounded-xl border border-[rgba(122,82,48,.12)] shadow-sm flex flex-col ${dragOverCol === col.key ? 'ring-2 ring-[#c49a72] ring-offset-1' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
+              }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(col.key) }}
             >
               {/* 欄標題 */}
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-[rgba(122,82,48,.08)]">
@@ -302,11 +337,14 @@ export default function TrackerClient({
                       <button
                         key={issue.id}
                         onClick={() => setSelectedIssue(issue)}
+                        draggable={true}
+                        onDragStart={() => setDraggingId(issue.id)}
+                        onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
                         className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group ${
                           col.key === '已完成'
                             ? 'bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100'
                             : 'bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px'
-                        }`}
+                        } ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
                       >
                         {/* 標題行 */}
                         <div className="flex items-start gap-1.5 mb-1.5">
@@ -351,6 +389,7 @@ export default function TrackerClient({
             </div>
           )
         })}
+      </div>
       </div>
 
       {/* ── Issue 詳細 Dialog ── */}

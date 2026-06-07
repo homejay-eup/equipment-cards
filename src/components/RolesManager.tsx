@@ -24,6 +24,9 @@ const PERM_LABELS: Record<string, string> = {
   read_active_only:           '只看現役料卡',
   // 料卡列表
   use_bookmarks:              '我的關注（書籤）',
+  // 料卡列表篩選
+  filter_all_statuses:        '狀態篩選（全部狀態/現役/停產）',
+  filter_no_photo:            '無主圖篩選',
   // 料卡細節
   read_documents:             '看文件/規格書',
   read_notes:                 '看備註',
@@ -57,7 +60,7 @@ const PERM_LABELS: Record<string, string> = {
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
 
-const LIST_PERMS = ['use_bookmarks'] as const
+const LIST_PERMS = ['use_bookmarks', 'filter_all_statuses', 'filter_no_photo'] as const
 
 const DETAIL_PERMS = [
   'read_documents',

@@ -56,9 +56,11 @@ export default async function TrackerPage() {
       .select(`
         id, title, type, priority, status, due_date, description, tags,
         created_by, created_at, updated_at,
-        issue_assignees(user_email)
+        issue_assignees(user_email),
+        issue_updates(id, content, created_by, created_at)
       `)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .order('created_at', { referencedTable: 'issue_updates', ascending: false }),
     adminClient
       .from('allowed_emails')
       .select('email')
@@ -81,6 +83,7 @@ export default async function TrackerPage() {
     created_at: string
     updated_at: string
     issue_assignees: { user_email: string }[]
+    issue_updates: { id: string; content: string; created_by: string; created_at: string }[]
   }
 
   const issues: Issue[] = (issuesResult.data ?? []).map((raw: RawIssue) => {
@@ -99,6 +102,7 @@ export default async function TrackerPage() {
       updated_at: raw.updated_at,
       assignees: emails.map((e) => e.split('@')[0]),
       assignee_emails: emails,
+      issue_updates: (raw.issue_updates ?? []) as IssueUpdate[],
     }
   })
 

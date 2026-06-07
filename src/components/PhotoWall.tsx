@@ -97,6 +97,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     }
   }, [permissions, activeTab])
 
+  // 若 filter_all_statuses 權限被移除，清除狀態篩選
+  useEffect(() => {
+    if (!permissions.includes('filter_all_statuses') && selectedStatuses.size > 0) {
+      setSelectedStatuses(new Set())
+    }
+  }, [permissions]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 加入群組 popup
   const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
   const addToGroupPopupRef = useRef<HTMLDivElement>(null)
@@ -627,44 +634,48 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 </button>
               )
             })}
-            <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
-            {statusOptions.map(opt => {
-              const isActive = opt.value === 'all' ? selectedStatuses.size === 0 : selectedStatuses.has(opt.value)
-              return (
-                <button key={opt.value} onClick={() => toggleStatus(opt.value)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                  }`}>
-                  {opt.label}
-                </button>
-              )
-            })}
-            {/* 孤兒狀態：已從清單移除但仍有料卡使用 */}
-            {orphanStatuses.length > 0 && (
+            {permissions.includes('filter_all_statuses') && (
               <>
-                <span className="w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
-                {orphanStatuses.map(s => {
-                  const isActive = selectedStatuses.has(s)
-                  const count = initialCards.filter(c => c.status === s).length
+                <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
+                {statusOptions.map(opt => {
+                  const isActive = opt.value === 'all' ? selectedStatuses.size === 0 : selectedStatuses.has(opt.value)
                   return (
-                    <button
-                      key={s}
-                      onClick={() => toggleStatus(s)}
-                      title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                    <button key={opt.value} onClick={() => toggleStatus(opt.value)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                         isActive
-                          ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
-                          : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
-                      }`}
-                    >
-                      <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                      {s}
-                      <span className="opacity-70">({count})</span>
+                          ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                          : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                      }`}>
+                      {opt.label}
                     </button>
                   )
                 })}
+                {/* 孤兒狀態：已從清單移除但仍有料卡使用 */}
+                {orphanStatuses.length > 0 && (
+                  <>
+                    <span className="w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
+                    {orphanStatuses.map(s => {
+                      const isActive = selectedStatuses.has(s)
+                      const count = initialCards.filter(c => c.status === s).length
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => toggleStatus(s)}
+                          title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                            isActive
+                              ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                              : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                          }`}
+                        >
+                          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                          {s}
+                          <span className="opacity-70">({count})</span>
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
               </>
             )}
             <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
@@ -676,7 +687,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               }`}>
               NEW
             </button>
-            {isAdmin && (
+            {permissions.includes('filter_no_photo') && (
               <button
                 onClick={() => setNoPhotoFilter(v => !v)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${

@@ -20,9 +20,9 @@ interface Props {
 }
 
 const PRIORITY_DOT: Record<string, string> = {
-  high:   'bg-[#ef4444]',
-  medium: 'bg-[#eab308]',
-  low:    'bg-[#22c55e]',
+  high:   'bg-[#7a3b1e]',
+  medium: 'bg-[#9c6b42]',
+  low:    'bg-[#b8956a]',
 }
 const PRIORITY_LABEL: Record<string, string> = {
   high: '緊急', medium: '重要', low: '普通',
@@ -71,6 +71,11 @@ export default function IssueDetailDialog({
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 
+  const [editingUpdateId,      setEditingUpdateId]      = useState<string | null>(null)
+  const [editingUpdateContent, setEditingUpdateContent] = useState('')
+  const [savingUpdateId,       setSavingUpdateId]       = useState<string | null>(null)
+  const [deletingUpdateId,     setDeletingUpdateId]     = useState<string | null>(null)
+
   // 每次 open 時同步最新 issue 並載入 updates
   useEffect(() => {
     if (!open) return
@@ -78,15 +83,18 @@ export default function IssueDetailDialog({
     setError(null)
     setUpdateContent('')
 
-    // 載入完整更新紀錄
+    const hasInitialData = (issue.issue_updates?.length ?? 0) > 0
+    if (hasInitialData) {
+      setUpdates(issue.issue_updates!)
+    }
+
     const fetchUpdates = async () => {
-      setLoadingUpdates(true)
+      if (!hasInitialData) setLoadingUpdates(true)
       try {
         const res = await fetch(`/api/issues/${issue.id}`)
         if (res.ok) {
           const data = await res.json()
           setUpdates(data.issue_updates ?? [])
-          // 同步最新 assignees
           const emails: string[] = (data.issue_assignees ?? []).map(
             (a: { user_email: string }) => a.user_email,
           )
@@ -206,6 +214,42 @@ export default function IssueDetailDialog({
     setEditOpen(false)
     onUpdated(updated)
   }, [onUpdated])
+
+  const handleSaveUpdateEdit = useCallback(async (updateId: string) => {
+    const content = editingUpdateContent.trim()
+    if (!content) return
+    setSavingUpdateId(updateId)
+    try {
+      const res = await fetch(`/api/issues/${localIssue.id}/updates/${updateId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+      if (!res.ok) { setError('編輯失敗'); return }
+      const updated = await res.json()
+      setUpdates(prev => prev.map(u => u.id === updateId ? { ...u, content: updated.content } : u))
+      setEditingUpdateId(null)
+    } catch {
+      setError('編輯失敗，請重試')
+    } finally {
+      setSavingUpdateId(null)
+    }
+  }, [editingUpdateContent, localIssue.id])
+
+  const handleDeleteUpdate = useCallback(async (updateId: string) => {
+    setDeletingUpdateId(updateId)
+    try {
+      const res = await fetch(`/api/issues/${localIssue.id}/updates/${updateId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) { setError('刪除失敗'); return }
+      setUpdates(prev => prev.filter(u => u.id !== updateId))
+    } catch {
+      setError('刪除失敗，請重試')
+    } finally {
+      setDeletingUpdateId(null)
+    }
+  }, [localIssue.id])
 
   if (!open) return null
 
@@ -357,24 +401,68 @@ export default function IssueDetailDialog({
               )}
               {!loadingUpdates && updates.length > 0 && (
                 <div className="space-y-2">
-                  {updates.map((upd) => (
-                    <div
-                      key={upd.id}
-                      className="rounded-lg bg-white border border-[rgba(122,82,48,.1)] px-3 py-2.5"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-[#7a5230]">
-                          {upd.created_by.split('@')[0]}
-                        </span>
-                        <span className="text-xs text-[#c0a882]">
-                          {formatDatetime(upd.created_at)}
-                        </span>
+                  {updates.map((upd) => {
+                    const canEditThis = upd.created_by === userEmail || canCreateIssues
+                    const isEditing = editingUpdateId === upd.id
+                    const isDeleting = deletingUpdateId === upd.id
+                    const isSaving = savingUpdateId === upd.id
+                    return (
+                      <div
+                        key={upd.id}
+                        className="rounded-lg bg-white border border-[rgba(122,82,48,.1)] px-3 py-2.5 group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-[#7a5230]">
+                            {upd.created_by.split('@')[0]}
+                          </span>
+                          <span className="text-xs text-[#c0a882]">
+                            {formatDatetime(upd.created_at)}
+                          </span>
+                          {canEditThis && !isEditing && (
+                            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => { setEditingUpdateId(upd.id); setEditingUpdateContent(upd.content) }}
+                                className="p-1 rounded text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.08)] transition-colors"
+                                title="編輯"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUpdate(upd.id)}
+                                disabled={isDeleting}
+                                className="p-1 rounded text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.06)] transition-colors disabled:opacity-50"
+                                title="刪除"
+                              >
+                                {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <div>
+                            <textarea
+                              value={editingUpdateContent}
+                              onChange={(e) => setEditingUpdateContent(e.target.value)}
+                              onBlur={() => { if (editingUpdateContent.trim()) { handleSaveUpdateEdit(upd.id) } else { setEditingUpdateId(null) } }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) e.currentTarget.blur()
+                                if (e.key === 'Escape') setEditingUpdateId(null)
+                              }}
+                              autoFocus
+                              rows={2}
+                              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                            />
+                            <p className="text-[10px] text-[#a08060] mt-1">Ctrl+Enter 儲存 · Esc 取消</p>
+                            {isSaving && <p className="text-[10px] text-[#a08060]">儲存中…</p>}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">
+                            {upd.content}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">
-                        {upd.content}
-                      </p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
