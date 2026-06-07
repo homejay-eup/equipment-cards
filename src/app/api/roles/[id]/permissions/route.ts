@@ -43,7 +43,9 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const permissions = (data ?? []).map((p) => p.permission_key)
+  const permissions = (data ?? [])
+    .map((p) => p.permission_key)
+    .filter((k) => VALID_PERMISSION_KEYS.includes(k))
   return NextResponse.json({ permissions })
 }
 
