@@ -86,10 +86,11 @@
 
 ### 目前進度
 
-- **已完成**：Step 1–19（2026-04-27 至 2026-05-28）
+- **已完成**：Step 1–19（2026-04-27 至 2026-05-28）、Step 20 規格完成（2026-06-07）
+- **待執行**：Step 20（追蹤板 / 議題追蹤系統）
+- **目前 git HEAD**：`c38aa84`（Steps 1–19 均已包含）
 - **Step 16 Phase 2 待執行**：批次淨重照片上傳腳本（等照片提供後）
-- **需手動執行**：`_開發檔案/sql/add-groups.sql`、`_開發檔案/sql/add-roles-permissions.sql`（Supabase Dashboard SQL Editor）
-  - 執行 add-roles-permissions.sql 後，allowed_emails.role 值會從 'admin'/'viewer' 變為 '管理員'/'一般使用者'
+- **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### 規範與約定
 
@@ -97,6 +98,31 @@
 - UI 語言：繁體中文
 - 主題色：`#7a5230`（木質暖棕）、背景 `#faf6f0`、強調 `#c49a72`
 - **不要動的東西**：`.env.local`（含所有金鑰）、`設備線材_照片Jason/`（原始資料）
+
+#### 核心既有元件保護原則（強制）
+
+新功能實作時，以下元件**除非規格明確指定，否則禁止修改**：
+
+| 元件 | 禁止原因 |
+|------|----------|
+| `src/components/PhotoWall.tsx` | 主頁照片牆，視覺與互動已定案 |
+| `src/components/EquipmentCardItem.tsx` | 卡片縮圖版面已定案 |
+| `src/components/CardDetailDialog.tsx` | Lightbox 分頁與互動已定案 |
+| `src/components/CardFormDialog.tsx` | 新增/編輯欄位已定案 |
+| `src/components/BatchImportDialog.tsx` | CSV 匯入已定案 |
+| `src/app/page.tsx` | 首頁入口，僅允許加新功能連結 |
+
+**允許的最小侵入**（需在規格中明確列出）：
+- 加新 prop，且必須有預設值不破壞現有呼叫端
+- 加一個入口連結或圖示，不改變版面結構
+
+**絕對禁止**：
+- 改 className / 樣式
+- 改現有 handler 邏輯
+- 改 layout 結構
+- 新增影響既有功能的 state
+
+**新功能優先走獨立路由**：新頁面開新路由（如 `/tracker`、`/groups`），現有頁面只加一個入口連結，不動內部邏輯。
 
 #### 根目錄使用原則
 
@@ -128,6 +154,7 @@
 - 不確定時先問，不要自行假設
 - 照片操作採暫存機制（按儲存才呼叫 Cloudinary API）
 - 破壞性操作必須使用 `ConfirmDialog`，不用原生 `confirm()`
+- **PR 合併前**：主 Agent 必須列出所有**修改過的既有檔案**，每個改動說明理由；若有核心保護元件被改動，必須先取得使用者確認才能繼續
 
 ### 已知問題 / 技術債
 
@@ -140,11 +167,12 @@
 
 ## 此次任務（每次新對話時更新，執行完後清空）
 
-- 目前專案：
-- 當前步驟編號與名稱：
-- 本次要做的事：
-- 相依的前步驟產出：
-- 完成標準：
+- 目前專案：equipment-cards（設備料卡管理系統）
+- 當前步驟編號與名稱：Step 20 — 追蹤板（議題追蹤系統）
+- 本次要做的事：依 `_管理/01_equipment-cards/specs/step20-tracker.md` 執行 Step 20
+- 相依的前步驟產出：Step 19 SQL（`add-roles-permissions.sql`）已在 Supabase 執行完畢
+- 完成標準：詳見規格文件末尾「完成標準」區塊
+- **核心注意**：現有功能、版面、風格一律不得改動，只能新增
 
 ---
 
@@ -190,6 +218,10 @@
 ```
 frontend／data 執行 → tester 驗證 → reviewer 審查 → 主 Agent 整合回報
 ```
+
+**委派時必須在規格中明確列出**：
+- `【允許新建】`：列出所有新增的檔案路徑
+- `【禁止觸碰】`：列出所有不得修改的既有檔案（預設包含核心保護元件）
 
 **不委派的情況**：
 - 小幅修改（單檔、10 行以內）
