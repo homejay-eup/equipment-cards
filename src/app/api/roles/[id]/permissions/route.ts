@@ -18,6 +18,7 @@ const VALID_PERMISSION_KEYS = [
   'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
   'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
   'manage_users', 'manage_roles', 'use_groups',
+  'view_tracker', 'view_my_tasks', 'show_login_banner', 'create_issues',
 ]
 
 // GET /api/roles/[id]/permissions

@@ -41,6 +41,11 @@ const PERM_LABELS: Record<string, string> = {
   manage_users:            '帳號管理/指派角色',
   manage_roles:            '角色與權限設定',
   use_groups:              '群組功能',
+  // 追蹤板
+  view_tracker:            '可看追蹤板',
+  view_my_tasks:           '我的任務 + badge',
+  show_login_banner:       '登入後待處理 Banner',
+  create_issues:           '可新增議題',
 }
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
@@ -64,6 +69,13 @@ const EDIT_FIELD_PERMS = [
   'edit_field_id', 'edit_field_name', 'edit_field_category', 'edit_field_status',
   'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
   'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
+] as const
+
+const TRACKER_PERMS = [
+  'view_tracker',
+  'view_my_tasks',
+  'show_login_banner',
+  'create_issues',
 ] as const
 
 export default function RolesManager({ initialRoles }: Props) {
@@ -531,6 +543,25 @@ export default function RolesManager({ initialRoles }: Props) {
                           </div>
                         )}
                       </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 追蹤板：Checkbox */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">追蹤板</p>
+                  <div className="space-y-1.5">
+                    {TRACKER_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
