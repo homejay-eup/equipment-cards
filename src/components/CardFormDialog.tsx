@@ -554,7 +554,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             <input type="text" value={form.equipment_id}
               onChange={e => set('equipment_id', e.target.value)}
               placeholder="例：1000003"
-              disabled={!canEdit('edit_field_id')}
+              disabled={!canEdit('edit_card_equipment_id')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -566,7 +566,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             </label>
             <input type="text" value={form.name}
               onChange={e => set('name', e.target.value)} placeholder="例：S168-4G衛星定位器"
-              disabled={!canEdit('edit_field_name')}
+              disabled={!canEdit('edit_card_name')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -588,7 +588,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                 options={localSettings.categories}
                 placeholder="— 未分類 —"
                 onChange={v => set('category', v)}
-                disabled={isBusy || !canEdit('edit_field_category')}
+                disabled={isBusy || !canEdit('edit_card_category')}
               />
             </div>
             <div>
@@ -605,7 +605,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                 value={form.status}
                 options={localSettings.statuses}
                 onChange={v => set('status', v)}
-                disabled={isBusy || !canEdit('edit_field_status')}
+                disabled={isBusy || !canEdit('edit_card_status')}
               />
             </div>
           </div>
@@ -615,7 +615,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">廠商</label>
             <input type="text" value={form.vendor}
               onChange={e => set('vendor', e.target.value)} placeholder="例：格瑪車機"
-              disabled={!canEdit('edit_field_vendor')}
+              disabled={!canEdit('edit_card_vendor')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -627,7 +627,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             </label>
             <input type="text" value={form.tags}
               onChange={e => set('tags', e.target.value)} placeholder="例：HS昇銳, RFID, 4G"
-              disabled={!canEdit('edit_field_tags')}
+              disabled={!canEdit('edit_card_tags')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -637,7 +637,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">備註</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               rows={5} placeholder="補充說明…"
-              disabled={!canEdit('edit_field_notes')}
+              disabled={!canEdit('edit_card_notes')}
               className={`${inputCls} resize-none disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -651,7 +651,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               value={form.net_weight}
               onChange={e => set('net_weight', e.target.value)}
               placeholder="例：1.25"
-              disabled={isBusy || !canEdit('edit_field_net_weight')}
+              disabled={isBusy || !canEdit('edit_card_weight')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
@@ -660,7 +660,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-[#6b4f38]">淨重照片</label>
-              {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && canEdit('edit_field_net_weight') && (
+              {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && canEdit('edit_card_weight') && (
                 <button type="button" onClick={() => {
                   setSelectWeightMode(v => !v)
                   setSelectedWeightIds(new Set())
@@ -695,7 +695,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                           : <Square className="h-5 w-5 text-white drop-shadow" />
                         }
                       </div>
-                    ) : canEdit('edit_field_net_weight') ? (
+                    ) : canEdit('edit_card_weight') ? (
                       <button type="button" onClick={() => handleDeleteExistingWeight(photo.public_id)}
                         disabled={isBusy}
                         className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
@@ -729,7 +729,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                           : <Square className="h-5 w-5 text-white drop-shadow" />
                         }
                       </div>
-                    ) : canEdit('edit_field_net_weight') ? (
+                    ) : canEdit('edit_card_weight') ? (
                       <button type="button" onClick={() => handleDeletePendingWeight(idx)}
                         disabled={isBusy}
                         className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
@@ -740,7 +740,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                 )
               })}
 
-              {!selectWeightMode && canEdit('edit_field_net_weight') && (
+              {!selectWeightMode && canEdit('edit_card_weight') && (
                 <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
                   className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
                   <Plus className="h-5 w-5" />
@@ -779,7 +779,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               </label>
               <button type="button"
                 onClick={() => setDocuments(prev => [...prev, { name: '', url: '', type: localSettings.documentTypes[0] ?? '規格書' }])}
-                disabled={isBusy || !canEdit('edit_field_documents')}
+                disabled={isBusy || !canEdit('edit_card_documents')}
                 className="flex items-center gap-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
                 <Plus className="h-3.5 w-3.5" />
                 新增
@@ -797,13 +797,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                         value={doc.name}
                         onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, name: e.target.value } : d))}
                         placeholder="文件名稱"
-                        disabled={isBusy || !canEdit('edit_field_documents')}
+                        disabled={isBusy || !canEdit('edit_card_documents')}
                         className={`${inputCls} flex-1 text-xs py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                       />
                       <select
                         value={doc.type}
                         onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, type: e.target.value } : d))}
-                        disabled={isBusy || !canEdit('edit_field_documents')}
+                        disabled={isBusy || !canEdit('edit_card_documents')}
                         className="border border-[#e8ddd0] rounded-lg px-2 py-1.5 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {localSettings.documentTypes.map(t => (
@@ -812,7 +812,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                       </select>
                       <button type="button"
                         onClick={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))}
-                        disabled={isBusy || !canEdit('edit_field_documents')}
+                        disabled={isBusy || !canEdit('edit_card_documents')}
                         className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors flex-shrink-0">
                         <X className="h-4 w-4" />
                       </button>
@@ -824,7 +824,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                         value={doc.url}
                         onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, url: e.target.value } : d))}
                         placeholder="https://drive.google.com/..."
-                        disabled={isBusy || !canEdit('edit_field_documents')}
+                        disabled={isBusy || !canEdit('edit_card_documents')}
                         className={`${inputCls} text-xs py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                       />
                     </div>
@@ -845,7 +845,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             <button
               type="button"
               onClick={() => setIsNew(v => !v)}
-              disabled={isBusy || !canEdit('edit_field_is_new')}
+              disabled={isBusy || !canEdit('edit_card_is_new')}
               className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-all focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${
                 isNew
                   ? 'bg-[#b5451b] shadow-[0_0_8px_rgba(181,69,27,.4)]'
@@ -875,18 +875,18 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                   <Image src={currentMainPhoto} alt="主照片" fill className="object-cover" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy || !canEdit('edit_field_main_photo')}
+                  <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy || !canEdit('edit_card_main_photo')}
                     className="text-sm text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                     更換照片
                   </button>
-                  <button type="button" onClick={handleDeleteMain} disabled={isBusy || !canEdit('edit_field_main_photo')}
+                  <button type="button" onClick={handleDeleteMain} disabled={isBusy || !canEdit('edit_card_main_photo')}
                     className="text-sm text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                     刪除照片
                   </button>
                 </div>
               </div>
             ) : (
-              <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy || !canEdit('edit_field_main_photo')}
+              <button type="button" onClick={() => mainFileRef.current?.click()} disabled={isBusy || !canEdit('edit_card_main_photo')}
                 className="flex items-center gap-2 border-2 border-dashed border-[#e8ddd0] rounded-lg px-4 py-3 text-sm text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.2)] transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 <Upload className="h-4 w-4" />
                 上傳主照片
@@ -900,7 +900,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-[#6b4f38]">細節照片</label>
-              {(visibleDetails.length > 0 || pendingDetails.length > 0) && canEdit('edit_field_detail_photos') && (
+              {(visibleDetails.length > 0 || pendingDetails.length > 0) && canEdit('edit_card_detail_photos') && (
                 <button type="button" onClick={() => {
                   setSelectMode(v => !v)
                   setSelectedDetailIds(new Set())
@@ -935,7 +935,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                             : <Square className="h-5 w-5 text-white drop-shadow" />
                           }
                         </div>
-                      ) : canEdit('edit_field_detail_photos') ? (
+                      ) : canEdit('edit_card_detail_photos') ? (
                         <button type="button" onClick={() => handleDeleteDetail(photo.public_id)}
                           disabled={isBusy}
                           className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
@@ -980,7 +980,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                             : <Square className="h-5 w-5 text-white drop-shadow" />
                           }
                         </div>
-                      ) : canEdit('edit_field_detail_photos') ? (
+                      ) : canEdit('edit_card_detail_photos') ? (
                         <button type="button" onClick={() => handleDeletePendingDetail(idx)}
                           disabled={isBusy}
                           className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
@@ -1000,7 +1000,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                 )
               })}
 
-              {!selectMode && canEdit('edit_field_detail_photos') && (
+              {!selectMode && canEdit('edit_card_detail_photos') && (
                 <button type="button" onClick={() => detailFileRef.current?.click()} disabled={isBusy}
                   className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
                   <Plus className="h-5 w-5" />

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 import { requireAdmin } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import UserManagementTable from '@/components/UserManagementTable'
@@ -23,7 +24,30 @@ async function fetchAllowedEmails() {
   return (data ?? []) as { email: string; role: string; created_at: string }[]
 }
 
-async function fetchRoles(): Promise<string[]> {
+async function fetchAssignableRoles(): Promise<string[]> {
+  try {
+    const cookieStore = await cookies()
+    const cookieHeader = cookieStore.getAll()
+      .map(c => `${c.name}=${c.value}`)
+      .join('; ')
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+      ?? `https://${process.env.VERCEL_URL ?? 'localhost:3000'}`
+
+    const res = await fetch(`${baseUrl}/api/roles/assignable`, {
+      headers: { cookie: cookieHeader },
+      cache: 'no-store',
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      const roles = Array.isArray(data) ? data : (data.roles ?? [])
+      if (roles.length > 0) return roles.map((r: { name: string } | string) => typeof r === 'string' ? r : r.name)
+    }
+  } catch {
+    // API 尚未建立或呼叫失敗時 fallback
+  }
+  // Fallback：直接查 DB
   try {
     const { data } = await getServiceClient()
       .from('roles')
@@ -44,7 +68,7 @@ export default async function AdminUsersPage() {
     requireAdmin(),
     supabase.auth.getUser(),
     fetchAllowedEmails(),
-    fetchRoles(),
+    fetchAssignableRoles(),
   ])
 
   if (!admin) redirect('/')

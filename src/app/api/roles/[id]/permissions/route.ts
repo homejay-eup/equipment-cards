@@ -13,12 +13,12 @@ function getSupabase() {
 const VALID_PERMISSION_KEYS = [
   'read_all_cards', 'read_active_only', 'read_documents', 'read_notes', 'read_vendor',
   'read_updated_by', 'read_updated_content', 'use_bookmarks',
-  'add_delete_cards', 'edit_cards',
-  'edit_field_id', 'edit_field_name', 'edit_field_category', 'edit_field_status',
-  'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
-  'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
+  'create_delete_cards',
+  'edit_card_equipment_id', 'edit_card_name', 'edit_card_category', 'edit_card_status',
+  'edit_card_vendor', 'edit_card_tags', 'edit_card_notes', 'edit_card_weight',
+  'edit_card_documents', 'edit_card_is_new', 'edit_card_main_photo', 'edit_card_detail_photos',
   'manage_users', 'manage_roles', 'use_groups',
-  'view_tracker', 'view_my_tasks', 'create_issues',
+  'view_tracker', 'view_my_tasks', 'create_issues', 'tracker_edit_issue',
 ]
 
 // GET /api/roles/[id]/permissions

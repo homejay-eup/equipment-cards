@@ -9,6 +9,8 @@ interface RoleData {
   id: string
   name: string
   is_system: boolean
+  dept_group: string | null
+  level: string | null
   permissions: string[]
 }
 
@@ -22,7 +24,7 @@ async function fetchRoles(): Promise<RoleData[]> {
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, role_permissions(permission_key)')
+      .select('id, name, is_system, dept_group, level, role_permissions(permission_key)')
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -31,11 +33,15 @@ async function fetchRoles(): Promise<RoleData[]> {
       id: string
       name: string
       is_system: boolean
+      dept_group: string | null
+      level: string | null
       role_permissions: { permission_key: string }[]
     }) => ({
       id: row.id,
       name: row.name,
       is_system: row.is_system ?? false,
+      dept_group: row.dept_group ?? null,
+      level: row.level ?? null,
       permissions: (row.role_permissions ?? []).map(p => p.permission_key),
     }))
   } catch {

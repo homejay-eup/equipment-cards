@@ -8,6 +8,8 @@ interface RoleData {
   id: string
   name: string
   is_system: boolean
+  dept_group: string | null
+  level: string | null
   permissions: string[]
 }
 
@@ -16,38 +18,46 @@ interface Props {
 }
 
 const PERM_LABELS: Record<string, string> = {
-  read_all_cards:          '看全部料卡（含非現役）',
-  read_active_only:        '只看現役料卡',
-  read_documents:          '看文件/規格書',
-  read_notes:              '看備註',
-  read_vendor:             '看廠商',
-  read_updated_by:         '看更新人員',
-  read_updated_content:    '看更新內容',
-  use_bookmarks:           '我的關注（書籤）',
-  add_delete_cards:        '新增/刪除料卡',
-  edit_cards:              '編輯料卡',
-  edit_field_id:           '└ 料號',
-  edit_field_name:         '└ 品名',
-  edit_field_category:     '└ 分類',
-  edit_field_status:       '└ 狀態',
-  edit_field_vendor:       '└ 廠商',
-  edit_field_tags:         '└ 標籤',
-  edit_field_notes:        '└ 備註',
-  edit_field_net_weight:   '└ 淨重／淨重照片',
-  edit_field_documents:    '└ 文件連結',
-  edit_field_is_new:       '└ 新品標記',
-  edit_field_main_photo:   '└ 主照片',
-  edit_field_detail_photos:'└ 細節照片',
-  manage_users:            '帳號管理/指派角色',
-  manage_roles:            '角色與權限設定',
-  use_groups:              '群組功能',
+  // 可見性
+  read_all_cards:             '看全部料卡（含非現役）',
+  read_active_only:           '只看現役料卡',
+  // 料卡列表
+  use_bookmarks:              '我的關注（書籤）',
+  // 料卡細節
+  read_documents:             '看文件/規格書',
+  read_notes:                 '看備註',
+  read_vendor:                '看廠商',
+  read_updated_by:            '看更新人員',
+  read_updated_content:       '看更新內容',
+  // 料卡管理
+  create_delete_cards:        '新增/刪除料卡',
+  // 料卡管理 > 編輯欄位
+  edit_card_equipment_id:     '料號',
+  edit_card_name:             '品名',
+  edit_card_category:         '分類',
+  edit_card_status:           '狀態',
+  edit_card_vendor:           '廠商',
+  edit_card_tags:             '標籤',
+  edit_card_notes:            '備註',
+  edit_card_weight:           '淨重／淨重照片',
+  edit_card_documents:        '文件連結',
+  edit_card_is_new:           '新品標記',
+  edit_card_main_photo:       '主照片',
+  edit_card_detail_photos:    '細節照片',
+  // 帳號管理
+  manage_users:               '帳號管理/指派角色',
+  manage_roles:               '角色與權限設定',
   // 追蹤板
-  view_tracker:            '可看追蹤板',
-  view_my_tasks:           '我的任務 + badge',
-  create_issues:           '可新增議題',
+  view_tracker:               '可看追蹤板',
+  tracker_my_tasks:           '我的任務 + badge',
+  tracker_create_issue:       '可新增議題',
+  tracker_edit_issue:         '可編輯議題',
 }
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
+
+const LIST_PERMS = ['use_bookmarks'] as const
+
 const DETAIL_PERMS = [
   'read_documents',
   'read_notes',
@@ -55,26 +65,56 @@ const DETAIL_PERMS = [
   'read_updated_by',
   'read_updated_content',
 ] as const
-const FEATURE_PERMS = [
-  'use_bookmarks',
-  'add_delete_cards',
-  'edit_cards',
-  'manage_users',
-  'manage_roles',
-  'use_groups',
+
+// 「編輯料卡」父選項的子 key 清單
+const EDIT_CARD_CHILD_PERMS = [
+  'edit_card_equipment_id', 'edit_card_name', 'edit_card_category', 'edit_card_status',
+  'edit_card_vendor', 'edit_card_tags', 'edit_card_notes', 'edit_card_weight',
+  'edit_card_documents', 'edit_card_is_new', 'edit_card_main_photo', 'edit_card_detail_photos',
 ] as const
 
-const EDIT_FIELD_PERMS = [
-  'edit_field_id', 'edit_field_name', 'edit_field_category', 'edit_field_status',
-  'edit_field_vendor', 'edit_field_tags', 'edit_field_notes', 'edit_field_net_weight',
-  'edit_field_documents', 'edit_field_is_new', 'edit_field_main_photo', 'edit_field_detail_photos',
-] as const
+// 料卡管理分組（不含子 edit_card_* 欄位）
+const CARD_MGMT_PERMS = ['create_delete_cards'] as const
+
+const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
 
 const TRACKER_PERMS = [
   'view_tracker',
-  'view_my_tasks',
-  'create_issues',
+  'tracker_my_tasks',
+  'tracker_create_issue',
+  'tracker_edit_issue',
 ] as const
+
+const DEPT_GROUP_LABELS: Record<string, string> = {
+  admin:        '管理',
+  tech:         '技師',
+  purchasing:   '採購',
+  supply_chain: '供應鏈',
+  engineering:  '工程',
+  sales:        '業務',
+}
+
+function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: string | null }) {
+  if (level === 'super_admin') {
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(181,69,27,.1)] text-[#b5451b] border border-[rgba(181,69,27,.2)]">
+        全域
+      </span>
+    )
+  }
+  if (!deptGroup) {
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.07)] text-[#a08060] border border-[rgba(122,82,48,.15)]">
+        無群組
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
+      {DEPT_GROUP_LABELS[deptGroup] ?? deptGroup}
+    </span>
+  )
+}
 
 export default function RolesManager({ initialRoles }: Props) {
   const [roles, setRoles] = useState<RoleData[]>(initialRoles)
@@ -187,6 +227,28 @@ export default function RolesManager({ initialRoles }: Props) {
     setDraftPerms(d => ({ ...d, [role.id]: result }))
   }
 
+  // 「編輯料卡」父選項連動：indeterminate / checked / unchecked
+  function getEditCardParentState(draft: string[]): 'all' | 'some' | 'none' {
+    const checkedCount = EDIT_CARD_CHILD_PERMS.filter(k => draft.includes(k)).length
+    if (checkedCount === 0) return 'none'
+    if (checkedCount === EDIT_CARD_CHILD_PERMS.length) return 'all'
+    return 'some'
+  }
+
+  function handleEditCardParentToggle(role: RoleData) {
+    const draft = getDraft(role)
+    const state = getEditCardParentState(draft)
+    let result: string[]
+    if (state === 'none') {
+      // 全勾
+      result = [...draft, ...EDIT_CARD_CHILD_PERMS.filter(k => !draft.includes(k))]
+    } else {
+      // 已勾或 indeterminate → 全取消
+      result = draft.filter(p => !(EDIT_CARD_CHILD_PERMS as readonly string[]).includes(p))
+    }
+    setDraftPerms(d => ({ ...d, [role.id]: result }))
+  }
+
   function discardDraft(role: RoleData) {
     setDraftPerms(d => ({ ...d, [role.id]: [...role.permissions] }))
     setPermError(null)
@@ -218,6 +280,8 @@ export default function RolesManager({ initialRoles }: Props) {
         id: d.id ?? d.role?.id ?? String(Date.now()),
         name: trimmed,
         is_system: false,
+        dept_group: d.dept_group ?? null,
+        level: d.level ?? null,
         permissions: newRolePerms,
       }
       setRoles(prev => [...prev, newRole])
@@ -285,46 +349,89 @@ export default function RolesManager({ initialRoles }: Props) {
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
             />
             <p className="text-xs text-[#a08060]">初始權限（可新增後再調整）</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {Object.entries(PERM_LABELS)
-                .filter(([key]) => !(EDIT_FIELD_PERMS as readonly string[]).includes(key))
-                .map(([key, label]) => (
-                  <div key={key} className="col-span-1">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
+            {/* 新增角色：扁平列出所有 perm（除 edit_card_* 子選項展開在父下方） */}
+            <div className="space-y-3">
+              {[
+                { label: '可見性', keys: VISIBILITY_PERMS, radio: true },
+                { label: '料卡列表', keys: LIST_PERMS, radio: false },
+                { label: '料卡細節', keys: DETAIL_PERMS, radio: false },
+                { label: '帳號管理', keys: ACCOUNT_PERMS, radio: false },
+                { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
+              ].map(section => (
+                <div key={section.label}>
+                  <p className="text-[11px] font-semibold text-[#a08060] mb-1">{section.label}</p>
+                  <div className="space-y-1 pl-1">
+                    {section.keys.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type={section.radio ? 'radio' : 'checkbox'}
+                          name={section.radio ? 'new-role-visibility' : undefined}
+                          checked={newRolePerms.includes(key)}
+                          onChange={() => {
+                            if (section.radio) {
+                              const other = key === 'read_all_cards' ? 'read_active_only' : 'read_all_cards'
+                              setNewRolePerms(prev => [...prev.filter(p => p !== other && p !== key), key])
+                            } else {
+                              setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])
+                            }
+                          }}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {/* 料卡管理 */}
+              <div>
+                <p className="text-[11px] font-semibold text-[#a08060] mb-1">料卡管理</p>
+                <div className="space-y-1 pl-1">
+                  {CARD_MGMT_PERMS.map(key => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={newRolePerms.includes(key)}
+                        onChange={() => setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
+                    </label>
+                  ))}
+                  {/* 編輯料卡父選項 */}
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={EDIT_CARD_CHILD_PERMS.some(k => newRolePerms.includes(k))}
                         onChange={() => {
-                          setNewRolePerms(prev =>
-                            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                          )
+                          const anyChecked = EDIT_CARD_CHILD_PERMS.some(k => newRolePerms.includes(k))
+                          if (anyChecked) {
+                            setNewRolePerms(prev => prev.filter(p => !(EDIT_CARD_CHILD_PERMS as readonly string[]).includes(p)))
+                          } else {
+                            setNewRolePerms(prev => [...prev, ...EDIT_CARD_CHILD_PERMS.filter(k => !prev.includes(k))])
+                          }
                         }}
                         className="accent-[#7a5230]"
                       />
-                      <span className="text-xs text-[#4a3422]">{label}</span>
+                      <span className="text-xs text-[#4a3422]">編輯料卡</span>
                     </label>
-                    {key === 'edit_cards' && newRolePerms.includes('edit_cards') && (
-                      <div className="pl-5 mt-1 space-y-1 col-span-2">
-                        {EDIT_FIELD_PERMS.map(fkey => (
-                          <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={newRolePerms.includes(fkey)}
-                              onChange={() => {
-                                setNewRolePerms(prev =>
-                                  prev.includes(fkey) ? prev.filter(p => p !== fkey) : [...prev, fkey]
-                                )
-                              }}
-                              className="accent-[#7a5230]"
-                            />
-                            <span className="text-xs text-[#4a3422]">{PERM_LABELS[fkey]}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                    <div className="pl-5 mt-1 grid grid-cols-2 gap-x-2 gap-y-1">
+                      {EDIT_CARD_CHILD_PERMS.map(fkey => (
+                        <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={newRolePerms.includes(fkey)}
+                            onChange={() => setNewRolePerms(prev => prev.includes(fkey) ? prev.filter(p => p !== fkey) : [...prev, fkey])}
+                            className="accent-[#7a5230]"
+                          />
+                          <span className="text-xs text-[#4a3422]">{PERM_LABELS[fkey]}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                ))
-              }
+                </div>
+              </div>
             </div>
             {createError && <p className="text-xs text-[#b5451b]">{createError}</p>}
             <div className="flex gap-2 justify-end">
@@ -412,13 +519,14 @@ export default function RolesManager({ initialRoles }: Props) {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[#2c1e12] text-sm">{role.name}</span>
                     {role.is_system && (
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
                         系統
                       </span>
                     )}
+                    <DeptBadge deptGroup={role.dept_group} level={role.level} />
                   </div>
                 )}
                 <p className="text-xs text-[#a08060] mt-0.5">
@@ -489,7 +597,26 @@ export default function RolesManager({ initialRoles }: Props) {
                   </div>
                 </div>
 
-                {/* 料卡細節：Checkbox */}
+                {/* 料卡列表 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">料卡列表</p>
+                  <div className="space-y-1.5">
+                    {LIST_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 料卡細節 */}
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">料卡細節</p>
                   <div className="space-y-1.5">
@@ -508,25 +635,42 @@ export default function RolesManager({ initialRoles }: Props) {
                   </div>
                 </div>
 
-                {/* 功能權限：Checkbox */}
+                {/* 料卡管理 */}
                 <div>
-                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">功能權限</p>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">料卡管理</p>
                   <div className="space-y-1.5">
-                    {FEATURE_PERMS.map(key => (
-                      <div key={key}>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={draft.includes(key)}
-                            onChange={() => handleDetailToggle(role, key)}
-                            disabled={isSavingPerm}
-                            className="accent-[#7a5230]"
-                          />
-                          <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
-                        </label>
-                        {key === 'edit_cards' && draft.includes('edit_cards') && (
-                          <div className="pl-5 mt-1 space-y-1.5">
-                            {EDIT_FIELD_PERMS.map(fkey => (
+                    {CARD_MGMT_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                    {/* 編輯料卡：父子連動 */}
+                    {(() => {
+                      const parentState = getEditCardParentState(draft)
+                      return (
+                        <div>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              ref={el => {
+                                if (el) el.indeterminate = parentState === 'some'
+                              }}
+                              checked={parentState === 'all'}
+                              onChange={() => handleEditCardParentToggle(role)}
+                              disabled={isSavingPerm}
+                              className="accent-[#7a5230]"
+                            />
+                            <span className="text-sm text-[#4a3422]">編輯料卡</span>
+                          </label>
+                          <div className="pl-5 mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1.5">
+                            {EDIT_CARD_CHILD_PERMS.map(fkey => (
                               <label key={fkey} className="flex items-center gap-2 cursor-pointer select-none">
                                 <input
                                   type="checkbox"
@@ -539,13 +683,32 @@ export default function RolesManager({ initialRoles }: Props) {
                               </label>
                             ))}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                {/* 帳號管理 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">帳號管理</p>
+                  <div className="space-y-1.5">
+                    {ACCOUNT_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
 
-                {/* 追蹤板：Checkbox */}
+                {/* 追蹤板 */}
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">追蹤板</p>
                   <div className="space-y-1.5">
