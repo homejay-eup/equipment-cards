@@ -25,7 +25,7 @@ const PRIORITY_DOT: Record<string, string> = {
   low:    'bg-[#22c55e]',
 }
 const PRIORITY_LABEL: Record<string, string> = {
-  high: '緊急', medium: '中', low: '低',
+  high: '緊急', medium: '重要', low: '普通',
 }
 
 const STATUS_OPTIONS = ['待處理', '進行中', '等待中', '已完成']
@@ -343,9 +343,16 @@ export default function IssueDetailDialog({
             <div>
               <p className="text-xs font-semibold text-[#6b4f38] mb-2">更新紀錄</p>
               {loadingUpdates && (
-                <div className="flex items-center gap-2 text-xs text-[#a08060] py-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  載入中…
+                <div className="space-y-2 animate-pulse">
+                  {([48, 36, 48] as number[]).map((w, i) => (
+                    <div key={i} className="rounded-lg bg-[rgba(122,82,48,.07)] px-3 py-2.5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-3 rounded bg-[rgba(122,82,48,.12)]" style={{ width: '60px' }} />
+                        <div className="h-3 rounded bg-[rgba(122,82,48,.07)]" style={{ width: '80px' }} />
+                      </div>
+                      <div className="h-3 rounded bg-[rgba(122,82,48,.1)]" style={{ width: `${w}%` }} />
+                    </div>
+                  ))}
                 </div>
               )}
               {!loadingUpdates && updates.length === 0 && (
@@ -389,7 +396,6 @@ export default function IssueDetailDialog({
                   }}
                   placeholder="新增更新紀錄… (Ctrl+Enter 送出)"
                   rows={2}
-                  disabled={submittingUpdate}
                   className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all resize-none"
                 />
                 <div className="flex justify-end mt-1.5">

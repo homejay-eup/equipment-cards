@@ -492,7 +492,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             </button>
             {permissions.includes('view_tracker') && (
               <button
-                onClick={() => setActiveTab('tracker')}
+                onClick={() => { setActiveTab('tracker'); router.refresh() }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'tracker'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'

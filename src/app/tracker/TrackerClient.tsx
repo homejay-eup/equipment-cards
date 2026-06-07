@@ -24,8 +24,8 @@ const PRIORITY_DOT: Record<string, string> = {
 
 const PRIORITY_LABEL: Record<string, string> = {
   high:   '緊急',
-  medium: '中',
-  low:    '低',
+  medium: '重要',
+  low:    '普通',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -73,10 +73,7 @@ export default function TrackerClient({
     let list = issues
 
     if (activeTab === 'my') {
-      list = list.filter((i) =>
-        i.assignee_emails.includes(userEmail) ||
-        i.created_by === userEmail,
-      )
+      list = list.filter((i) => i.assignee_emails.includes(userEmail))
     }
 
     if (filterType) list = list.filter((i) => i.type === filterType)
@@ -88,9 +85,7 @@ export default function TrackerClient({
 
   const myPendingCount = useMemo(() => {
     return issues.filter(
-      (i) =>
-        i.status !== '已完成' &&
-        (i.assignee_emails.includes(userEmail) || i.created_by === userEmail),
+      (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
     ).length
   }, [issues, userEmail])
 
@@ -201,8 +196,8 @@ export default function TrackerClient({
           >
             <option value="">優先度：全部</option>
             <option value="high">緊急</option>
-            <option value="medium">中</option>
-            <option value="low">低</option>
+            <option value="medium">重要</option>
+            <option value="low">普通</option>
           </select>
         </div>
 

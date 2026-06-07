@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { X, Loader2, Check, Save } from 'lucide-react'
+import { X, Check, Save } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
+import SettingsPopover from '@/components/SettingsPopover'
 
 interface Props {
   open: boolean
@@ -27,7 +28,7 @@ export default function EditIssueDialog({
   const [description, setDescription] = useState(issue.description ?? '')
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(issue.assignee_emails)
   const [selectedTags, setSelectedTags] = useState<string[]>(issue.tags)
-  const [submitting, setSubmitting] = useState(false)
+  const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(issueTypes)
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
 
@@ -41,9 +42,10 @@ export default function EditIssueDialog({
     setDescription(issue.description ?? '')
     setSelectedAssignees(issue.assignee_emails)
     setSelectedTags(issue.tags)
+    setLocalIssueTypes(issueTypes)
     setError(null)
     setAssigneeInput('')
-  }, [issue])
+  }, [issue, issueTypes])
 
   const toggleAssignee = useCallback((email: string) => {
     setSelectedAssignees((prev) =>
@@ -66,8 +68,25 @@ export default function EditIssueDialog({
     if (!title.trim()) { setError('標題為必填'); return }
     if (!type) { setError('類型為必填'); return }
 
-    setSubmitting(true)
-    setError(null)
+    const originalIssue = issue
+
+    const optimisticIssue: Issue = {
+      ...issue,
+      title: title.trim(),
+      type,
+      priority,
+      status,
+      due_date: dueDate || null,
+      description: description.trim() || null,
+      tags: selectedTags,
+      assignee_emails: selectedAssignees,
+      assignees: selectedAssignees.map((e) => e.split('@')[0]),
+      updated_at: new Date().toISOString(),
+    }
+
+    onUpdated(optimisticIssue)
+    onClose()
+
     try {
       const res = await fetch(`/api/issues/${issue.id}`, {
         method: 'PATCH',
@@ -84,33 +103,25 @@ export default function EditIssueDialog({
         }),
       })
       if (!res.ok) {
-        const d = await res.json()
-        if (d.partial) {
-          // 議題主體已更新，但負責人同步失敗
-          setError(d.error ?? '議題已更新，但負責人同步失敗，請重新編輯')
-        } else {
-          setError(d.error ?? '更新失敗')
-        }
+        onUpdated(originalIssue)
         return
       }
       const data = await res.json()
       const emails: string[] = (data.issue_assignees ?? []).map(
         (a: { user_email: string }) => a.user_email,
       )
-      const updated: Issue = {
+      const realIssue: Issue = {
         ...data,
         issue_assignees: undefined,
         issue_updates: undefined,
         assignee_emails: emails,
         assignees: emails.map((e: string) => e.split('@')[0]),
       }
-      onUpdated(updated)
+      onUpdated(realIssue)
     } catch {
-      setError('更新失敗，請重試')
-    } finally {
-      setSubmitting(false)
+      onUpdated(originalIssue)
     }
-  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue.id, onUpdated])
+  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue, onUpdated, onClose])
 
   if (!open) return null
 
@@ -147,25 +158,28 @@ export default function EditIssueDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              disabled={submitting}
-              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
             />
           </div>
 
           {/* 類型 + 優先度 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-[#6b4f38] mb-1.5 block">
+              <label className="flex items-center gap-1 text-xs font-semibold text-[#6b4f38] mb-1.5">
                 類型 <span className="text-[#b5451b]">*</span>
+                <SettingsPopover
+                  settingKey="issueTypes"
+                  items={localIssueTypes}
+                  onConfirm={(newTypes) => setLocalIssueTypes(newTypes)}
+                />
               </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 required
-                disabled={submitting}
-                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
               >
-                {issueTypes.map((t) => (
+                {localIssueTypes.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
@@ -175,12 +189,11 @@ export default function EditIssueDialog({
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as 'high' | 'medium' | 'low')}
-                disabled={submitting}
-                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
               >
                 <option value="high">緊急</option>
-                <option value="medium">中</option>
-                <option value="low">低</option>
+                <option value="medium">重要</option>
+                <option value="low">普通</option>
               </select>
             </div>
           </div>
@@ -192,8 +205,7 @@ export default function EditIssueDialog({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                disabled={submitting}
-                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
               >
                 {['待處理', '進行中', '等待中', '已完成'].map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -206,8 +218,7 @@ export default function EditIssueDialog({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                disabled={submitting}
-                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
               />
             </div>
           </div>
@@ -219,8 +230,7 @@ export default function EditIssueDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              disabled={submitting}
-              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all resize-none"
+              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
             />
           </div>
 
@@ -343,10 +353,10 @@ export default function EditIssueDialog({
           <button
             type="button"
             onClick={() => handleSubmit()}
-            disabled={submitting || !title.trim() || !type}
+            disabled={!title.trim() || !type}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
           >
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            <Save className="h-3.5 w-3.5" />
             儲存
           </button>
         </div>

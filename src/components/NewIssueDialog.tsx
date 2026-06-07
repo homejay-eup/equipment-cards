@@ -193,8 +193,8 @@ export default function NewIssueDialog({
                 className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
               >
                 <option value="high">緊急</option>
-                <option value="medium">中</option>
-                <option value="low">低</option>
+                <option value="medium">重要</option>
+                <option value="low">普通</option>
               </select>
             </div>
           </div>
