@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { Loader2, Pencil, Trash2 } from 'lucide-react'
 import type { Issue, IssueUpdate } from '@/app/tracker/page'
 import EditIssueDialog from '@/components/EditIssueDialog'
@@ -43,7 +43,6 @@ export default function IssueExpandedContent({
 }: Props) {
   const [localIssue, setLocalIssue] = useState<Issue>(issue)
   const [updates, setUpdates] = useState<IssueUpdate[]>(issue.issue_updates ?? [])
-  const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [updateContent, setUpdateContent] = useState('')
   const [changingStatus, setChangingStatus] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -58,35 +57,6 @@ export default function IssueExpandedContent({
   const canFullEdit = isAuthor || canCreateIssues
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
-
-  useEffect(() => {
-    setLocalIssue(issue)
-    setError(null)
-    setUpdateContent('')
-    const fetch_ = async () => {
-      setLoadingUpdates(true)
-      try {
-        const res = await fetch(`/api/issues/${issue.id}`)
-        if (res.ok) {
-          const data = await res.json()
-          setUpdates(data.issue_updates ?? [])
-          const emails: string[] = (data.issue_assignees ?? []).map(
-            (a: { user_email: string }) => a.user_email,
-          )
-          setLocalIssue({
-            ...issue,
-            ...data,
-            issue_updates: undefined,
-            issue_assignees: undefined,
-            assignee_emails: emails,
-            assignees: emails.map((e: string) => e.split('@')[0]),
-          })
-        }
-      } catch { /* silent */ }
-      finally { setLoadingUpdates(false) }
-    }
-    fetch_()
-  }, [issue.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStatusChange = useCallback(async (newStatus: string) => {
     if (newStatus === localIssue.status) return
@@ -256,23 +226,10 @@ export default function IssueExpandedContent({
         {/* 更新紀錄 */}
         <div>
           <p className="text-xs font-semibold text-[#6b4f38] mb-2">更新紀錄</p>
-          {loadingUpdates && (
-            <div className="space-y-1.5 animate-pulse">
-              {([48, 36] as number[]).map((w, i) => (
-                <div key={i} className="rounded-lg bg-[rgba(122,82,48,.07)] px-3 py-2">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="h-2.5 rounded bg-[rgba(122,82,48,.12)]" style={{ width: '55px' }} />
-                    <div className="h-2.5 rounded bg-[rgba(122,82,48,.07)]" style={{ width: '75px' }} />
-                  </div>
-                  <div className="h-2.5 rounded bg-[rgba(122,82,48,.1)]" style={{ width: `${w}%` }} />
-                </div>
-              ))}
-            </div>
-          )}
-          {!loadingUpdates && updates.length === 0 && (
+          {updates.length === 0 && (
             <p className="text-xs text-[#c0a882]">尚無更新紀錄</p>
           )}
-          {!loadingUpdates && updates.length > 0 && (
+          {updates.length > 0 && (
             <div className="space-y-1.5">
               {updates.map((upd) => (
                 <div key={upd.id} className="rounded-lg bg-white border border-[rgba(122,82,48,.1)] px-3 py-2">
