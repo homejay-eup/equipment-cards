@@ -100,6 +100,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [bookmarkNotes, setBookmarkNotes] = useState<Record<string, string>>(initialBookmarkNotes ?? {})
   const bookmarkSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
+  // 追蹤板待處理計數（以指派給我且未完成的議題計算）
+  const trackerPendingCount = trackerData
+    ? trackerData.initialIssues.filter(
+        (i) => i.status !== '已完成' && i.assignee_emails.includes(userEmail),
+      ).length
+    : 0
+
   // 計算 defaultGroup 的書籤 IDs
   const defaultGroup = groups.find(g => g.is_default)
   const bookmarkedIds = useMemo(() =>
@@ -501,6 +508,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               >
                 <ClipboardList className="h-3.5 w-3.5" />
                 追蹤板
+                {trackerPendingCount > 0 && (
+                  <span className="text-xs">{trackerPendingCount}</span>
+                )}
               </button>
             )}
           </div>

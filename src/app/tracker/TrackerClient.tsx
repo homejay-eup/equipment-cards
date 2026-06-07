@@ -2,9 +2,9 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, AlertCircle } from 'lucide-react'
+import { Plus, AlertCircle, ChevronDown } from 'lucide-react'
 import type { Issue } from './page'
-import IssueDetailDialog from '@/components/IssueDetailDialog'
+import IssueExpandedContent from '@/components/IssueExpandedContent'
 import NewIssueDialog from '@/components/NewIssueDialog'
 
 interface Props {
@@ -65,9 +65,8 @@ export default function TrackerClient({
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [newIssueOpen, setNewIssueOpen] = useState(false)
-  const [detailOpen, setDetailOpen] = useState(false)
 
   const filteredIssues = useMemo(() => {
     let list = issues
@@ -89,11 +88,6 @@ export default function TrackerClient({
     ).length
   }, [issues, userEmail])
 
-  const handleIssueClick = useCallback((issue: Issue) => {
-    setSelectedIssue(issue)
-    setDetailOpen(true)
-  }, [])
-
   const handleIssueCreated = useCallback((newIssue: Issue) => {
     setIssues((prev) => [newIssue, ...prev])
     setNewIssueOpen(false)
@@ -103,29 +97,17 @@ export default function TrackerClient({
     setIssues((prev) =>
       prev.map((i) => (i.id === updatedIssue.id ? updatedIssue : i)),
     )
-    setSelectedIssue(updatedIssue)
   }, [])
 
   const handleIssueDeleted = useCallback((issueId: string) => {
     setIssues((prev) => prev.filter((i) => i.id !== issueId))
-    setDetailOpen(false)
-    setSelectedIssue(null)
+    setExpandedId(null)
   }, [])
 
   const allStatuses = ['待處理', '進行中', '等待中', '已完成']
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-xl font-semibold text-[#2c1e12]">追蹤板</h1>
-        {canViewMyTasks && myPendingCount > 0 && (
-          <span className="px-2 py-0.5 text-xs font-semibold bg-[#7a5230] text-white rounded-full">
-            {myPendingCount}
-          </span>
-        )}
-      </div>
-
       {/* 篩選列 */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         {/* Tab */}
@@ -224,76 +206,80 @@ export default function TrackerClient({
           </div>
         ) : (
           <ul className="divide-y divide-[rgba(122,82,48,.08)]">
-            {filteredIssues.map((issue) => (
-              <li key={issue.id}>
-                <button
-                  onClick={() => handleIssueClick(issue)}
-                  className="w-full text-left px-4 py-3 hover:bg-[rgba(122,82,48,.04)] transition-colors flex flex-col gap-1.5"
-                >
-                  {/* 第一行：優先度・類型・標題・狀態 */}
-                  <div className="flex items-start gap-2.5">
-                    <span
-                      className={`shrink-0 mt-1.5 w-2.5 h-2.5 rounded-full ${
-                        PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'
-                      }`}
-                      title={PRIORITY_LABEL[issue.priority]}
-                    />
-                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.18)] self-start">
-                      {issue.type}
-                    </span>
-                    <span className="flex-1 min-w-0 text-sm text-[#2c1e12] break-words">
-                      {issue.title}
-                    </span>
-                    <span
-                      className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
-                        STATUS_BADGE[issue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      {issue.status}
-                    </span>
-                  </div>
-
-                  {/* 第二行：日期・負責人・更新時間 */}
-                  <div className="flex items-center gap-3 pl-[26px] text-xs text-[#a08060] flex-wrap">
-                    <span className="shrink-0">
-                      {issue.due_date ? issue.due_date.slice(5, 10).replace('-', '/') : '—'}
-                    </span>
-                    {issue.assignees.length > 0 && (
-                      <span className="flex flex-wrap gap-x-1 gap-y-0.5">
-                        {issue.assignees.map((a, i) => (
-                          <span key={a} className="whitespace-nowrap">
-                            {a}{i < issue.assignees.length - 1 ? '、' : ''}
-                          </span>
-                        ))}
+            {filteredIssues.map((issue) => {
+              const isExpanded = expandedId === issue.id
+              return (
+                <li key={issue.id}>
+                  {/* 摺疊標題列 */}
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : issue.id)}
+                    className="w-full text-left px-4 py-3 hover:bg-[rgba(122,82,48,.04)] transition-colors flex flex-col gap-1.5"
+                  >
+                    {/* 第一行：優先度・類型・標題・狀態・展開箭頭 */}
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className={`shrink-0 mt-1.5 w-2.5 h-2.5 rounded-full ${
+                          PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'
+                        }`}
+                        title={PRIORITY_LABEL[issue.priority]}
+                      />
+                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.18)] self-start">
+                        {issue.type}
                       </span>
-                    )}
-                    <span className="ml-auto shrink-0">{formatDatetime(issue.updated_at)}</span>
-                  </div>
-                </button>
-              </li>
-            ))}
+                      <span className="flex-1 min-w-0 text-sm text-[#2c1e12] break-words">
+                        {issue.title}
+                      </span>
+                      <span
+                        className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+                          STATUS_BADGE[issue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
+                        }`}
+                      >
+                        {issue.status}
+                      </span>
+                      <ChevronDown
+                        className={`shrink-0 h-4 w-4 text-[#a08060] transition-transform duration-200 mt-0.5 ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
+
+                    {/* 第二行：日期・負責人・更新時間 */}
+                    <div className="flex items-center gap-3 pl-[26px] text-xs text-[#a08060] flex-wrap">
+                      <span className="shrink-0">
+                        {issue.due_date ? issue.due_date.slice(5, 10).replace('-', '/') : '—'}
+                      </span>
+                      {issue.assignees.length > 0 && (
+                        <span className="flex flex-wrap gap-x-1 gap-y-0.5">
+                          {issue.assignees.map((a, i) => (
+                            <span key={a} className="whitespace-nowrap">
+                              {a}{i < issue.assignees.length - 1 ? '、' : ''}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      <span className="ml-auto shrink-0">{formatDatetime(issue.updated_at)}</span>
+                    </div>
+                  </button>
+
+                  {/* 展開內容 */}
+                  {isExpanded && (
+                    <IssueExpandedContent
+                      issue={issue}
+                      permissions={permissions}
+                      userEmail={userEmail}
+                      allowedEmails={allowedEmails}
+                      issueTypes={issueTypes}
+                      issueTags={issueTags}
+                      onUpdated={handleIssueUpdated}
+                      onDeleted={handleIssueDeleted}
+                    />
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
-
-      {/* 議題詳情 Dialog */}
-      {selectedIssue && (
-        <IssueDetailDialog
-          open={detailOpen}
-          issue={selectedIssue}
-          permissions={permissions}
-          userEmail={userEmail}
-          allowedEmails={allowedEmails}
-          issueTypes={issueTypes}
-          issueTags={issueTags}
-          onClose={() => {
-            setDetailOpen(false)
-            setSelectedIssue(null)
-          }}
-          onUpdated={handleIssueUpdated}
-          onDeleted={handleIssueDeleted}
-        />
-      )}
 
       {/* 新增議題 Dialog */}
       {canCreateIssues && (
