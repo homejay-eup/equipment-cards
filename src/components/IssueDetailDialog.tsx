@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { X, Loader2, Send, Pencil, Trash2 } from 'lucide-react'
+import { X, Loader2, Pencil, Trash2 } from 'lucide-react'
 import type { Issue, IssueUpdate } from '@/app/tracker/page'
 import EditIssueDialog from '@/components/EditIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -55,7 +55,6 @@ export default function IssueDetailDialog({
   const [updates, setUpdates] = useState<IssueUpdate[]>(issue.issue_updates ?? [])
   const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [updateContent, setUpdateContent] = useState('')
-  const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [changingStatus, setChangingStatus] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -159,7 +158,6 @@ export default function IssueDetailDialog({
     }
     setUpdates((prev) => [optimistic, ...prev])
     setUpdateContent('')
-    setSubmittingUpdate(true)
     setError(null)
     try {
       const res = await fetch(`/api/issues/${localIssue.id}/updates`, {
@@ -180,8 +178,6 @@ export default function IssueDetailDialog({
       setError('新增更新紀錄失敗，請重試')
       setUpdates((prev) => prev.filter((u) => u.id !== pendingId))
       setUpdateContent(content)
-    } finally {
-      setSubmittingUpdate(false)
     }
   }, [updateContent, localIssue.id, userEmail])
 
@@ -389,27 +385,18 @@ export default function IssueDetailDialog({
                   ref={textareaRef}
                   value={updateContent}
                   onChange={(e) => setUpdateContent(e.target.value)}
+                  onBlur={() => {
+                    if (updateContent.trim()) handleSubmitUpdate()
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                      handleSubmitUpdate()
+                      e.currentTarget.blur()
                     }
                   }}
-                  placeholder="新增更新紀錄… (Ctrl+Enter 送出)"
+                  placeholder="新增更新紀錄… （離開欄位自動儲存）"
                   rows={2}
-                  className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all resize-none"
+                  className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                 />
-                <div className="flex justify-end mt-1.5">
-                  <button
-                    onClick={handleSubmitUpdate}
-                    disabled={!updateContent.trim() || submittingUpdate}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
-                  >
-                    {submittingUpdate
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Send className="h-3.5 w-3.5" />}
-                    送出
-                  </button>
-                </div>
               </div>
             )}
 
