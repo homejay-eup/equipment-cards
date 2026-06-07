@@ -12,7 +12,7 @@ function getSupabase() {
 
 const VALID_PERMISSION_KEYS = [
   'read_all_cards', 'read_active_only', 'read_documents', 'read_notes', 'read_vendor',
-  'read_updated_by', 'read_updated_content', 'use_bookmarks',
+  'read_updated_by', 'read_updated_content', 'use_bookmarks', 'filter_all_statuses', 'filter_no_photo',
   'create_delete_cards',
   'edit_card_equipment_id', 'edit_card_name', 'edit_card_category', 'edit_card_status',
   'edit_card_vendor', 'edit_card_tags', 'edit_card_notes', 'edit_card_weight',
