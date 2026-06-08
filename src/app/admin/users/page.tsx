@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { requireAdmin } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import UserManagementTable from '@/components/UserManagementTable'
@@ -26,38 +25,77 @@ async function fetchAllowedEmails() {
 
 async function fetchAssignableRoles(): Promise<string[]> {
   try {
-    const cookieStore = await cookies()
-    const cookieHeader = cookieStore.getAll()
-      .map(c => `${c.name}=${c.value}`)
-      .join('; ')
+    const supabase = createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-      ?? `https://${process.env.VERCEL_URL ?? 'localhost:3000'}`
+    if (!user?.email) return ['管理員', '一般使用者']
 
-    const res = await fetch(`${baseUrl}/api/roles/assignable`, {
-      headers: { cookie: cookieHeader },
-      cache: 'no-store',
-    })
+    const service = getServiceClient()
 
-    if (res.ok) {
-      const data = await res.json()
-      const roles = Array.isArray(data) ? data : (data.roles ?? [])
-      if (roles.length > 0) return roles.map((r: { name: string } | string) => typeof r === 'string' ? r : r.name)
-    }
-  } catch {
-    // API 尚未建立或呼叫失敗時 fallback
-  }
-  // Fallback：直接查 DB
-  try {
-    const { data } = await getServiceClient()
+    // 取得目前使用者的角色名稱
+    const { data: emailData } = await service
+      .from('allowed_emails')
+      .select('role')
+      .eq('email', user.email)
+      .single()
+
+    if (!emailData?.role) return []
+
+    // 取得該角色的 dept_group + level + assignable_role_names
+    const { data: roleData, error: roleError } = await service
       .from('roles')
-      .select('name')
-      .order('id', { ascending: true })
-    if (data && data.length > 0) return data.map((r: { name: string }) => r.name)
+      .select('id, name, is_system, dept_group, level, assignable_role_names')
+      .eq('name', emailData.role)
+      .single()
+
+    if (roleError || !roleData) return []
+
+    const { level, dept_group, assignable_role_names } = roleData as {
+      id: string
+      name: string
+      is_system: boolean
+      dept_group: string | null
+      level: string
+      assignable_role_names: string[] | null
+    }
+
+    // 若 assignable_role_names 有明確設定，直接使用
+    if (assignable_role_names && assignable_role_names.length > 0) {
+      const { data, error } = await service
+        .from('roles')
+        .select('name')
+        .in('name', assignable_role_names)
+        .order('id', { ascending: true })
+      if (error) return ['管理員', '一般使用者']
+      return (data ?? []).map((r: { name: string }) => r.name)
+    }
+
+    // Fallback：以 level 判斷
+    if (level === 'super_admin') {
+      const { data, error } = await service
+        .from('roles')
+        .select('name')
+        .order('created_at', { ascending: true })
+      if (error) return ['管理員', '一般使用者']
+      return (data ?? []).map((r: { name: string }) => r.name)
+    }
+
+    if (level === 'dept_admin') {
+      if (!dept_group) return []
+      const { data, error } = await service
+        .from('roles')
+        .select('name')
+        .eq('dept_group', dept_group)
+        .in('level', ['member', 'viewer'])
+        .order('created_at', { ascending: true })
+      if (error) return ['管理員', '一般使用者']
+      return (data ?? []).map((r: { name: string }) => r.name)
+    }
+
+    return []
   } catch {
-    // roles 表不存在時的 fallback
+    return ['管理員', '一般使用者']
   }
-  return ['管理員', '一般使用者']
 }
 
 export default async function AdminUsersPage() {
