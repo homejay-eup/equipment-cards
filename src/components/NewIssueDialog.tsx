@@ -122,7 +122,6 @@ export default function NewIssueDialog({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4 py-6"
-      onClick={handleClose}
     >
       <div
         className="bg-[#fff9f4] rounded-2xl shadow-[0_0_40px_rgba(122,82,48,.18),0_20px_60px_rgba(0,0,0,.22)] border border-[rgba(122,82,48,.18)] w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"

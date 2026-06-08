@@ -40,7 +40,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
 
   // 每行的角色下拉：改用 fixed 定位避免被 overflow-hidden 截斷
   const [openRoleEmail, setOpenRoleEmail] = useState<string | null>(null)
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; triggerTop?: number }>({ top: 0, left: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -60,6 +60,20 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
+  }, [openRoleEmail])
+
+  // 下拉清單位置修正：底部超出視窗時往上翻
+  useEffect(() => {
+    if (!openRoleEmail || !dropdownRef.current) return
+    const dd = dropdownRef.current.getBoundingClientRect()
+    const vh = window.innerHeight
+    if (dd.bottom > vh - 8) {
+      const triggerTop = dropdownPos.triggerTop ?? (dropdownPos.top - dd.height - 8)
+      setDropdownPos(prev => ({
+        ...prev,
+        top: Math.max(8, triggerTop - dd.height - 4),
+      }))
+    }
   }, [openRoleEmail])
 
   async function handleAdd(e: React.FormEvent) {
@@ -248,7 +262,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                             if (isSelf) return
                             if (isRowRoleOpen) { setOpenRoleEmail(null); return }
                             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-                            setDropdownPos({ top: rect.bottom + 4, left: rect.left })
+                            setDropdownPos({ top: rect.bottom + 4, left: rect.left, triggerTop: rect.top })
                             setOpenRoleEmail(user.email)
                           }}
                           className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed ${
@@ -293,8 +307,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
       {openRoleEmail && (
         <div
           ref={dropdownRef}
-          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden min-w-[8rem]"
+          style={{ position: 'fixed', top: dropdownPos.top, left: Math.min(dropdownPos.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200 - 8), zIndex: 9999 }}
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] max-w-[200px] min-w-[8rem]"
         >
           {availableRoles.map(role => {
             const currentRole = users.find(u => u.email === openRoleEmail)?.role
@@ -307,7 +321,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                   setOpenRoleEmail(null)
                   if (user && role !== user.role) changeRole(user, role)
                 }}
-                className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors break-words ${
                   role === currentRole
                     ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                     : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
