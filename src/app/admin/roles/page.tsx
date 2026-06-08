@@ -15,6 +15,22 @@ interface RoleData {
   assignable_role_names: string[] | null
 }
 
+const ROLE_ORDER = [
+  '管理員', '管理員(供應鏈)', '管理員(採購)', '管理員(工程)', '管理員(業務)', '管理員(技師)',
+  '供應鏈', '採購', '工程', '業務', '技師', '一般使用者',
+]
+
+function sortByRoleOrder<T extends { name: string }>(roles: T[]): T[] {
+  return [...roles].sort((a, b) => {
+    const ai = ROLE_ORDER.indexOf(a.name)
+    const bi = ROLE_ORDER.indexOf(b.name)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+}
+
 async function fetchRoles(): Promise<RoleData[]> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,7 +46,7 @@ async function fetchRoles(): Promise<RoleData[]> {
 
     if (error || !data) return []
 
-    return data.map((row: {
+    const mapped = data.map((row: {
       id: string
       name: string
       is_system: boolean
@@ -47,6 +63,7 @@ async function fetchRoles(): Promise<RoleData[]> {
       assignable_role_names: row.assignable_role_names ?? null,
       permissions: (row.role_permissions ?? []).map(p => p.permission_key),
     }))
+    return sortByRoleOrder(mapped)
   } catch {
     return []
   }

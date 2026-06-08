@@ -23,6 +23,22 @@ async function fetchAllowedEmails() {
   return (data ?? []) as { email: string; role: string; created_at: string }[]
 }
 
+const ROLE_ORDER = [
+  '管理員', '管理員(供應鏈)', '管理員(採購)', '管理員(工程)', '管理員(業務)', '管理員(技師)',
+  '供應鏈', '採購', '工程', '業務', '技師', '一般使用者',
+]
+
+function sortRoleNames(names: string[]): string[] {
+  return [...names].sort((a, b) => {
+    const ai = ROLE_ORDER.indexOf(a)
+    const bi = ROLE_ORDER.indexOf(b)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+}
+
 async function fetchAssignableRoles(): Promise<string[]> {
   try {
     const supabase = createSupabaseServerClient()
@@ -67,7 +83,7 @@ async function fetchAssignableRoles(): Promise<string[]> {
         .in('name', assignable_role_names)
         .order('id', { ascending: true })
       if (error) return ['管理員', '一般使用者']
-      return (data ?? []).map((r: { name: string }) => r.name)
+      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
     }
 
     // Fallback：以 level 判斷
@@ -77,7 +93,7 @@ async function fetchAssignableRoles(): Promise<string[]> {
         .select('name')
         .order('created_at', { ascending: true })
       if (error) return ['管理員', '一般使用者']
-      return (data ?? []).map((r: { name: string }) => r.name)
+      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
     }
 
     if (level === 'dept_admin') {
@@ -89,7 +105,7 @@ async function fetchAssignableRoles(): Promise<string[]> {
         .in('level', ['member', 'viewer'])
         .order('created_at', { ascending: true })
       if (error) return ['管理員', '一般使用者']
-      return (data ?? []).map((r: { name: string }) => r.name)
+      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
     }
 
     return []
