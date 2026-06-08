@@ -71,9 +71,6 @@ export default function IssueDetailDialog({
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 
-  const [editingUpdateId,      setEditingUpdateId]      = useState<string | null>(null)
-  const [editingUpdateContent, setEditingUpdateContent] = useState('')
-  const [savingUpdateId,       setSavingUpdateId]       = useState<string | null>(null)
   const [deletingUpdateId,     setDeletingUpdateId]     = useState<string | null>(null)
 
   // 每次 open 時同步最新 issue 並載入 updates
@@ -83,7 +80,7 @@ export default function IssueDetailDialog({
     setError(null)
     setUpdateContent('')
 
-    const hasInitialData = (issue.issue_updates?.length ?? 0) > 0
+    const hasInitialData = Array.isArray(issue.issue_updates)
     if (hasInitialData) {
       setUpdates(issue.issue_updates!)
     }
@@ -214,27 +211,6 @@ export default function IssueDetailDialog({
     setEditOpen(false)
     onUpdated(updated)
   }, [onUpdated])
-
-  const handleSaveUpdateEdit = useCallback(async (updateId: string) => {
-    const content = editingUpdateContent.trim()
-    if (!content) return
-    setSavingUpdateId(updateId)
-    try {
-      const res = await fetch(`/api/issues/${localIssue.id}/updates/${updateId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      })
-      if (!res.ok) { setError('編輯失敗'); return }
-      const updated = await res.json()
-      setUpdates(prev => prev.map(u => u.id === updateId ? { ...u, content: updated.content } : u))
-      setEditingUpdateId(null)
-    } catch {
-      setError('編輯失敗，請重試')
-    } finally {
-      setSavingUpdateId(null)
-    }
-  }, [editingUpdateContent, localIssue.id])
 
   const handleDeleteUpdate = useCallback(async (updateId: string) => {
     setDeletingUpdateId(updateId)
@@ -402,10 +378,8 @@ export default function IssueDetailDialog({
               {!loadingUpdates && updates.length > 0 && (
                 <div className="space-y-2">
                   {updates.map((upd) => {
-                    const canEditThis = upd.created_by === userEmail || canCreateIssues
-                    const isEditing = editingUpdateId === upd.id
+                    const canDeleteThis = upd.created_by === userEmail || canCreateIssues
                     const isDeleting = deletingUpdateId === upd.id
-                    const isSaving = savingUpdateId === upd.id
                     return (
                       <div
                         key={upd.id}
@@ -418,15 +392,8 @@ export default function IssueDetailDialog({
                           <span className="text-xs text-[#c0a882]">
                             {formatDatetime(upd.created_at)}
                           </span>
-                          {canEditThis && !isEditing && (
+                          {canDeleteThis && (
                             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => { setEditingUpdateId(upd.id); setEditingUpdateContent(upd.content) }}
-                                className="p-1 rounded text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.08)] transition-colors"
-                                title="編輯"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
                               <button
                                 onClick={() => handleDeleteUpdate(upd.id)}
                                 disabled={isDeleting}
@@ -438,28 +405,9 @@ export default function IssueDetailDialog({
                             </div>
                           )}
                         </div>
-                        {isEditing ? (
-                          <div>
-                            <textarea
-                              value={editingUpdateContent}
-                              onChange={(e) => setEditingUpdateContent(e.target.value)}
-                              onBlur={() => { if (editingUpdateContent.trim()) { handleSaveUpdateEdit(upd.id) } else { setEditingUpdateId(null) } }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) e.currentTarget.blur()
-                                if (e.key === 'Escape') setEditingUpdateId(null)
-                              }}
-                              autoFocus
-                              rows={2}
-                              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
-                            />
-                            <p className="text-[10px] text-[#a08060] mt-1">Ctrl+Enter 儲存 · Esc 取消</p>
-                            {isSaving && <p className="text-[10px] text-[#a08060]">儲存中…</p>}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">
-                            {upd.content}
-                          </p>
-                        )}
+                        <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">
+                          {upd.content}
+                        </p>
                       </div>
                     )
                   })}

@@ -87,8 +87,6 @@ const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
 const TRACKER_PERMS = [
   'view_tracker',
   'view_my_tasks',
-  'create_issues',
-  'tracker_edit_issue',
 ] as const
 
 const DEPT_GROUP_LABELS: Record<string, string> = {
@@ -98,6 +96,18 @@ const DEPT_GROUP_LABELS: Record<string, string> = {
   supply_chain: '供應鏈',
   engineering:  '工程',
   sales:        '業務',
+}
+
+function getDefaultAssignable(role: RoleData, allRoles: RoleData[]): string[] {
+  if (role.level === 'super_admin') {
+    return allRoles.map(r => r.name)
+  }
+  if (role.level === 'dept_admin' && role.dept_group) {
+    return allRoles
+      .filter(r => r.dept_group === role.dept_group && ['member', 'viewer'].includes(r.level ?? ''))
+      .map(r => r.name)
+  }
+  return []
 }
 
 function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: string | null }) {
@@ -158,7 +168,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
         setDraftPerms(d => ({ ...d, [id]: [...role.permissions] }))
         setDraftAssignable(d => ({
           ...d,
-          [id]: role.assignable_role_names ?? null,
+          [id]: role.assignable_role_names ?? getDefaultAssignable(role, roles),
         }))
       }
       return next
@@ -430,6 +440,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                         <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
                       </label>
                     ))}
+                    {/* 追蹤板：合併 checkbox */}
+                    {section.label === '追蹤板' && (
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')}
+                          onChange={() => {
+                            const hasAny = newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')
+                            if (hasAny) {
+                              setNewRolePerms(prev => prev.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'))
+                            } else {
+                              setNewRolePerms(prev => [...prev, 'create_issues', 'tracker_edit_issue'])
+                            }
+                          }}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-xs text-[#4a3422]">可新增/編輯議題</span>
+                      </label>
+                    )}
                   </div>
                 </div>
               ))}
@@ -785,6 +814,28 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                         <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
                       </label>
                     ))}
+                    {/* 合併 checkbox：可新增/編輯議題 */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={draft.includes('create_issues') || draft.includes('tracker_edit_issue')}
+                        onChange={() => {
+                          const hasAny = draft.includes('create_issues') || draft.includes('tracker_edit_issue')
+                          if (hasAny) {
+                            setDraftPerms(d => ({
+                              ...d,
+                              [role.id]: draft.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'),
+                            }))
+                          } else {
+                            const toAdd = ['create_issues', 'tracker_edit_issue'].filter(p => !draft.includes(p))
+                            setDraftPerms(d => ({ ...d, [role.id]: [...draft, ...toAdd] }))
+                          }
+                        }}
+                        disabled={isSavingPerm}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-sm text-[#4a3422]">可新增/編輯議題</span>
+                    </label>
                   </div>
                 </div>
 
@@ -792,7 +843,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                 <div className="mt-4 pt-4 border-t border-[rgba(122,82,48,.08)]">
                   <p className="text-xs font-semibold text-[#6b4f38] mb-1">可指派角色</p>
                   <p className="text-[10px] text-[#a08060] mb-2">
-                    此角色在帳號管理頁可指派的角色清單。不勾選代表依系統規則（level）決定。
+                    設定此角色在帳號管理頁可指派給他人的角色清單。
                   </p>
                   <div className="space-y-1.5">
                     {roles.map(r => {
@@ -832,11 +883,11 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                         : <><Check className="h-3 w-3" />儲存可指派角色</>}
                     </button>
                     <button
-                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: null }))}
+                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
                       className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors"
-                      title="清除設定，改用系統規則"
+                      title="重設為系統預設值"
                     >
-                      清除（用系統規則）
+                      恢復預設
                     </button>
                   </div>
                   {assignableError && (
