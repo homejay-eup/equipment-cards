@@ -68,6 +68,7 @@ export default function IssueDetailDialog({
   const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [deletingUpdateId,     setDeletingUpdateId]     = useState<string | null>(null)
 
   // 每次 open 時同步最新 issue 並載入 updates
@@ -245,21 +246,34 @@ export default function IssueDetailDialog({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {canChangeStatus && (
-                <div className="relative">
-                  <select
-                    value={localIssue.status}
-                    onChange={(e) => handleStatusChange(e.target.value)}
+                <div className="relative" onMouseLeave={() => setStatusMenuOpen(false)}>
+                  <button
+                    onClick={() => setStatusMenuOpen(v => !v)}
                     disabled={changingStatus}
-                    className={`text-xs px-2 py-1 rounded-full border font-medium appearance-none cursor-pointer pr-5 focus:outline-none focus:ring-2 focus:ring-[#c49a72] disabled:opacity-60 ${
+                    className={`text-xs px-2 py-1 rounded-full border font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#c49a72] disabled:opacity-60 flex items-center gap-1 ${
                       STATUS_BADGE[localIssue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
                     }`}
                   >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  {changingStatus && (
-                    <Loader2 className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-[#a08060]" />
+                    {localIssue.status}
+                    {changingStatus
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <span className="opacity-60 text-[10px]">▾</span>
+                    }
+                  </button>
+                  {statusMenuOpen && !changingStatus && (
+                    <div className="absolute right-0 mt-1 z-[110] bg-white border border-[rgba(122,82,48,.2)] rounded-lg shadow-lg overflow-hidden min-w-[80px]">
+                      {STATUS_OPTIONS.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => { void handleStatusChange(s); setStatusMenuOpen(false) }}
+                          className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[rgba(122,82,48,.06)] ${
+                            s === localIssue.status ? 'text-[#7a5230] font-semibold' : 'text-[#4a3422]'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
