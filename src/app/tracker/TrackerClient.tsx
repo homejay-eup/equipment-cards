@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, AlertTriangle, ArrowUpDown } from 'lucide-react'
+import { Plus, AlertTriangle, ArrowUpDown, Trash2 } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface Props {
   initialIssues: Issue[]
@@ -70,15 +71,19 @@ export default function TrackerClient({
   const canCreateIssues = permissions.includes('create_issues')
   const canViewMyTasks  = permissions.includes('view_my_tasks')
 
-  const [issues,          setIssues]          = useState<Issue[]>(initialIssues)
-  const [myTasksOnly,     setMyTasksOnly]     = useState(() => searchParams.get('tab') === 'my')
-  const [filterPriority,  setFilterPriority]  = useState<'' | 'high' | 'medium' | 'low'>('')
-  const [selectedIssue,   setSelectedIssue]   = useState<Issue | null>(null)
-  const [newIssueOpen,    setNewIssueOpen]    = useState(false)
-  const [newIssueStatus,  setNewIssueStatus]  = useState('待處理')
-  const [draggingId,      setDraggingId]      = useState<string | null>(null)
-  const [dragOverCol,     setDragOverCol]     = useState<string | null>(null)
-  const [dragOverIssueId, setDragOverIssueId] = useState<string | null>(null)
+  const [issues,               setIssues]               = useState<Issue[]>(initialIssues)
+  const [myTasksOnly,          setMyTasksOnly]          = useState(() => searchParams.get('tab') === 'my')
+  const [filterPriority,       setFilterPriority]       = useState<'' | 'high' | 'medium' | 'low'>('')
+  const [selectedIssue,        setSelectedIssue]        = useState<Issue | null>(null)
+  const [newIssueOpen,         setNewIssueOpen]         = useState(false)
+  const [newIssueStatus,       setNewIssueStatus]       = useState('待處理')
+  const [draggingId,           setDraggingId]           = useState<string | null>(null)
+  const [dragOverCol,          setDragOverCol]          = useState<string | null>(null)
+  const [dragOverIssueId,      setDragOverIssueId]      = useState<string | null>(null)
+  const [confirmClearOpen,     setConfirmClearOpen]     = useState(false)
+  const [confirmDeleteIssueId, setConfirmDeleteIssueId] = useState<string | null>(null)
+  const [clearingCompleted,    setClearingCompleted]    = useState(false)
+  const [deletingIssueId,      setDeletingIssueId]      = useState<string | null>(null)
 
   const myPendingCount = useMemo(() =>
     issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
@@ -160,6 +165,33 @@ export default function TrackerClient({
   const openNewIssue = useCallback((status = '待處理') => {
     setNewIssueStatus(status)
     setNewIssueOpen(true)
+  }, [])
+
+  const handleClearCompleted = useCallback(async () => {
+    const completedIssues = issues.filter(i => i.status === '已完成')
+    setClearingCompleted(true)
+    try {
+      await Promise.all(
+        completedIssues.map(issue =>
+          fetch(`/api/issues/${issue.id}`, { method: 'DELETE' })
+        )
+      )
+      setIssues(prev => prev.filter(i => i.status !== '已完成'))
+    } finally {
+      setClearingCompleted(false)
+      setConfirmClearOpen(false)
+    }
+  }, [issues])
+
+  const handleDeleteIssue = useCallback(async (id: string) => {
+    setDeletingIssueId(id)
+    try {
+      await fetch(`/api/issues/${id}`, { method: 'DELETE' })
+      setIssues(prev => prev.filter(i => i.id !== id))
+    } finally {
+      setDeletingIssueId(null)
+      setConfirmDeleteIssueId(null)
+    }
   }, [])
 
   const handleDrop = useCallback(async (targetStatus: string) => {
@@ -374,9 +406,19 @@ export default function TrackerClient({
                   <span className={`w-2 h-2 rounded-full shrink-0 ${col.dotClass}`} />
                   <span className="text-sm font-semibold text-[#4a3422]">{col.label}</span>
                 </div>
-                <span className="text-[11px] bg-[rgba(122,82,48,.07)] text-[#a08060] px-2 py-0.5 rounded-full border border-[rgba(122,82,48,.12)]">
-                  {colItems.length}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] bg-[rgba(122,82,48,.07)] text-[#a08060] px-2 py-0.5 rounded-full border border-[rgba(122,82,48,.12)]">
+                    {colItems.length}
+                  </span>
+                  {col.key === '已完成' && colItems.length > 0 && (
+                    <button
+                      onClick={() => setConfirmClearOpen(true)}
+                      className="text-[10px] text-[#a08060] hover:text-[#b5451b] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(181,69,27,.06)]"
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* 卡片列表 */}
@@ -398,58 +440,114 @@ export default function TrackerClient({
                         {isInsertTarget && (
                           <div className="h-0.5 bg-[#c49a72] rounded-full mb-1 mx-0.5" />
                         )}
-                        <button
-                          onClick={() => setSelectedIssue(issue)}
-                          draggable={true}
-                          onDragStart={() => setDraggingId(issue.id)}
-                          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setDragOverCol(col.key)
-                            if (draggingId) {
-                              const dragged = issues.find(i => i.id === draggingId)
-                              if (dragged?.status === col.key) {
-                                setDragOverIssueId(issue.id)
+                        {col.key === '已完成' ? (
+                          /* 已完成欄：改用 div（避免 button 巢狀 button） */
+                          <div
+                            onClick={() => setSelectedIssue(issue)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedIssue(issue) } }}
+                            draggable={true}
+                            onDragStart={() => setDraggingId(issue.id)}
+                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
+                            onDragOver={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setDragOverCol(col.key)
+                              if (draggingId) {
+                                const dragged = issues.find(i => i.id === draggingId)
+                                if (dragged?.status === col.key) {
+                                  setDragOverIssueId(issue.id)
+                                }
                               }
-                            }
-                          }}
-                          className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group ${
-                            col.key === '已完成'
-                              ? 'bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100'
-                              : 'bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px'
-                          } ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
-                        >
-                          {/* 標題行 */}
-                          <div className="flex items-start gap-1.5 mb-1.5">
-                            <span className={`flex-1 text-xs font-medium leading-snug break-words ${
-                              col.key === '已完成' ? 'line-through text-[#a08060]' : 'text-[#2c1e12]'
-                            }`}>
-                              {issue.title}
-                            </span>
+                            }}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100 ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                          >
+                            {/* 標題行 */}
+                            <div className="flex items-start gap-1.5 mb-1.5">
+                              <span className="flex-1 text-xs font-medium leading-snug break-words line-through text-[#a08060]">
+                                {issue.title}
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmDeleteIssueId(issue.id) }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-0.5 rounded text-[#c0a882] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.06)]"
+                                title="刪除"
+                                disabled={deletingIssueId === issue.id}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {/* meta 行 */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {PRIORITY_PILL[issue.priority] && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[issue.priority].cls}`}>
+                                  {PRIORITY_PILL[issue.priority].label}
+                                </span>
+                              )}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
+                                {issue.type}
+                              </span>
+                              {due && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
+                                  {due.label}
+                                </span>
+                              )}
+                              {issue.assignees.length > 0 && (
+                                <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
+                                  @ {issue.assignees.join('、')}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {/* meta 行 */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {PRIORITY_PILL[issue.priority] && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[issue.priority].cls}`}>
-                                {PRIORITY_PILL[issue.priority].label}
+                        ) : (
+                          /* 其他欄：維持原本 button 結構 */
+                          <button
+                            onClick={() => setSelectedIssue(issue)}
+                            draggable={true}
+                            onDragStart={() => setDraggingId(issue.id)}
+                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
+                            onDragOver={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setDragOverCol(col.key)
+                              if (draggingId) {
+                                const dragged = issues.find(i => i.id === draggingId)
+                                if (dragged?.status === col.key) {
+                                  setDragOverIssueId(issue.id)
+                                }
+                              }
+                            }}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                          >
+                            {/* 標題行 */}
+                            <div className="flex items-start gap-1.5 mb-1.5">
+                              <span className="flex-1 text-xs font-medium leading-snug break-words text-[#2c1e12]">
+                                {issue.title}
                               </span>
-                            )}
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
-                              {issue.type}
-                            </span>
-                            {due && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
-                                {due.label}
+                            </div>
+                            {/* meta 行 */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {PRIORITY_PILL[issue.priority] && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[issue.priority].cls}`}>
+                                  {PRIORITY_PILL[issue.priority].label}
+                                </span>
+                              )}
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
+                                {issue.type}
                               </span>
-                            )}
-                            {issue.assignees.length > 0 && (
-                              <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
-                                @ {issue.assignees.join('、')}
-                              </span>
-                            )}
-                          </div>
-                        </button>
+                              {due && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
+                                  {due.label}
+                                </span>
+                              )}
+                              {issue.assignees.length > 0 && (
+                                <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
+                                  @ {issue.assignees.join('、')}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        )}
                       </div>
                     )
                   })
@@ -500,6 +598,33 @@ export default function TrackerClient({
           defaultStatus={newIssueStatus}
         />
       )}
+
+      {/* ── 清空已完成 ConfirmDialog ── */}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title="清空已完成任務"
+        message={`確定要刪除全部 ${issues.filter(i => i.status === '已完成').length} 筆已完成任務嗎？此操作無法復原。`}
+        danger={true}
+        confirmLabel={clearingCompleted ? '刪除中…' : '確定刪除'}
+        onConfirm={handleClearCompleted}
+        onCancel={() => setConfirmClearOpen(false)}
+      />
+
+      {/* ── 個別刪除 ConfirmDialog ── */}
+      {confirmDeleteIssueId && (() => {
+        const targetIssue = issues.find(i => i.id === confirmDeleteIssueId)
+        return (
+          <ConfirmDialog
+            open={true}
+            title="刪除任務"
+            message={`確定要刪除「${targetIssue?.title ?? ''}」嗎？`}
+            danger={true}
+            confirmLabel={deletingIssueId === confirmDeleteIssueId ? '刪除中…' : '確定刪除'}
+            onConfirm={() => { void handleDeleteIssue(confirmDeleteIssueId) }}
+            onCancel={() => setConfirmDeleteIssueId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
