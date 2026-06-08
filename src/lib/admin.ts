@@ -14,7 +14,7 @@ const ADMIN_PERMISSIONS = [
   'read_all_cards',
   'read_documents', 'read_notes', 'read_vendor',
   'read_updated_by', 'read_updated_content',
-  'use_bookmarks', 'filter_all_statuses', 'filter_no_photo', 'crud_cards',
+  'use_bookmarks', 'filter_all_statuses', 'filter_no_photo', 'crud_cards', 'create_delete_cards',
   'manage_users', 'manage_roles', 'use_groups',
 ]
 const VIEWER_PERMISSIONS = [
