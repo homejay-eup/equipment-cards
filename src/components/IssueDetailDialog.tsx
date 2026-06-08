@@ -20,9 +20,9 @@ interface Props {
 }
 
 const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
-  high:   { label: '緊急', cls: 'bg-[rgba(181,69,27,.12)] text-[#b5451b]' },
-  medium: { label: '重要', cls: 'bg-[rgba(156,107,66,.12)] text-[#7a5230]' },
-  low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.08)] text-[#a08060]' },
+  high:   { label: '緊急', cls: 'bg-red-50 text-red-600 border border-red-200' },
+  medium: { label: '重要', cls: 'bg-amber-50 text-amber-600 border border-amber-200' },
+  low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.06)] text-[#a08060] border border-[rgba(122,82,48,.15)]' },
 }
 
 const STATUS_OPTIONS = ['待處理', '進行中', '等待中', '已完成']
