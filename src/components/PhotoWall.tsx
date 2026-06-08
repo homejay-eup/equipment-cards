@@ -90,6 +90,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'bookmarks') setGroupsMounted(true)
   }, [activeTab])
+  // 首次切到「追蹤板」才 mount TrackerClient，之後保持常駐（CSS hide/show）保留 state
+  const [trackerMounted, setTrackerMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'tracker') setTrackerMounted(true)
+  }, [activeTab])
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
     if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
@@ -775,17 +780,19 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         </div>
       )}
 
-      {/* 追蹤板：有 view_tracker 權限且有 trackerData 時顯示 */}
-      {activeTab === 'tracker' && trackerData && (
-        <TrackerClient
-          initialIssues={trackerData.initialIssues}
-          permissions={permissions}
-          userEmail={userEmail}
-          allowedEmails={trackerData.allowedEmails}
-          issueTypes={trackerData.issueTypes}
-          issueTags={trackerData.issueTags}
-          onMyTasksCountChange={setTrackerPendingCount}
-        />
+      {/* 追蹤板：首次進入後保持常駐（CSS hide/show），避免切 tab 時 state 重置 */}
+      {trackerMounted && trackerData && (
+        <div className={activeTab !== 'tracker' ? 'hidden' : ''}>
+          <TrackerClient
+            initialIssues={trackerData.initialIssues}
+            permissions={permissions}
+            userEmail={userEmail}
+            allowedEmails={trackerData.allowedEmails}
+            issueTypes={trackerData.issueTypes}
+            issueTags={trackerData.issueTags}
+            onMyTasksCountChange={setTrackerPendingCount}
+          />
+        </div>
       )}
 
       {/* 細節 Dialog（在兩個 view 都可開啟） */}
