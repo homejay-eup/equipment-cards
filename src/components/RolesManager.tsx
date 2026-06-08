@@ -55,7 +55,7 @@ const PERM_LABELS: Record<string, string> = {
   manage_roles:               '角色與權限設定',
   // 追蹤板
   view_tracker:               '可看追蹤板',
-  view_my_tasks:              '我的任務 + badge',
+  view_my_tasks:              '我的任務',
   create_issues:              '可新增議題',
   tracker_edit_issue:         '可編輯議題',
 }
@@ -151,8 +151,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
   const [draftPerms, setDraftPerms] = useState<Record<string, string[]>>({})
 
   const [draftAssignable, setDraftAssignable] = useState<Record<string, string[] | null>>({})
-  const [savingAssignableId, setSavingAssignableId] = useState<string | null>(null)
-  const [assignableError, setAssignableError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RoleData | null>(null)
@@ -207,71 +206,62 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
     }
   }
 
-  async function updatePermissions(role: RoleData, newPerms: string[]) {
-    // Protect current user's own role from losing admin permissions
-    let safePerms = newPerms
-    if (role.name === currentUserRoleName) {
-      const locked = ['manage_users', 'manage_roles']
-      for (const p of locked) {
-        if (!safePerms.includes(p)) safePerms = [...safePerms, p]
-      }
+  async function saveAssignableOnly(role: RoleData) {
+    const draft = draftAssignable[role.id]
+    const res = await fetch(`/api/roles/${role.id}/assignable`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignable_role_names: draft ?? [] }),
+    })
+    if (!res.ok) {
+      const d = await res.json()
+      throw new Error(d.error ?? '儲存失敗')
     }
+    setRoles(prev => prev.map(r => r.id === role.id
+      ? { ...r, assignable_role_names: draft && draft.length > 0 ? draft : null }
+      : r
+    ))
+  }
+
+  async function saveAll(role: RoleData) {
     setSavingPermId(role.id)
+    setSaveError(null)
     setPermError(null)
     try {
-      const res = await fetch(`/api/roles/${role.id}/permissions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissions: safePerms }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        setPermError(d.error ?? '權限更新失敗')
-      } else {
-        setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: safePerms } : r))
-        router.refresh()
-      }
-    } catch {
-      setPermError('權限更新失敗，請重試')
+      // 同時呼叫兩個 API
+      await Promise.all([
+        (async () => {
+          const draft = getDraft(role)
+          let safePerms = draft
+          if (role.name === currentUserRoleName) {
+            const locked = ['manage_users', 'manage_roles']
+            for (const p of locked) {
+              if (!safePerms.includes(p)) safePerms = [...safePerms, p]
+            }
+          }
+          const res = await fetch(`/api/roles/${role.id}/permissions`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permissions: safePerms }),
+          })
+          if (!res.ok) {
+            const d = await res.json()
+            throw new Error(d.error ?? '權限更新失敗')
+          }
+          setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: safePerms } : r))
+        })(),
+        saveAssignableOnly(role),
+      ])
+      router.refresh()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '儲存失敗，請重試')
     } finally {
       setSavingPermId(null)
     }
   }
 
-  async function saveAssignable(role: RoleData) {
-    const draft = draftAssignable[role.id]
-    setSavingAssignableId(role.id)
-    setAssignableError(null)
-    try {
-      const res = await fetch(`/api/roles/${role.id}/assignable`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignable_role_names: draft ?? [] }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        setAssignableError(d.error ?? '儲存失敗')
-      } else {
-        setRoles(prev => prev.map(r => r.id === role.id
-          ? { ...r, assignable_role_names: draft && draft.length > 0 ? draft : null }
-          : r
-        ))
-      }
-    } catch {
-      setAssignableError('儲存失敗，請重試')
-    } finally {
-      setSavingAssignableId(null)
-    }
-  }
-
   function getDraft(role: RoleData): string[] {
     return draftPerms[role.id] ?? role.permissions
-  }
-
-  function hasDraftChanges(role: RoleData): boolean {
-    const draft = getDraft(role)
-    const saved = role.permissions
-    return draft.length !== saved.length || draft.some(p => !saved.includes(p))
   }
 
   function handleVisibilityChange(role: RoleData, selected: 'read_all_cards' | 'read_active_only') {
@@ -311,12 +301,12 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
 
   function discardDraft(role: RoleData) {
     setDraftPerms(d => ({ ...d, [role.id]: [...role.permissions] }))
+    setDraftAssignable(d => ({
+      ...d,
+      [role.id]: role.assignable_role_names ?? getDefaultAssignable(role, roles),
+    }))
     setPermError(null)
-  }
-
-  async function saveDraft(role: RoleData) {
-    const draft = getDraft(role)
-    await updatePermissions(role, draft)
+    setSaveError(null)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -456,7 +446,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                           }}
                           className="accent-[#7a5230]"
                         />
-                        <span className="text-xs text-[#4a3422]">可新增/編輯議題</span>
+                        <span className="text-xs text-[#4a3422]">可新增/編輯任務</span>
                       </label>
                     )}
                   </div>
@@ -557,7 +547,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
         const isSavingPerm = savingPermId === role.id
         const isSavingName = savingNameId === role.id
         const draft = getDraft(role)
-        const isDirty = hasDraftChanges(role)
         const visibility = draft.includes('read_all_cards') ? 'read_all_cards' : draft.includes('read_active_only') ? 'read_active_only' : null
 
         return (
@@ -768,6 +757,47 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                   </div>
                 </div>
 
+                {/* 追蹤板 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">追蹤板</p>
+                  <div className="space-y-1.5">
+                    {TRACKER_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                    {/* 合併 checkbox：可新增/編輯任務 */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={draft.includes('create_issues') || draft.includes('tracker_edit_issue')}
+                        onChange={() => {
+                          const hasAny = draft.includes('create_issues') || draft.includes('tracker_edit_issue')
+                          if (hasAny) {
+                            setDraftPerms(d => ({
+                              ...d,
+                              [role.id]: draft.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'),
+                            }))
+                          } else {
+                            const toAdd = ['create_issues', 'tracker_edit_issue'].filter(p => !draft.includes(p))
+                            setDraftPerms(d => ({ ...d, [role.id]: [...draft, ...toAdd] }))
+                          }
+                        }}
+                        disabled={isSavingPerm}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-sm text-[#4a3422]">可新增/編輯任務</span>
+                    </label>
+                  </div>
+                </div>
+
                 {/* 帳號管理 */}
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">帳號管理</p>
@@ -795,47 +825,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                         </label>
                       )
                     })}
-                  </div>
-                </div>
-
-                {/* 追蹤板 */}
-                <div>
-                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">追蹤板</p>
-                  <div className="space-y-1.5">
-                    {TRACKER_PERMS.map(key => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={draft.includes(key)}
-                          onChange={() => handleDetailToggle(role, key)}
-                          disabled={isSavingPerm}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
-                      </label>
-                    ))}
-                    {/* 合併 checkbox：可新增/編輯議題 */}
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={draft.includes('create_issues') || draft.includes('tracker_edit_issue')}
-                        onChange={() => {
-                          const hasAny = draft.includes('create_issues') || draft.includes('tracker_edit_issue')
-                          if (hasAny) {
-                            setDraftPerms(d => ({
-                              ...d,
-                              [role.id]: draft.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'),
-                            }))
-                          } else {
-                            const toAdd = ['create_issues', 'tracker_edit_issue'].filter(p => !draft.includes(p))
-                            setDraftPerms(d => ({ ...d, [role.id]: [...draft, ...toAdd] }))
-                          }
-                        }}
-                        disabled={isSavingPerm}
-                        className="accent-[#7a5230]"
-                      />
-                      <span className="text-sm text-[#4a3422]">可新增/編輯議題</span>
-                    </label>
                   </div>
                 </div>
 
@@ -872,49 +861,39 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                       )
                     })}
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={() => saveAssignable(role)}
-                      disabled={savingAssignableId === role.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
-                    >
-                      {savingAssignableId === role.id
-                        ? <><Loader2 className="h-3 w-3 animate-spin" />儲存中…</>
-                        : <><Check className="h-3 w-3" />儲存可指派角色</>}
-                    </button>
-                    <button
-                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
-                      className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors"
-                      title="重設為系統預設值"
-                    >
-                      恢復預設
-                    </button>
-                  </div>
-                  {assignableError && (
-                    <p className="text-xs text-[#b5451b] mt-1">{assignableError}</p>
-                  )}
                 </div>
 
-                {/* 儲存 / 取消 */}
-                {isDirty && (
-                  <div className="flex items-center gap-2 pt-1 border-t border-[rgba(122,82,48,.1)]">
-                    <button
-                      onClick={() => saveDraft(role)}
-                      disabled={isSavingPerm}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
-                    >
-                      {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                      儲存變更
-                    </button>
-                    <button
-                      onClick={() => discardDraft(role)}
-                      disabled={isSavingPerm}
-                      className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
-                    >
-                      取消
-                    </button>
-                  </div>
+                {/* 錯誤訊息 */}
+                {saveError && (
+                  <p className="text-xs text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2">{saveError}</p>
                 )}
+
+                {/* 常駐 footer：儲存變更 / 恢復預設 / 取消 */}
+                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(122,82,48,.1)]">
+                  <button
+                    onClick={() => saveAll(role)}
+                    disabled={isSavingPerm}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
+                  >
+                    {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    儲存變更
+                  </button>
+                  <button
+                    onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
+                    disabled={isSavingPerm}
+                    className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
+                    title="重設可指派角色為系統預設值"
+                  >
+                    恢復預設
+                  </button>
+                  <button
+                    onClick={() => discardDraft(role)}
+                    disabled={isSavingPerm}
+                    className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -17,13 +17,10 @@ interface Props {
   onDeleted: (issueId: string) => void
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  high: 'bg-[#ef4444]',
-  medium: 'bg-[#eab308]',
-  low: 'bg-[#22c55e]',
-}
-const PRIORITY_LABEL: Record<string, string> = {
-  high: '緊急', medium: '重要', low: '普通',
+const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
+  high:   { label: '緊急', cls: 'bg-[rgba(181,69,27,.12)] text-[#b5451b]' },
+  medium: { label: '重要', cls: 'bg-[rgba(156,107,66,.12)] text-[#7a5230]' },
+  low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.08)] text-[#a08060]' },
 }
 const STATUS_OPTIONS = ['待處理', '進行中', '等待中', '已完成']
 const STATUS_BADGE: Record<string, string> = {
@@ -181,10 +178,13 @@ export default function IssueExpandedContent({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div>
             <p className="text-[10px] text-[#a08060] mb-0.5">優先度</p>
-            <div className="flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${PRIORITY_DOT[localIssue.priority] ?? 'bg-gray-300'}`} />
-              <span className="text-xs text-[#4a3422]">{PRIORITY_LABEL[localIssue.priority] ?? localIssue.priority}</span>
-            </div>
+            {PRIORITY_PILL[localIssue.priority] ? (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[localIssue.priority].cls}`}>
+                {PRIORITY_PILL[localIssue.priority].label}
+              </span>
+            ) : (
+              <span className="text-xs text-[#4a3422]">{localIssue.priority}</span>
+            )}
           </div>
           <div>
             <p className="text-[10px] text-[#a08060] mb-0.5">類型</p>
@@ -274,7 +274,7 @@ export default function IssueExpandedContent({
       )}
       <ConfirmDialog
         open={confirmDeleteOpen}
-        title={`刪除議題「${localIssue.title}」？`}
+        title={`刪除任務「${localIssue.title}」？`}
         message="刪除後無法復原，包含所有更新紀錄。"
         confirmLabel="刪除"
         danger

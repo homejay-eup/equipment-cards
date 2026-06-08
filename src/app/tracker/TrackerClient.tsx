@@ -17,10 +17,10 @@ interface Props {
   onMyTasksCountChange?: (count: number) => void
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  high:   'bg-[#7a3b1e]',
-  medium: 'bg-[#9c6b42]',
-  low:    'bg-[#b8956a]',
+const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
+  high:   { label: '緊急', cls: 'bg-[rgba(181,69,27,.12)] text-[#b5451b]' },
+  medium: { label: '重要', cls: 'bg-[rgba(156,107,66,.12)] text-[#7a5230]' },
+  low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.08)] text-[#a08060]' },
 }
 
 const COLUMNS = [
@@ -289,7 +289,7 @@ export default function TrackerClient({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.25)]"
             >
               <Plus className="h-4 w-4" />
-              新增議題
+              新增任務
             </button>
           )}
         </div>
@@ -311,10 +311,10 @@ export default function TrackerClient({
             onClick={() => setFilterPriority(chip.key)}
             className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
               filterPriority === chip.key
-                ? chip.key === 'high'   ? 'bg-[#7a3b1e] border-[#7a3b1e] text-white'
-                : chip.key === 'medium' ? 'bg-[#9c6b42] border-[#9c6b42] text-white'
-                : chip.key === 'low'    ? 'bg-[#b8956a] border-[#b8956a] text-white'
-                :                         'bg-[#7a5230] border-[#7a5230] text-white'
+                ? chip.key === 'high'   ? 'bg-[rgba(181,69,27,.18)] border-[rgba(181,69,27,.35)] text-[#b5451b] font-medium'
+                : chip.key === 'medium' ? 'bg-[rgba(156,107,66,.18)] border-[rgba(156,107,66,.35)] text-[#7a5230] font-medium'
+                : chip.key === 'low'    ? 'bg-[rgba(122,82,48,.14)] border-[rgba(122,82,48,.3)] text-[#a08060] font-medium'
+                :                         'bg-[#7a5230] border-[#7a5230] text-white font-medium'
                 : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
             }`}
           >
@@ -422,7 +422,6 @@ export default function TrackerClient({
                         >
                           {/* 標題行 */}
                           <div className="flex items-start gap-1.5 mb-1.5">
-                            <span className={`shrink-0 mt-[3px] w-2 h-2 rounded-full ${PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'}`} />
                             <span className={`flex-1 text-xs font-medium leading-snug break-words ${
                               col.key === '已完成' ? 'line-through text-[#a08060]' : 'text-[#2c1e12]'
                             }`}>
@@ -430,7 +429,12 @@ export default function TrackerClient({
                             </span>
                           </div>
                           {/* meta 行 */}
-                          <div className="flex items-center gap-1.5 pl-3.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {PRIORITY_PILL[issue.priority] && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[issue.priority].cls}`}>
+                                {PRIORITY_PILL[issue.priority].label}
+                              </span>
+                            )}
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
                               {issue.type}
                             </span>

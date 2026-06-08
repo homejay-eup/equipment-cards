@@ -19,13 +19,10 @@ interface Props {
   onDeleted: (issueId: string) => void
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  high:   'bg-[#7a3b1e]',
-  medium: 'bg-[#9c6b42]',
-  low:    'bg-[#b8956a]',
-}
-const PRIORITY_LABEL: Record<string, string> = {
-  high: '緊急', medium: '重要', low: '普通',
+const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
+  high:   { label: '緊急', cls: 'bg-[rgba(181,69,27,.12)] text-[#b5451b]' },
+  medium: { label: '重要', cls: 'bg-[rgba(156,107,66,.12)] text-[#7a5230]' },
+  low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.08)] text-[#a08060]' },
 }
 
 const STATUS_OPTIONS = ['待處理', '進行中', '等待中', '已完成']
@@ -290,14 +287,13 @@ export default function IssueDetailDialog({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <p className="text-xs text-[#a08060] mb-1">優先度</p>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${PRIORITY_DOT[localIssue.priority] ?? 'bg-gray-300'}`}
-                  />
-                  <span className="text-sm text-[#4a3422]">
-                    {PRIORITY_LABEL[localIssue.priority] ?? localIssue.priority}
+                {PRIORITY_PILL[localIssue.priority] ? (
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORITY_PILL[localIssue.priority].cls}`}>
+                    {PRIORITY_PILL[localIssue.priority].label}
                   </span>
-                </div>
+                ) : (
+                  <span className="text-sm text-[#4a3422]">{localIssue.priority}</span>
+                )}
               </div>
               <div>
                 <p className="text-xs text-[#a08060] mb-1">類型</p>
@@ -489,7 +485,7 @@ export default function IssueDetailDialog({
       {/* 刪除確認 */}
       <ConfirmDialog
         open={confirmDeleteOpen}
-        title={`刪除議題「${localIssue.title}」？`}
+        title={`刪除任務「${localIssue.title}」？`}
         message="刪除後無法復原，包含所有更新紀錄。"
         confirmLabel="刪除"
         danger

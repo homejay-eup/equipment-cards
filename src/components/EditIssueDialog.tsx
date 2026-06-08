@@ -135,7 +135,7 @@ export default function EditIssueDialog({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[rgba(122,82,48,.1)]">
-          <h2 className="text-base font-semibold text-[#2c1e12]">編輯議題</h2>
+          <h2 className="text-base font-semibold text-[#2c1e12]">編輯任務</h2>
           <button
             type="button"
             onClick={onClose}

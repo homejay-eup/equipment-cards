@@ -129,7 +129,7 @@ export default function NewIssueDialog({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[rgba(122,82,48,.1)]">
-          <h2 className="text-base font-semibold text-[#2c1e12]">新增議題</h2>
+          <h2 className="text-base font-semibold text-[#2c1e12]">新增任務</h2>
           <button
             type="button"
             onClick={handleClose}
@@ -150,7 +150,7 @@ export default function NewIssueDialog({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="議題標題"
+              placeholder="任務標題"
               required
               disabled={submitting}
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
@@ -232,7 +232,7 @@ export default function NewIssueDialog({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="議題說明（選填）"
+              placeholder="任務說明（選填）"
               rows={3}
               disabled={submitting}
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all resize-none"
