@@ -96,10 +96,14 @@ export default function TrackerClient({
     return list
   }, [issues, myTasksOnly, filterPriority, userEmail])
 
-  // 分欄
+  // 分欄（依 sort_order 排序，null 排最後）
   const columnIssues = useMemo(() => {
     const map: Record<string, Issue[]> = {}
-    for (const col of COLUMNS) map[col.key] = baseIssues.filter(i => i.status === col.key)
+    for (const col of COLUMNS) {
+      map[col.key] = baseIssues
+        .filter(i => i.status === col.key)
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
+    }
     return map
   }, [baseIssues])
 
@@ -191,7 +195,9 @@ export default function TrackerClient({
 
     // ── 同欄排序（新增邏輯）──
     if (hoverId && hoverId !== id) {
-      const colItems = issues.filter(i => i.status === targetStatus)
+      const colItems = issues
+        .filter(i => i.status === targetStatus)
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
       const draggingIdx = colItems.findIndex(i => i.id === id)
       const hoverIdx = colItems.findIndex(i => i.id === hoverId)
       if (draggingIdx === -1 || hoverIdx === -1) return
