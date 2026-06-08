@@ -78,6 +78,7 @@ export default function TrackerClient({
   const [newIssueStatus,  setNewIssueStatus]  = useState('待處理')
   const [draggingId,      setDraggingId]      = useState<string | null>(null)
   const [dragOverCol,     setDragOverCol]     = useState<string | null>(null)
+  const [dragOverIssueId, setDragOverIssueId] = useState<string | null>(null)
 
   const myPendingCount = useMemo(() =>
     issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
@@ -160,27 +161,75 @@ export default function TrackerClient({
   const handleDrop = useCallback(async (targetStatus: string) => {
     if (!draggingId) return
     const issue = issues.find(i => i.id === draggingId)
-    if (!issue || issue.status === targetStatus) {
-      setDraggingId(null)
-      setDragOverCol(null)
+    if (!issue) {
+      setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null)
       return
     }
-    const originalStatus = issue.status
+
     const id = draggingId
-    setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
+    const hoverId = dragOverIssueId
     setDraggingId(null)
     setDragOverCol(null)
-    try {
-      const res = await fetch(`/api/issues/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: targetStatus }),
-      })
-      if (!res.ok) throw new Error('Failed')
-    } catch {
-      setIssues(prev => prev.map(i => i.id === id ? { ...i, status: originalStatus } : i))
+    setDragOverIssueId(null)
+
+    // ── 跨欄拖曳（原有邏輯）──
+    if (issue.status !== targetStatus) {
+      const originalStatus = issue.status
+      setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
+      try {
+        const res = await fetch(`/api/issues/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: targetStatus }),
+        })
+        if (!res.ok) throw new Error('Failed')
+      } catch {
+        setIssues(prev => prev.map(i => i.id === id ? { ...i, status: originalStatus } : i))
+      }
+      return
     }
-  }, [draggingId, issues])
+
+    // ── 同欄排序（新增邏輯）──
+    if (hoverId && hoverId !== id) {
+      const colItems = issues.filter(i => i.status === targetStatus)
+      const draggingIdx = colItems.findIndex(i => i.id === id)
+      const hoverIdx = colItems.findIndex(i => i.id === hoverId)
+      if (draggingIdx === -1 || hoverIdx === -1) return
+
+      // 移除被拖曳的項目，插入到 hover 目標之前
+      const reordered = [...colItems]
+      const [dragged] = reordered.splice(draggingIdx, 1)
+      const insertIdx = reordered.findIndex(i => i.id === hoverId)
+      reordered.splice(insertIdx, 0, dragged)
+
+      // 重新分配 sort_order（等差 1000，留空間之後插入）
+      const orders = reordered.map((item, idx) => ({ id: item.id, sort_order: (idx + 1) * 1000 }))
+      const sortMap = Object.fromEntries(orders.map(o => [o.id, o.sort_order]))
+      const originalSortMap = Object.fromEntries(colItems.map(i => [i.id, i.sort_order ?? null]))
+
+      // 樂觀更新
+      setIssues(prev => prev.map(i =>
+        sortMap[i.id] !== undefined ? { ...i, sort_order: sortMap[i.id] } : i
+      ))
+
+      // 持久化
+      try {
+        const res = await fetch('/api/issues/reorder', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orders }),
+        })
+        if (!res.ok) throw new Error('Failed')
+      } catch {
+        // Rollback
+        setIssues(prev => prev.map(i =>
+          originalSortMap[i.id] !== undefined
+            ? { ...i, sort_order: originalSortMap[i.id] ?? undefined }
+            : i
+        ))
+      }
+    }
+  }, [draggingId, dragOverIssueId, issues])
 
   const hasReminders = reminders.overdue.length > 0 || reminders.today.length > 0
 
@@ -306,8 +355,8 @@ export default function TrackerClient({
           return (
             <div
               key={col.key}
-              className={`bg-white rounded-xl border border-[rgba(122,82,48,.12)] shadow-sm flex flex-col ${dragOverCol === col.key ? 'ring-2 ring-[#c49a72] ring-offset-1' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
+              className={`bg-[#fdf5ec] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.12)]'}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
               }}
@@ -333,45 +382,65 @@ export default function TrackerClient({
                 ) : (
                   colItems.map(issue => {
                     const due = dueDateChip(issue.due_date)
+                    // 拖曳中、同欄、懸停在此卡上 → 顯示插入指示條
+                    const draggedIssue = draggingId ? issues.find(i => i.id === draggingId) : null
+                    const isSameColDrag = draggedIssue?.status === col.key
+                    const isInsertTarget = isSameColDrag && dragOverIssueId === issue.id && draggingId !== issue.id
                     return (
-                      <button
-                        key={issue.id}
-                        onClick={() => setSelectedIssue(issue)}
-                        draggable={true}
-                        onDragStart={() => setDraggingId(issue.id)}
-                        onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
-                        className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group ${
-                          col.key === '已完成'
-                            ? 'bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100'
-                            : 'bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px'
-                        } ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
-                      >
-                        {/* 標題行 */}
-                        <div className="flex items-start gap-1.5 mb-1.5">
-                          <span className={`shrink-0 mt-[3px] w-2 h-2 rounded-full ${PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'}`} />
-                          <span className={`flex-1 text-xs font-medium leading-snug break-words ${
-                            col.key === '已完成' ? 'line-through text-[#a08060]' : 'text-[#2c1e12]'
-                          }`}>
-                            {issue.title}
-                          </span>
-                        </div>
-                        {/* meta 行 */}
-                        <div className="flex items-center gap-1.5 pl-3.5 flex-wrap">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
-                            {issue.type}
-                          </span>
-                          {due && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
-                              {due.label}
+                      <div key={issue.id}>
+                        {/* 插入位置指示條 */}
+                        {isInsertTarget && (
+                          <div className="h-0.5 bg-[#c49a72] rounded-full mb-1 mx-0.5" />
+                        )}
+                        <button
+                          onClick={() => setSelectedIssue(issue)}
+                          draggable={true}
+                          onDragStart={() => setDraggingId(issue.id)}
+                          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setDragOverCol(col.key)
+                            if (draggingId) {
+                              const dragged = issues.find(i => i.id === draggingId)
+                              if (dragged?.status === col.key) {
+                                setDragOverIssueId(issue.id)
+                              }
+                            }
+                          }}
+                          className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group ${
+                            col.key === '已完成'
+                              ? 'bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100'
+                              : 'bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px'
+                          } ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                        >
+                          {/* 標題行 */}
+                          <div className="flex items-start gap-1.5 mb-1.5">
+                            <span className={`shrink-0 mt-[3px] w-2 h-2 rounded-full ${PRIORITY_DOT[issue.priority] ?? 'bg-gray-300'}`} />
+                            <span className={`flex-1 text-xs font-medium leading-snug break-words ${
+                              col.key === '已完成' ? 'line-through text-[#a08060]' : 'text-[#2c1e12]'
+                            }`}>
+                              {issue.title}
                             </span>
-                          )}
-                          {issue.assignees.length > 0 && (
-                            <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
-                              @ {issue.assignees.join('、')}
+                          </div>
+                          {/* meta 行 */}
+                          <div className="flex items-center gap-1.5 pl-3.5 flex-wrap">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.15)]">
+                              {issue.type}
                             </span>
-                          )}
-                        </div>
-                      </button>
+                            {due && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${due.cls}`}>
+                                {due.label}
+                              </span>
+                            )}
+                            {issue.assignees.length > 0 && (
+                              <span className="text-[10px] text-[#a08060] truncate max-w-[90px]" title={issue.assignees.join('、')}>
+                                @ {issue.assignees.join('、')}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </div>
                     )
                   })
                 )}

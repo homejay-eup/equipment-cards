@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin } from '@/lib/admin'
+import { requireAdmin, requirePermission } from '@/lib/admin'
 
 function getSupabase() {
   return createClient(
@@ -25,7 +25,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const adminUser = await requireAdmin()
+  const adminUser = await requirePermission('crud_cards')
   if (!adminUser) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

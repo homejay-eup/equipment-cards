@@ -32,9 +32,10 @@ export async function GET(req: NextRequest) {
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at,
+        created_by, created_at, updated_at, sort_order,
         issue_assignees(user_email)
       `)
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
 
     if (type) query = query.eq('type', type)

@@ -165,7 +165,7 @@ export default async function HomePage() {
   ])
 
   const { permissions, roleName } = roleData
-  const isAdmin = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
+  const isAdmin = permissions.includes('crud_cards')
 
   // 伺服器端依權限過濾料卡（read_active_only → 只回現役）
   const activeStatus = settings.statuses[0] ?? '現役'
