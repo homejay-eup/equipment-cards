@@ -38,6 +38,8 @@ function emailPrefix(email: string) {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange }: Props) {
+  const canEditCard = permissions.includes('create_delete_cards')
+    || permissions.some(p => p.startsWith('edit_card_'))
   const allPhotos = [
     ...(card.main_photo ? [{ url: card.main_photo, label: '主圖', caption: undefined as string | undefined }] : []),
     ...card.detail_photos.filter(Boolean).map((p, i) => ({ url: p.url, label: `細節 ${i + 1}`, caption: p.caption })),
@@ -164,8 +166,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           : 'max-w-5xl overflow-x-hidden overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'
       }`}>
 
-        {/* 編輯按鈕（管理員） */}
-        {isAdmin && onEdit && (
+        {/* 編輯按鈕（有編輯權限） */}
+        {canEditCard && onEdit && (
           <button
             onClick={onEdit}
             className="absolute top-3 right-[4.75rem] z-50 rounded-full bg-[#fff9f4]/90 backdrop-blur-sm p-1.5 shadow text-[#a08060] opacity-90 hover:opacity-100 hover:text-[#7a5230] transition-opacity"
@@ -217,12 +219,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
               </div>
               <div className="px-4 py-2 space-y-2">
                 {allPhotos[photoIndex]?.caption && (
-                  <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
+                  <div className="bg-[rgba(44,30,18,.38)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
                     <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
                     {allPhotos[photoIndex].caption}
                   </div>
                 )}
-                {card.tags.length > 0 && (
+                {permissions.includes('read_tags') && card.tags.length > 0 && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">標籤</p>
                     <div className="flex flex-wrap gap-1">
@@ -252,7 +254,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                   </div>
                 )}
-                {card.net_weight != null && (
+                {permissions.includes('read_weight') && card.net_weight != null && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">淨重</p>
                     <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
@@ -281,7 +283,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   </div>
                 )}
                 <div className="pt-1 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
-                  <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                  {permissions.includes('read_created_at') && (
+                    <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                  )}
                   <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                   {permissions.includes('read_updated_by') && card.updated_by && (
                     <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
@@ -322,12 +326,12 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   </DialogHeader>
                   <div className="px-5 py-4 space-y-4">
                     {allPhotos[photoIndex]?.caption && (
-                      <div className="bg-[rgba(44,30,18,.65)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
+                      <div className="bg-[rgba(44,30,18,.38)] text-[#f2ebe0] text-xs px-3 py-2 rounded-lg leading-relaxed">
                         <span className="opacity-70 mr-1">{allPhotos[photoIndex].label} 說明：</span>
                         {allPhotos[photoIndex].caption}
                       </div>
                     )}
-                    {card.tags.length > 0 && (
+                    {permissions.includes('read_tags') && card.tags.length > 0 && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1.5">標籤</p>
                         <div className="flex flex-wrap gap-1.5">
@@ -357,7 +361,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
                       </div>
                     )}
-                    {card.net_weight != null && (
+                    {permissions.includes('read_weight') && card.net_weight != null && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">淨重</p>
                         <p className="text-sm text-[#4a3422]">{card.net_weight} kg</p>
@@ -386,7 +390,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       </div>
                     )}
                     <div className="pt-2 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
-                      <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                      {permissions.includes('read_created_at') && (
+                        <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
+                      )}
                       <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
                       {permissions.includes('read_updated_by') && card.updated_by && (
                         <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>

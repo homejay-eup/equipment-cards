@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin'
+import { getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabase() {
@@ -17,15 +18,37 @@ export async function GET() {
   return NextResponse.json(settings)
 }
 
-// PATCH /api/settings — 僅管理員
+// PATCH /api/settings — 管理員或有 edit_card_category / edit_card_status 權限
 export async function PATCH(req: NextRequest) {
-  if (!await requireAdmin()) {
+  // Session check
+  const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { permissions } = await getUserRoleWithPermissions()
+  const canManageSettings =
+    permissions.includes('manage_roles') ||
+    permissions.includes('edit_card_category') ||
+    permissions.includes('edit_card_status')
+  if (!canManageSettings) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { key, value } = await req.json()
   if (!['categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags'].includes(key) || !Array.isArray(value)) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
+  }
+
+  // 欄位層級隔離：根據各自 permission 限制可操作的 key
+  const allowedKeys: string[] = []
+  if (permissions.includes('manage_roles')) {
+    allowedKeys.push('categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags')
+  } else {
+    if (permissions.includes('edit_card_category')) allowedKeys.push('categories', 'documentTypes')
+    if (permissions.includes('edit_card_status')) allowedKeys.push('statuses')
+  }
+  if (!allowedKeys.includes(key)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { error } = await getSupabase()

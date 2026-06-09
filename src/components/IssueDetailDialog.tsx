@@ -25,8 +25,6 @@ const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
   low:    { label: '普通', cls: 'bg-[rgba(122,82,48,.06)] text-[#a08060] border border-[rgba(122,82,48,.15)]' },
 }
 
-const STATUS_OPTIONS = ['待處理', '進行中', '等待中', '已完成']
-
 const STATUS_BADGE: Record<string, string> = {
   '待處理': 'bg-gray-100 text-gray-600 border-gray-200',
   '進行中': 'bg-blue-50 text-blue-700 border-blue-200',
@@ -52,7 +50,6 @@ export default function IssueDetailDialog({
   const [updates, setUpdates] = useState<IssueUpdate[]>(issue.issue_updates ?? [])
   const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [updateContent, setUpdateContent] = useState('')
-  const [changingStatus, setChangingStatus] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -63,12 +60,9 @@ export default function IssueDetailDialog({
   const canEditIssue = permissions.includes('tracker_edit_issue')
   const canViewTracker = permissions.includes('view_tracker')
   const isAuthor = localIssue.created_by === userEmail
-  const isAssignee = localIssue.assignee_emails.includes(userEmail)
   const canFullEdit = (isAuthor && canCreateIssues) || canEditIssue
-  const canChangeStatus = isAuthor || isAssignee || canCreateIssues
   const canDelete = isAuthor || canCreateIssues
 
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [deletingUpdateId,     setDeletingUpdateId]     = useState<string | null>(null)
 
   // 每次 open 時同步最新 issue 並載入 updates
@@ -110,45 +104,6 @@ export default function IssueDetailDialog({
     }
     fetchUpdates()
   }, [open, issue.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleStatusChange = useCallback(async (newStatus: string) => {
-    if (newStatus === localIssue.status) return
-    const prev = localIssue.status
-    // Optimistic Update
-    setLocalIssue((cur) => ({ ...cur, status: newStatus }))
-    setChangingStatus(true)
-    try {
-      const res = await fetch(`/api/issues/${localIssue.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        setError(d.error ?? '狀態更新失敗')
-        setLocalIssue((cur) => ({ ...cur, status: prev }))
-        return
-      }
-      const updated = await res.json()
-      const emails: string[] = (updated.issue_assignees ?? []).map(
-        (a: { user_email: string }) => a.user_email,
-      )
-      const merged: Issue = {
-        ...updated,
-        issue_updates: undefined,
-        issue_assignees: undefined,
-        assignee_emails: emails,
-        assignees: emails.map((e: string) => e.split('@')[0]),
-      }
-      setLocalIssue(merged)
-      onUpdated(merged)
-    } catch {
-      setError('狀態更新失敗，請重試')
-      setLocalIssue((cur) => ({ ...cur, status: prev }))
-    } finally {
-      setChangingStatus(false)
-    }
-  }, [localIssue, onUpdated])
 
   const handleSubmitUpdate = useCallback(async () => {
     const content = updateContent.trim()
@@ -245,47 +200,9 @@ export default function IssueDetailDialog({
               </h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {canChangeStatus && (
-                <div className="relative" onMouseLeave={() => setStatusMenuOpen(false)}>
-                  <button
-                    onClick={() => setStatusMenuOpen(v => !v)}
-                    disabled={changingStatus}
-                    className={`text-xs px-2 py-1 rounded-full border font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#c49a72] disabled:opacity-60 flex items-center gap-1 ${
-                      STATUS_BADGE[localIssue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
-                    }`}
-                  >
-                    {localIssue.status}
-                    {changingStatus
-                      ? <Loader2 className="h-3 w-3 animate-spin" />
-                      : <span className="opacity-60 text-[10px]">▾</span>
-                    }
-                  </button>
-                  {statusMenuOpen && !changingStatus && (
-                    <div className="absolute right-0 mt-1 z-[110] bg-white border border-[rgba(122,82,48,.2)] rounded-lg shadow-lg overflow-hidden min-w-[80px]">
-                      {STATUS_OPTIONS.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => { void handleStatusChange(s); setStatusMenuOpen(false) }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[rgba(122,82,48,.06)] ${
-                            s === localIssue.status ? 'text-[#7a5230] font-semibold' : 'text-[#4a3422]'
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {!canChangeStatus && (
-                <span
-                  className={`text-xs px-2 py-1 rounded-full border font-medium ${
-                    STATUS_BADGE[localIssue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'
-                  }`}
-                >
-                  {localIssue.status}
-                </span>
-              )}
+              <span className={`text-xs px-2 py-1 rounded-full border font-medium ${STATUS_BADGE[localIssue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                {localIssue.status}
+              </span>
               <button
                 onClick={onClose}
                 className="p-1.5 rounded-lg text-[#a08060] hover:text-[#6b4f38] hover:bg-[rgba(122,82,48,.08)] transition-colors"
