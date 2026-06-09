@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin, requirePermission } from '@/lib/admin'
+import { requireAdmin, getUserRoleWithPermissions } from '@/lib/admin'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 function getSupabase() {
   return createClient(
@@ -25,10 +26,19 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const adminUser = await requirePermission('crud_cards')
-  if (!adminUser) {
+  const supabaseClient = createSupabaseServerClient()
+  const { data: { user } } = await supabaseClient.auth.getUser()
+  if (!user?.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const { permissions } = await getUserRoleWithPermissions()
+  const canEdit =
+    permissions.includes('create_delete_cards') ||
+    permissions.some(p => p.startsWith('edit_card_'))
+  if (!canEdit) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const adminUser = user
 
   try {
     const body = await req.json()
@@ -36,34 +46,71 @@ export async function PATCH(
 
     const supabase = getSupabase()
 
+    // 欄位層級過濾：根據 permissions 決定允許寫入的欄位
+    const allowedUpdates: Record<string, unknown> = {}
+    const isFullAdmin = permissions.includes('create_delete_cards')
+
+    if (isFullAdmin || permissions.includes('edit_card_equipment_id')) {
+      if (newId !== undefined) allowedUpdates.equipment_id_candidate = newId
+    }
+    if (isFullAdmin || permissions.includes('edit_card_name')) {
+      if (name !== undefined) allowedUpdates.name = name?.trim()
+    }
+    if (isFullAdmin || permissions.includes('edit_card_category')) {
+      if (category !== undefined) allowedUpdates.category = category || null
+    }
+    if (isFullAdmin || permissions.includes('edit_card_status')) {
+      if (status !== undefined) allowedUpdates.status = status
+    }
+    if (isFullAdmin || permissions.includes('edit_card_vendor')) {
+      if (vendor !== undefined) allowedUpdates.vendor = vendor?.trim() || null
+    }
+    if (isFullAdmin || permissions.includes('edit_card_tags')) {
+      if (tags !== undefined) allowedUpdates.tags = Array.isArray(tags) ? tags : []
+    }
+    if (isFullAdmin || permissions.includes('edit_card_notes')) {
+      if (notes !== undefined) allowedUpdates.notes = notes?.trim() || null
+    }
+    if (isFullAdmin || permissions.includes('edit_card_weight')) {
+      if (net_weight !== undefined) allowedUpdates.net_weight = (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null
+    }
+    if (isFullAdmin || permissions.includes('edit_card_documents')) {
+      if (documents !== undefined && Array.isArray(documents)) allowedUpdates.documents = documents
+    }
+    if (isFullAdmin || permissions.includes('edit_card_is_new')) {
+      if (typeof is_new === 'boolean') allowedUpdates.is_new = is_new
+    }
+
+    // 取出料號候選值（特殊處理，不直接進 update 物件）
+    const resolvedNewId = allowedUpdates.equipment_id_candidate as string | undefined
+    delete allowedUpdates.equipment_id_candidate
+
     // 若料號有變動，先確認新料號不重複
-    if (newId && newId.trim() !== params.id) {
+    if (resolvedNewId && resolvedNewId.trim() !== params.id) {
       const { data: existing } = await supabase
         .from('equipment_cards')
         .select('equipment_id')
-        .eq('equipment_id', newId.trim())
+        .eq('equipment_id', resolvedNewId.trim())
         .maybeSingle()
       if (existing) {
         return NextResponse.json({ error: '料號已存在' }, { status: 409 })
       }
     }
 
+    // 只記錄實際被允許更新的欄位
+    const allowedFieldNames = Object.keys(allowedUpdates)
+    const filteredUpdatedFields = Array.isArray(updated_fields)
+      ? updated_fields.filter(f => allowedFieldNames.includes(f) || (f === 'equipment_id' && resolvedNewId))
+      : []
+
     const { data, error } = await supabase
       .from('equipment_cards')
       .update({
-        ...(newId && newId.trim() !== params.id ? { equipment_id: newId.trim() } : {}),
-        name: name?.trim(),
-        category: category || null,
-        vendor: vendor?.trim() || null,
-        status,
-        tags: Array.isArray(tags) ? tags : [],
-        notes: notes?.trim() || null,
-        ...(typeof is_new === 'boolean' ? { is_new } : {}),
-        ...(Array.isArray(documents) ? { documents } : {}),
-        net_weight: (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null,
+        ...(resolvedNewId && resolvedNewId.trim() !== params.id ? { equipment_id: resolvedNewId.trim() } : {}),
+        ...allowedUpdates,
         updated_at: new Date().toISOString(),
         updated_by: adminUser.email ?? null,
-        ...(Array.isArray(updated_fields) && updated_fields.length > 0 ? { updated_fields } : {}),
+        ...(filteredUpdatedFields.length > 0 ? { updated_fields: filteredUpdatedFields } : {}),
       })
       .eq('equipment_id', params.id)
       .select()

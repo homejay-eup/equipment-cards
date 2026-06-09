@@ -47,6 +47,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const searchParams = useSearchParams()
 
   const canManage   = permissions.includes('manage_users')
+  const canEditCard = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
 
   const activeStatus = settings.statuses[0] ?? '現役'
 
@@ -803,7 +804,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
           onClose={() => setSelected(null)}
           activeStatus={activeStatus}
           isAdmin={isAdmin}
-          onEdit={() => { openEdit(selected); setSelected(null) }}
+          onEdit={canEditCard ? () => { openEdit(selected); setSelected(null) } : undefined}
           permissions={permissions}
           bookmarkNotes={activeTab === 'bookmarks' ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
           onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}

@@ -36,6 +36,9 @@ const PERM_LABELS: Record<string, string> = {
   read_vendor:                '看廠商',
   read_updated_by:            '看更新人員',
   read_updated_content:       '看更新內容',
+  read_tags:                  '看標籤',
+  read_weight:                '看淨重',
+  read_created_at:            '看新增時間',
   // 料卡管理
   create_delete_cards:        '新增/刪除料卡',
   // 料卡管理 > 編輯欄位
@@ -71,6 +74,9 @@ const DETAIL_PERMS = [
   'read_vendor',
   'read_updated_by',
   'read_updated_content',
+  'read_tags',
+  'read_weight',
+  'read_created_at',
 ] as const
 
 // 「編輯料卡」父選項的子 key 清單

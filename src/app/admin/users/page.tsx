@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin } from '@/lib/admin'
+import { requireAdmin, getUserRoleWithPermissions } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import UserManagementTable from '@/components/UserManagementTable'
 import { ArrowLeft, Users } from 'lucide-react'
@@ -118,11 +118,12 @@ export default async function AdminUsersPage() {
   const supabase = createSupabaseServerClient()
 
   // 平行：權限驗證 + 頁面資料一起抓
-  const [admin, { data: { user } }, users, roleNames] = await Promise.all([
+  const [admin, { data: { user } }, users, roleNames, roleData] = await Promise.all([
     requireAdmin(),
     supabase.auth.getUser(),
     fetchAllowedEmails(),
     fetchAssignableRoles(),
+    getUserRoleWithPermissions(),
   ])
 
   if (!admin) redirect('/')
@@ -146,6 +147,7 @@ export default async function AdminUsersPage() {
           initialUsers={users}
           currentUserEmail={user!.email!}
           availableRoles={roleNames}
+          permissions={roleData.permissions}
         />
       </div>
     </main>

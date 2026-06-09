@@ -15,6 +15,7 @@ interface Props {
   initialUsers: UserRow[]
   currentUserEmail: string
   availableRoles: string[]
+  permissions?: string[]
 }
 
 function formatDate(iso: string) {
@@ -24,7 +25,7 @@ function formatDate(iso: string) {
   })
 }
 
-export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles }: Props) {
+export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles, permissions = [] }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -233,10 +234,12 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">
                     <span className="flex items-center gap-2">
                       角色
-                      <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)]">
-                        <ShieldCheck className="h-2.5 w-2.5" />
-                        角色管理
-                      </Link>
+                      {permissions.includes('manage_roles') && (
+                        <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)]">
+                          <ShieldCheck className="h-2.5 w-2.5" />
+                          角色管理
+                        </Link>
+                      )}
                     </span>
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">加入日期</th>
