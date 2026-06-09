@@ -90,7 +90,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'bookmarks') setGroupsMounted(true)
   }, [activeTab])
-  // 首次切到「追蹤板」才 mount TrackerClient，之後保持常駐（CSS hide/show）保留 state
+  // 首次切到「任務板」才 mount TrackerClient，之後保持常駐（CSS hide/show）保留 state
   const [trackerMounted, setTrackerMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'tracker') setTrackerMounted(true)
@@ -529,7 +529,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                 }`}
               >
                 <ClipboardList className="h-3.5 w-3.5" />
-                追蹤板
+                任務板
                 {trackerPendingCount > 0 && (
                   <span className="text-xs">{trackerPendingCount}</span>
                 )}
@@ -780,7 +780,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         </div>
       )}
 
-      {/* 追蹤板：首次進入後保持常駐（CSS hide/show），避免切 tab 時 state 重置 */}
+      {/* 任務板：首次進入後保持常駐（CSS hide/show），避免切 tab 時 state 重置 */}
       {trackerMounted && trackerData && (
         <div className={activeTab !== 'tracker' ? 'hidden' : ''}>
           <TrackerClient

@@ -23,7 +23,12 @@ const VIEWER_PERMISSIONS = [
   'use_bookmarks', 'use_groups',
 ]
 
-const ALLOWED_DOMAIN = '@eup.com.tw'
+const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.com.vn']
+
+function isAllowedDomain(email: string): boolean {
+  const domain = email.split('@')[1]
+  return !!domain && ALLOWED_DOMAINS.includes(domain)
+}
 
 // 透過 roles + role_permissions 查權限
 // 若 roles 表不存在或找不到角色 → 依舊 role 名稱做 fallback
@@ -40,7 +45,7 @@ export async function getUserRoleWithPermissions(): Promise<{ roleName: string; 
   ])
 
   if (!user?.email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
-  if (!user.email.endsWith(ALLOWED_DOMAIN)) return { roleName: '', permissions: VIEWER_PERMISSIONS }
+  if (!isAllowedDomain(user.email)) return { roleName: '', permissions: VIEWER_PERMISSIONS }
 
   const { data: emailData } = await getServiceClient()
     .from('allowed_emails')
@@ -82,8 +87,8 @@ export async function getUserRole(): Promise<'admin' | 'viewer' | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return null
 
-  // 非公司信箱：無權限
-  if (!user.email.endsWith(ALLOWED_DOMAIN)) return null
+  // 非公司信箱：無權限（嚴格比對 domain）
+  if (!isAllowedDomain(user.email)) return null
 
   const { data } = await getServiceClient()
     .from('allowed_emails')

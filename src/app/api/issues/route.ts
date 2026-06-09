@@ -95,6 +95,28 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase()
 
+    // 查詢建立者的 dept_group（失敗不阻斷建立流程）
+    let deptGroup: string | null = null
+    try {
+      const { data: emailRow } = await supabase
+        .from('allowed_emails')
+        .select('role')
+        .eq('email', user.email!)
+        .single()
+
+      if (emailRow?.role) {
+        const { data: roleRow } = await supabase
+          .from('roles')
+          .select('dept_group')
+          .eq('name', emailRow.role)
+          .single()
+
+        deptGroup = roleRow?.dept_group ?? null
+      }
+    } catch {
+      // 查詢失敗不阻斷，dept_group 保持 null
+    }
+
     const { data: issue, error: issueError } = await supabase
       .from('issues')
       .insert({
@@ -106,6 +128,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim() ?? null,
         tags: Array.isArray(tags) ? tags : [],
         created_by: user.email!,
+        dept_group: deptGroup,
       })
       .select()
       .single()

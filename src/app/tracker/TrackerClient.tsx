@@ -25,10 +25,10 @@ const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
 }
 
 const COLUMNS = [
-  { key: '待處理', label: '待處理', dotClass: 'bg-gray-400' },
-  { key: '進行中', label: '進行中', dotClass: 'bg-blue-500' },
-  { key: '等待中', label: '等待中', dotClass: 'bg-amber-500' },
-  { key: '已完成', label: '已完成', dotClass: 'bg-green-500' },
+  { key: '待處理', label: '待處理' },
+  { key: '進行中', label: '進行中' },
+  { key: '等待中', label: '等待中' },
+  { key: '已完成', label: '已完成' },
 ] as const
 
 const P_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
@@ -403,7 +403,6 @@ export default function TrackerClient({
               {/* 欄標題 */}
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-[rgba(122,82,48,.08)]">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${col.dotClass}`} />
                   <span className="text-sm font-semibold text-[#4a3422]">{col.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">

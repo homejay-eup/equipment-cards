@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
@@ -25,7 +26,7 @@ const PERM_LABELS: Record<string, string> = {
   read_all_cards:             '看全部料卡（含非現役）',
   read_active_only:           '只看現役料卡',
   // 料卡列表
-  use_bookmarks:              '我的關注（書籤）',
+  use_bookmarks:              '我的關注 (只有個人看得到內容)',
   // 料卡列表篩選
   filter_all_statuses:        '狀態篩選（全部狀態/現役/停產）',
   filter_no_photo:            '無主圖篩選',
@@ -54,7 +55,7 @@ const PERM_LABELS: Record<string, string> = {
   manage_users:               '帳號管理/指派角色',
   manage_roles:               '角色與權限設定',
   // 追蹤板
-  view_tracker:               '可看追蹤板',
+  view_tracker:               '可看任務板 (只有同一部門能看到彼此任務)',
   view_my_tasks:              '我的任務',
   create_issues:              '可新增議題',
   tracker_edit_issue:         '可編輯議題',
@@ -375,13 +376,21 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-[#6b4f38]">角色清單</h2>
-        <button
-          onClick={() => setNewRoleOpen(v => !v)}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.35)]"
-        >
-          <Plus className="h-4 w-4" />
-          新增角色
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/departments"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[#7a5230] border border-[rgba(122,82,48,.25)] rounded-lg hover:bg-[rgba(122,82,48,.06)] transition-colors"
+          >
+            部門管理
+          </Link>
+          <button
+            onClick={() => setNewRoleOpen(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.35)]"
+          >
+            <Plus className="h-4 w-4" />
+            新增角色
+          </button>
+        </div>
       </div>
 
       {/* 新增角色 inline form */}
