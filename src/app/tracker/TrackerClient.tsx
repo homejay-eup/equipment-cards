@@ -393,7 +393,7 @@ export default function TrackerClient({
           return (
             <div
               key={col.key}
-              className={`bg-[#f2e8d8] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.16)]'}`}
+              className={`bg-[#e3dbd1] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.16)]'}`}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
