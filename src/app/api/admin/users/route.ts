@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin } from '@/lib/admin'
+import { requireAdmin, isAllowedDomain } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-const ALLOWED_DOMAIN = '@eup.com.tw'
 
 function getSupabase() {
   return createClient(
@@ -17,7 +15,7 @@ function getSupabase() {
 async function getCallerRoleInfo(): Promise<{ level: string; dept_group: string | null } | null> {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user?.email || !user.email.endsWith(ALLOWED_DOMAIN)) return null
+  if (!user?.email || !isAllowedDomain(user.email)) return null
 
   const service = getSupabase()
   const { data: emailData } = await service
@@ -116,7 +114,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { email, role } = await req.json()
+  const { email: rawEmail, role } = await req.json()
+  const email = rawEmail?.trim().toLowerCase()
   if (!email || !role) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }

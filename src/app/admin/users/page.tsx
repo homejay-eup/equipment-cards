@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin, getUserRoleWithPermissions } from '@/lib/admin'
+import { requireAdmin, getUserRoleWithPermissions, getAssignableRolesData } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import UserManagementTable from '@/components/UserManagementTable'
 import { ArrowLeft, Users } from 'lucide-react'
@@ -14,13 +14,41 @@ function getServiceClient() {
   )
 }
 
-async function fetchAllowedEmails() {
-  const { data } = await getServiceClient()
-    .from('allowed_emails')
-    .select('email, role, created_at')
-    .order('created_at', { ascending: true })
+async function fetchAllowedEmails(
+  callerLevel: string | null,
+  callerDeptGroup: string | null
+) {
+  const service = getServiceClient()
 
-  return (data ?? []) as { email: string; role: string; created_at: string }[]
+  if (callerLevel === 'super_admin') {
+    // super_admin 看全部
+    const { data } = await service
+      .from('allowed_emails')
+      .select('email, role, created_at')
+      .order('created_at', { ascending: true })
+    return (data ?? []) as { email: string; role: string; created_at: string }[]
+  }
+
+  if (callerLevel === 'dept_admin' && callerDeptGroup) {
+    // dept_admin 只看同 dept_group 的角色所對應的帳號
+    const { data: deptRoles } = await service
+      .from('roles')
+      .select('name')
+      .eq('dept_group', callerDeptGroup)
+    const deptRoleNames = (deptRoles ?? []).map((r: { name: string }) => r.name)
+
+    if (deptRoleNames.length === 0) return []
+
+    const { data } = await service
+      .from('allowed_emails')
+      .select('email, role, created_at')
+      .in('role', deptRoleNames)
+      .order('created_at', { ascending: true })
+    return (data ?? []) as { email: string; role: string; created_at: string }[]
+  }
+
+  // 其他（不應進入此頁，requireAdmin 已擋）：回傳空
+  return []
 }
 
 const ROLE_ORDER = [
@@ -39,94 +67,40 @@ function sortRoleNames(names: string[]): string[] {
   })
 }
 
-async function fetchAssignableRoles(): Promise<string[]> {
-  try {
-    const supabase = createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user?.email) return ['管理員', '一般使用者']
-
-    const service = getServiceClient()
-
-    // 取得目前使用者的角色名稱
-    const { data: emailData } = await service
-      .from('allowed_emails')
-      .select('role')
-      .eq('email', user.email)
-      .single()
-
-    if (!emailData?.role) return []
-
-    // 取得該角色的 dept_group + level + assignable_role_names
-    const { data: roleData, error: roleError } = await service
-      .from('roles')
-      .select('id, name, is_system, dept_group, level, assignable_role_names')
-      .eq('name', emailData.role)
-      .single()
-
-    if (roleError || !roleData) return []
-
-    const { level, dept_group, assignable_role_names } = roleData as {
-      id: string
-      name: string
-      is_system: boolean
-      dept_group: string | null
-      level: string
-      assignable_role_names: string[] | null
-    }
-
-    // 若 assignable_role_names 有明確設定，直接使用
-    if (assignable_role_names && assignable_role_names.length > 0) {
-      const { data, error } = await service
-        .from('roles')
-        .select('name')
-        .in('name', assignable_role_names)
-        .order('id', { ascending: true })
-      if (error) return ['管理員', '一般使用者']
-      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
-    }
-
-    // Fallback：以 level 判斷
-    if (level === 'super_admin') {
-      const { data, error } = await service
-        .from('roles')
-        .select('name')
-        .order('created_at', { ascending: true })
-      if (error) return ['管理員', '一般使用者']
-      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
-    }
-
-    if (level === 'dept_admin') {
-      if (!dept_group) return []
-      const { data, error } = await service
-        .from('roles')
-        .select('name')
-        .eq('dept_group', dept_group)
-        .in('level', ['member', 'viewer'])
-        .order('created_at', { ascending: true })
-      if (error) return ['管理員', '一般使用者']
-      return sortRoleNames((data ?? []).map((r: { name: string }) => r.name))
-    }
-
-    return []
-  } catch {
-    return ['管理員', '一般使用者']
-  }
-}
-
 export default async function AdminUsersPage() {
   const supabase = createSupabaseServerClient()
 
-  // 平行：權限驗證 + 頁面資料一起抓
-  const [admin, { data: { user } }, users, roleNames, roleData] = await Promise.all([
+  // Step 1：平行取 auth + admin guard + role info
+  const [admin, { data: { user } }, roleData] = await Promise.all([
     requireAdmin(),
     supabase.auth.getUser(),
-    fetchAllowedEmails(),
-    fetchAssignableRoles(),
     getUserRoleWithPermissions(),
   ])
 
   if (!admin) redirect('/')
+
+  // Step 2：取 caller 的 level + dept_group
+  let callerLevel: string | null = null
+  let callerDeptGroup: string | null = null
+  if (user?.email) {
+    const service = getServiceClient()
+    const { data: emailRow } = await service
+      .from('allowed_emails').select('role').eq('email', user.email).single()
+    if (emailRow?.role) {
+      const { data: roleRow } = await service
+        .from('roles').select('level, dept_group').eq('name', emailRow.role).single()
+      callerLevel = roleRow?.level ?? null
+      callerDeptGroup = roleRow?.dept_group ?? null
+    }
+  }
+
+  // Step 3：平行取使用者清單 + 可指派角色
+  const [users, assignableRoles] = await Promise.all([
+    fetchAllowedEmails(callerLevel, callerDeptGroup),
+    user?.email ? getAssignableRolesData(user.email) : Promise.resolve([]),
+  ])
+
+  const roleNames = sortRoleNames(assignableRoles.map(r => r.name))
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">

@@ -51,7 +51,7 @@ export async function PATCH(
 
   const { data: role, error: fetchError } = await supabase
     .from('roles')
-    .select('id, is_system')
+    .select('id, name, is_system')
     .eq('id', id)
     .single()
 
@@ -76,6 +76,23 @@ export async function PATCH(
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
+  // D5：若角色有重命名，cascade 更新 allowed_emails.role
+  const originalName = (role as { id: string; name: string; is_system: boolean }).name
+  if (hasName && typeof updateFields.name === 'string' && updateFields.name !== originalName) {
+    const { error: cascadeError } = await supabase
+      .from('allowed_emails')
+      .update({ role: updateFields.name })
+      .eq('role', originalName)
+
+    if (cascadeError) {
+      console.error('[roles] cascade allowed_emails update failed:', cascadeError)
+      return NextResponse.json({
+        ...updated,
+        warning: 'roles 已重命名，但 allowed_emails 同步失敗，請手動確認',
+      })
+    }
   }
 
   return NextResponse.json(updated)

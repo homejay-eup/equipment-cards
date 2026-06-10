@@ -27,9 +27,6 @@ const PERM_LABELS: Record<string, string> = {
   read_active_only:           '只看現役料卡',
   // 料卡列表
   use_bookmarks:              '我的關注 (只有個人看得到內容)',
-  // 料卡列表篩選
-  filter_all_statuses:        '狀態篩選（全部狀態/現役/停產）',
-  filter_no_photo:            '無主圖篩選',
   // 料卡細節
   read_documents:             '看文件/規格書',
   read_notes:                 '看備註',
@@ -66,7 +63,7 @@ const PERM_LABELS: Record<string, string> = {
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
 
-const LIST_PERMS = ['use_bookmarks', 'filter_all_statuses', 'filter_no_photo'] as const
+const LIST_PERMS = ['use_bookmarks'] as const
 
 const DETAIL_PERMS = [
   'read_documents',
@@ -150,6 +147,8 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
   const [newRoleOpen, setNewRoleOpen] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
   const [newRolePerms, setNewRolePerms] = useState<string[]>([])
+  const [newRoleDeptGroup, setNewRoleDeptGroup] = useState<string>('')
+  const [newRoleLevel, setNewRoleLevel] = useState<string>('viewer')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -326,7 +325,12 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
       const res = await fetch('/api/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed, permissions: newRolePerms }),
+        body: JSON.stringify({
+          name: trimmed,
+          permissions: newRolePerms,
+          dept_group: newRoleDeptGroup || null,
+          level: newRoleLevel || 'viewer',
+        }),
       })
       const d = await res.json()
       if (!res.ok) {
@@ -344,6 +348,8 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
       setRoles(prev => [...prev, newRole])
       setNewRoleName('')
       setNewRolePerms([])
+      setNewRoleDeptGroup('')
+      setNewRoleLevel('viewer')
       setNewRoleOpen(false)
     } catch {
       setCreateError('新增失敗，請重試')
@@ -413,6 +419,39 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
               disabled={creating}
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
             />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-[#a08060] mb-1">部門</label>
+                <select
+                  value={newRoleDeptGroup}
+                  onChange={e => setNewRoleDeptGroup(e.target.value)}
+                  disabled={creating}
+                  className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                >
+                  <option value="">無部門</option>
+                  <option value="admin">管理</option>
+                  <option value="tech">技師</option>
+                  <option value="purchasing">採購</option>
+                  <option value="supply_chain">供應鏈</option>
+                  <option value="engineering">工程</option>
+                  <option value="sales">業務</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[#a08060] mb-1">層級</label>
+                <select
+                  value={newRoleLevel}
+                  onChange={e => setNewRoleLevel(e.target.value)}
+                  disabled={creating}
+                  className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                >
+                  <option value="viewer">一般檢視</option>
+                  <option value="member">部門成員</option>
+                  <option value="dept_admin">部門管理員</option>
+                  <option value="super_admin">超級管理員</option>
+                </select>
+              </div>
+            </div>
             <p className="text-xs text-[#a08060]">初始權限（可新增後再調整）</p>
             {/* 新增角色：扁平列出所有 perm（除 edit_card_* 子選項展開在父下方） */}
             <div className="space-y-3">
@@ -521,7 +560,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
-                onClick={() => { setNewRoleOpen(false); setNewRoleName(''); setNewRolePerms([]); setCreateError(null) }}
+                onClick={() => { setNewRoleOpen(false); setNewRoleName(''); setNewRolePerms([]); setNewRoleDeptGroup(''); setNewRoleLevel('viewer'); setCreateError(null) }}
                 className="px-3 py-1.5 text-sm text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors"
               >
                 取消

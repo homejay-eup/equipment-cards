@@ -66,20 +66,24 @@ export default async function TrackerPage() {
   const { permissions } = roleData
   const userRoleName = (userRoleResult as { data: { role: string } | null }).data?.role ?? null
 
-  // 第二批：依 role 名稱查 dept_group 與 assignable_role_names
+  // 第二批：依 role 名稱查 dept_group、assignable_role_names、level
   const roleInfoResult = userRoleName
     ? await adminClient
         .from('roles')
-        .select('dept_group, assignable_role_names')
+        .select('dept_group, assignable_role_names, level')
         .eq('name', userRoleName)
         .single()
     : { data: null }
 
-  const userDeptGroup = (roleInfoResult as { data: { dept_group: string | null; assignable_role_names: string[] | null } | null }).data?.dept_group ?? null
-  const assignableRoleNames = (roleInfoResult as { data: { dept_group: string | null; assignable_role_names: string[] | null } | null }).data?.assignable_role_names ?? null
+  type RoleInfo = { dept_group: string | null; assignable_role_names: string[] | null; level?: string }
+  const roleInfoData = (roleInfoResult as { data: RoleInfo | null }).data
+  const userDeptGroup = roleInfoData?.dept_group ?? null
+  const assignableRoleNames = roleInfoData?.assignable_role_names ?? null
+  const callerLevel = roleInfoData?.level ?? null
 
-  // 第三批：依 dept_group 篩選 issues
-  // null dept_group：使用者無部門歸屬，回傳空清單，避免看到其他部門資料
+  // 第三批：依 dept_group / level 篩選 issues
+  // super_admin → 看全部，不加 dept_group 過濾
+  // 其他 → null dept_group 回傳空清單，有 dept_group 只看同部門
   type RawIssue = {
     id: string
     title: string
@@ -97,22 +101,34 @@ export default async function TrackerPage() {
     issue_updates: { id: string; content: string; created_by: string; created_at: string }[]
   }
 
+  const issueSelectQuery = `
+    id, title, type, priority, status, due_date, description, tags,
+    created_by, created_at, updated_at, sort_order,
+    issue_assignees(user_email),
+    issue_updates(id, content, created_by, created_at)
+  `
+
   let rawIssues: RawIssue[] = []
-  if (userDeptGroup !== null) {
+  if (callerLevel === 'super_admin') {
+    // super_admin 看全部部門的議題
     const issuesResult = await adminClient
       .from('issues')
-      .select(`
-        id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, sort_order,
-        issue_assignees(user_email),
-        issue_updates(id, content, created_by, created_at)
-      `)
+      .select(issueSelectQuery)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .order('created_at', { referencedTable: 'issue_updates', ascending: false })
+    rawIssues = (issuesResult.data ?? []) as RawIssue[]
+  } else if (userDeptGroup !== null) {
+    const issuesResult = await adminClient
+      .from('issues')
+      .select(issueSelectQuery)
       .eq('dept_group', userDeptGroup)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
     rawIssues = (issuesResult.data ?? []) as RawIssue[]
   }
+  // else：userDeptGroup === null 且非 super_admin → rawIssues = []（不可見）
 
   const issues: Issue[] = rawIssues.map((raw: RawIssue) => {
     const emails = (raw.issue_assignees ?? []).map((a) => a.user_email)

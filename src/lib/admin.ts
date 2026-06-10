@@ -14,7 +14,7 @@ const ADMIN_PERMISSIONS = [
   'read_all_cards',
   'read_documents', 'read_notes', 'read_vendor',
   'read_updated_by', 'read_updated_content',
-  'use_bookmarks', 'filter_all_statuses', 'filter_no_photo', 'crud_cards', 'create_delete_cards',
+  'use_bookmarks', 'create_delete_cards',
   'manage_users', 'manage_roles', 'use_groups',
 ]
 const VIEWER_PERMISSIONS = [
@@ -25,7 +25,7 @@ const VIEWER_PERMISSIONS = [
 
 const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.com.vn']
 
-function isAllowedDomain(email: string): boolean {
+export function isAllowedDomain(email: string): boolean {
   const domain = email.split('@')[1]
   return !!domain && ALLOWED_DOMAINS.includes(domain)
 }
@@ -99,4 +99,74 @@ export async function getUserRole(): Promise<'admin' | 'viewer' | null> {
   // allowed_emails 有記錄就用指定角色，否則公司信箱預設 viewer
   if (data?.role === 'admin') return 'admin'
   return 'viewer'
+}
+
+export interface AssignableRoleRow {
+  id: string
+  name: string
+  is_system: boolean
+  dept_group: string | null
+  level: string | null
+}
+
+/**
+ * 依目前登入者的 level/dept_group/assignable_role_names 回傳可指派的角色清單。
+ * 直接接受 email，使用 service client 查詢（可用於 SSR 或 API route）。
+ */
+export async function getAssignableRolesData(userEmail: string): Promise<AssignableRoleRow[]> {
+  const service = getServiceClient()
+
+  const { data: emailData } = await service
+    .from('allowed_emails')
+    .select('role')
+    .eq('email', userEmail)
+    .single()
+
+  if (!emailData?.role) return []
+
+  const { data: roleData, error: roleError } = await service
+    .from('roles')
+    .select('id, name, is_system, dept_group, level, assignable_role_names')
+    .eq('name', emailData.role)
+    .single()
+
+  if (roleError || !roleData) return []
+
+  const { level, dept_group, assignable_role_names } = roleData as {
+    id: string; name: string; is_system: boolean
+    dept_group: string | null; level: string
+    assignable_role_names: string[] | null
+  }
+
+  // 優先：明確設定的清單
+  if (assignable_role_names && assignable_role_names.length > 0) {
+    const { data } = await service
+      .from('roles')
+      .select('id, name, is_system, dept_group, level')
+      .in('name', assignable_role_names)
+      .order('id', { ascending: true })
+    return (data ?? []) as AssignableRoleRow[]
+  }
+
+  // Fallback：依 level
+  if (level === 'super_admin') {
+    const { data } = await service
+      .from('roles')
+      .select('id, name, is_system, dept_group, level')
+      .order('created_at', { ascending: true })
+    return (data ?? []) as AssignableRoleRow[]
+  }
+
+  if (level === 'dept_admin') {
+    if (!dept_group) return []
+    const { data } = await service
+      .from('roles')
+      .select('id, name, is_system, dept_group, level')
+      .eq('dept_group', dept_group)
+      .in('level', ['member', 'viewer'])
+      .order('created_at', { ascending: true })
+    return (data ?? []) as AssignableRoleRow[]
+  }
+
+  return []
 }
