@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 查詢 caller 的 level + dept_group，用於 dept 隔離
+  // 查詢 caller 的 level + department_id，用於 dept 隔離
   let callerLevel: string | null = null
-  let callerDeptGroup: string | null = null
+  let callerDepartmentId: string | null = null
   try {
     const service = getSupabase()
     const { data: emailRow } = await service
@@ -32,18 +32,18 @@ export async function GET(req: NextRequest) {
     if (emailRow?.role) {
       const { data: roleRow } = await service
         .from('roles')
-        .select('level, dept_group')
+        .select('level, department_id')
         .eq('name', emailRow.role)
         .single()
       callerLevel = roleRow?.level ?? null
-      callerDeptGroup = roleRow?.dept_group ?? null
+      callerDepartmentId = (roleRow as { level: string | null; department_id: string | null } | null)?.department_id ?? null
     }
   } catch {
     // 查詢失敗不阻斷，後面的 null 保護會回傳空陣列
   }
 
-  // 非 super_admin 且 dept_group 為 null → 無部門歸屬，直接回空
-  if (callerLevel !== 'super_admin' && callerDeptGroup === null) {
+  // 非 super_admin 且 department_id 為 null → 無部門歸屬，直接回空
+  if (callerLevel !== 'super_admin' && callerDepartmentId === null) {
     return NextResponse.json([])
   }
 
@@ -66,9 +66,9 @@ export async function GET(req: NextRequest) {
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
 
-    // 非 super_admin 依 dept_group 過濾（super_admin 看全部）
-    if (callerLevel !== 'super_admin' && callerDeptGroup !== null) {
-      query = query.eq('dept_group', callerDeptGroup)
+    // 非 super_admin 依 department_id 過濾（super_admin 看全部）
+    if (callerLevel !== 'super_admin' && callerDepartmentId !== null) {
+      query = query.eq('department_id', callerDepartmentId)
     }
 
     if (type) query = query.eq('type', type)
@@ -128,8 +128,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase()
 
-    // 查詢建立者的 dept_group（失敗不阻斷建立流程）
-    let deptGroup: string | null = null
+    // 查詢建立者的 department_id（失敗不阻斷建立流程）
+    let creatorDepartmentId: string | null = null
     try {
       const { data: emailRow } = await supabase
         .from('allowed_emails')
@@ -140,14 +140,14 @@ export async function POST(req: NextRequest) {
       if (emailRow?.role) {
         const { data: roleRow } = await supabase
           .from('roles')
-          .select('dept_group')
+          .select('department_id')
           .eq('name', emailRow.role)
           .single()
 
-        deptGroup = roleRow?.dept_group ?? null
+        creatorDepartmentId = (roleRow as { department_id: string | null } | null)?.department_id ?? null
       }
     } catch {
-      // 查詢失敗不阻斷，dept_group 保持 null
+      // 查詢失敗不阻斷，department_id 保持 null
     }
 
     const { data: issue, error: issueError } = await supabase
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim() ?? null,
         tags: Array.isArray(tags) ? tags : [],
         created_by: user.email!,
-        dept_group: deptGroup,
+        department_id: creatorDepartmentId,
       })
       .select()
       .single()

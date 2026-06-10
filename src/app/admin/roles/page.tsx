@@ -5,11 +5,17 @@ import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 import { createClient } from '@supabase/supabase-js'
 import RolesManager from '@/components/RolesManager'
 
+interface Department {
+  id: string
+  name: string
+}
+
 interface RoleData {
   id: string
   name: string
   is_system: boolean
-  dept_group: string | null
+  department_id: string | null
+  department_name: string | null
   level: string | null
   permissions: string[]
   assignable_role_names: string[] | null
@@ -31,17 +37,36 @@ function sortByRoleOrder<T extends { name: string }>(roles: T[]): T[] {
   })
 }
 
-async function fetchRoles(): Promise<RoleData[]> {
-  const supabase = createClient(
+function getServiceClient() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
+}
+
+async function fetchDepartments(): Promise<Department[]> {
+  const supabase = getServiceClient()
+  try {
+    const { data, error } = await supabase
+      .from('departments')
+      .select('id, name')
+      .order('name', { ascending: true })
+
+    if (error || !data) return []
+    return data as Department[]
+  } catch {
+    return []
+  }
+}
+
+async function fetchRoles(): Promise<RoleData[]> {
+  const supabase = getServiceClient()
 
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, dept_group, level, assignable_role_names, role_permissions(permission_key)')
+      .select('id, name, is_system, department_id, level, assignable_role_names, departments(name), role_permissions(permission_key)')
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -50,19 +75,26 @@ async function fetchRoles(): Promise<RoleData[]> {
       id: string
       name: string
       is_system: boolean
-      dept_group: string | null
+      department_id: string | null
       level: string | null
       assignable_role_names: string[] | null
+      departments: { name: string }[] | { name: string } | null
       role_permissions: { permission_key: string }[]
-    }) => ({
-      id: row.id,
-      name: row.name,
-      is_system: row.is_system ?? false,
-      dept_group: row.dept_group ?? null,
-      level: row.level ?? null,
-      assignable_role_names: row.assignable_role_names ?? null,
-      permissions: (row.role_permissions ?? []).map(p => p.permission_key),
-    }))
+    }) => {
+      const deptName = Array.isArray(row.departments)
+        ? (row.departments[0]?.name ?? null)
+        : (row.departments?.name ?? null)
+      return {
+        id: row.id,
+        name: row.name,
+        is_system: row.is_system ?? false,
+        department_id: row.department_id ?? null,
+        department_name: deptName,
+        level: row.level ?? null,
+        assignable_role_names: row.assignable_role_names ?? null,
+        permissions: (row.role_permissions ?? []).map(p => p.permission_key),
+      }
+    })
     return sortByRoleOrder(mapped)
   } catch {
     return []
@@ -71,8 +103,9 @@ async function fetchRoles(): Promise<RoleData[]> {
 
 export default async function AdminRolesPage() {
   // 平行：權限驗證 + 頁面資料 + 當前使用者角色
-  const [user, roles, roleData] = await Promise.all([
+  const [user, departments, roles, roleData] = await Promise.all([
     requirePermission('manage_roles'),
+    fetchDepartments(),
     fetchRoles(),
     getUserRoleWithPermissions(),
   ])
@@ -94,7 +127,7 @@ export default async function AdminRolesPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <RolesManager initialRoles={roles} currentUserRoleName={roleData.roleName} />
+        <RolesManager initialRoles={roles} currentUserRoleName={roleData.roleName} deptGroups={departments} />
       </div>
     </main>
   )

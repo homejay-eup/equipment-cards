@@ -105,12 +105,12 @@ export interface AssignableRoleRow {
   id: string
   name: string
   is_system: boolean
-  dept_group: string | null
+  department_id: string | null
   level: string | null
 }
 
 /**
- * 依目前登入者的 level/dept_group/assignable_role_names 回傳可指派的角色清單。
+ * 依目前登入者的 level/department_id/assignable_role_names 回傳可指派的角色清單。
  * 直接接受 email，使用 service client 查詢（可用於 SSR 或 API route）。
  */
 export async function getAssignableRolesData(userEmail: string): Promise<AssignableRoleRow[]> {
@@ -126,15 +126,15 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
 
   const { data: roleData, error: roleError } = await service
     .from('roles')
-    .select('id, name, is_system, dept_group, level, assignable_role_names')
+    .select('id, name, is_system, department_id, level, assignable_role_names')
     .eq('name', emailData.role)
     .single()
 
   if (roleError || !roleData) return []
 
-  const { level, dept_group, assignable_role_names } = roleData as {
+  const { level, department_id, assignable_role_names } = roleData as {
     id: string; name: string; is_system: boolean
-    dept_group: string | null; level: string
+    department_id: string | null; level: string
     assignable_role_names: string[] | null
   }
 
@@ -142,7 +142,7 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
   if (assignable_role_names && assignable_role_names.length > 0) {
     const { data } = await service
       .from('roles')
-      .select('id, name, is_system, dept_group, level')
+      .select('id, name, is_system, department_id, level')
       .in('name', assignable_role_names)
       .order('id', { ascending: true })
     return (data ?? []) as AssignableRoleRow[]
@@ -152,17 +152,17 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
   if (level === 'super_admin') {
     const { data } = await service
       .from('roles')
-      .select('id, name, is_system, dept_group, level')
+      .select('id, name, is_system, department_id, level')
       .order('created_at', { ascending: true })
     return (data ?? []) as AssignableRoleRow[]
   }
 
   if (level === 'dept_admin') {
-    if (!dept_group) return []
+    if (!department_id) return []
     const { data } = await service
       .from('roles')
-      .select('id, name, is_system, dept_group, level')
-      .eq('dept_group', dept_group)
+      .select('id, name, is_system, department_id, level')
+      .eq('department_id', department_id)
       .in('level', ['member', 'viewer'])
       .order('created_at', { ascending: true })
     return (data ?? []) as AssignableRoleRow[]

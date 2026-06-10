@@ -16,7 +16,7 @@ function getServiceClient() {
 
 async function fetchAllowedEmails(
   callerLevel: string | null,
-  callerDeptGroup: string | null
+  callerDepartmentId: string | null
 ) {
   const service = getServiceClient()
 
@@ -29,12 +29,12 @@ async function fetchAllowedEmails(
     return (data ?? []) as { email: string; role: string; created_at: string }[]
   }
 
-  if (callerLevel === 'dept_admin' && callerDeptGroup) {
-    // dept_admin 只看同 dept_group 的角色所對應的帳號
+  if (callerLevel === 'dept_admin' && callerDepartmentId) {
+    // dept_admin 只看同部門的角色所對應的帳號
     const { data: deptRoles } = await service
       .from('roles')
       .select('name')
-      .eq('dept_group', callerDeptGroup)
+      .eq('department_id', callerDepartmentId)
     const deptRoleNames = (deptRoles ?? []).map((r: { name: string }) => r.name)
 
     if (deptRoleNames.length === 0) return []
@@ -79,24 +79,24 @@ export default async function AdminUsersPage() {
 
   if (!admin) redirect('/')
 
-  // Step 2：取 caller 的 level + dept_group
+  // Step 2：取 caller 的 level + department_id
   let callerLevel: string | null = null
-  let callerDeptGroup: string | null = null
+  let callerDepartmentId: string | null = null
   if (user?.email) {
     const service = getServiceClient()
     const { data: emailRow } = await service
       .from('allowed_emails').select('role').eq('email', user.email).single()
     if (emailRow?.role) {
       const { data: roleRow } = await service
-        .from('roles').select('level, dept_group').eq('name', emailRow.role).single()
+        .from('roles').select('level, department_id').eq('name', emailRow.role).single()
       callerLevel = roleRow?.level ?? null
-      callerDeptGroup = roleRow?.dept_group ?? null
+      callerDepartmentId = (roleRow as { department_id?: string | null } | null)?.department_id ?? null
     }
   }
 
   // Step 3：平行取使用者清單 + 可指派角色
   const [users, assignableRoles] = await Promise.all([
-    fetchAllowedEmails(callerLevel, callerDeptGroup),
+    fetchAllowedEmails(callerLevel, callerDepartmentId),
     user?.email ? getAssignableRolesData(user.email) : Promise.resolve([]),
   ])
 
