@@ -460,7 +460,7 @@ export default function TrackerClient({
                                 }
                               }
                             }}
-                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[rgba(122,82,48,.03)] border-[rgba(122,82,48,.08)] opacity-75 hover:opacity-100 ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[rgba(122,82,48,.08)] border-[rgba(122,82,48,.14)] opacity-75 hover:opacity-100 ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
                           >
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
@@ -516,7 +516,7 @@ export default function TrackerClient({
                                 }
                               }
                             }}
-                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[#ede5d8] border-[rgba(122,82,48,.18)] hover:border-[rgba(122,82,48,.4)] hover:shadow-[2px_2px_0_rgba(122,82,48,.12)] hover:-translate-x-px hover:-translate-y-px ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
                           >
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
