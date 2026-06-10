@@ -6,11 +6,17 @@ import Link from 'next/link'
 import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
+interface Department {
+  id: string
+  name: string
+}
+
 interface RoleData {
   id: string
   name: string
   is_system: boolean
-  dept_group: string | null
+  department_id: string | null
+  department_name: string | null
   level: string | null
   permissions: string[]
   assignable_role_names?: string[] | null
@@ -19,6 +25,7 @@ interface RoleData {
 interface Props {
   initialRoles: RoleData[]
   currentUserRoleName?: string
+  deptGroups?: Department[]
 }
 
 const PERM_LABELS: Record<string, string> = {
@@ -106,15 +113,15 @@ function getDefaultAssignable(role: RoleData, allRoles: RoleData[]): string[] {
   if (role.level === 'super_admin') {
     return allRoles.map(r => r.name)
   }
-  if (role.level === 'dept_admin' && role.dept_group) {
+  if (role.level === 'dept_admin' && role.department_id) {
     return allRoles
-      .filter(r => r.dept_group === role.dept_group && ['member', 'viewer'].includes(r.level ?? ''))
+      .filter(r => r.department_id === role.department_id && ['member', 'viewer'].includes(r.level ?? ''))
       .map(r => r.name)
   }
   return []
 }
 
-function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: string | null }) {
+function DeptBadge({ departmentName, level }: { departmentName: string | null; level: string | null }) {
   if (level === 'super_admin') {
     return (
       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(181,69,27,.1)] text-[#b5451b] border border-[rgba(181,69,27,.2)]">
@@ -122,7 +129,7 @@ function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: stri
       </span>
     )
   }
-  if (!deptGroup) {
+  if (!departmentName) {
     return (
       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.07)] text-[#a08060] border border-[rgba(122,82,48,.15)]">
         無群組
@@ -131,12 +138,12 @@ function DeptBadge({ deptGroup, level }: { deptGroup: string | null; level: stri
   }
   return (
     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">
-      {DEPT_GROUP_LABELS[deptGroup] ?? deptGroup}
+      {DEPT_GROUP_LABELS[departmentName] ?? departmentName}
     </span>
   )
 }
 
-export default function RolesManager({ initialRoles, currentUserRoleName }: Props) {
+export default function RolesManager({ initialRoles, currentUserRoleName, deptGroups }: Props) {
   const router = useRouter()
   const [roles, setRoles] = useState<RoleData[]>(initialRoles)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -147,7 +154,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
   const [newRoleOpen, setNewRoleOpen] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
   const [newRolePerms, setNewRolePerms] = useState<string[]>([])
-  const [newRoleDeptGroup, setNewRoleDeptGroup] = useState<string>('')
+  const [newRoleDeptGroup, setNewRoleDeptGroup] = useState<string>('') // stores department_id
   const [newRoleLevel, setNewRoleLevel] = useState<string>('viewer')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -328,7 +335,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
         body: JSON.stringify({
           name: trimmed,
           permissions: newRolePerms,
-          dept_group: newRoleDeptGroup || null,
+          department_id: newRoleDeptGroup || null,
           level: newRoleLevel || 'viewer',
         }),
       })
@@ -337,11 +344,13 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
         setCreateError(d.error ?? '新增失敗')
         return
       }
+      const selectedDept = (deptGroups ?? []).find(dep => dep.id === newRoleDeptGroup) ?? null
       const newRole: RoleData = {
         id: d.id ?? d.role?.id ?? String(Date.now()),
         name: trimmed,
         is_system: false,
-        dept_group: d.dept_group ?? null,
+        department_id: newRoleDeptGroup || null,
+        department_name: selectedDept?.name ?? null,
         level: d.level ?? null,
         permissions: newRolePerms,
       }
@@ -429,12 +438,9 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                   className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
                 >
                   <option value="">無部門</option>
-                  <option value="admin">管理</option>
-                  <option value="tech">技師</option>
-                  <option value="purchasing">採購</option>
-                  <option value="supply_chain">供應鏈</option>
-                  <option value="engineering">工程</option>
-                  <option value="sales">業務</option>
+                  {(deptGroups ?? []).map(d => (
+                    <option key={d.id} value={d.id}>{DEPT_GROUP_LABELS[d.name] ?? d.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -648,7 +654,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                         系統
                       </span>
                     )}
-                    <DeptBadge deptGroup={role.dept_group} level={role.level} />
+                    <DeptBadge departmentName={role.department_name} level={role.level} />
                   </div>
                 )}
                 <p className="text-xs text-[#a08060] mt-0.5">
@@ -858,12 +864,18 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                   <div className="space-y-1.5">
                     {ACCOUNT_PERMS.map(key => {
                       const isCurrentUserRole = role.name === currentUserRoleName
-                      const isLocked = isCurrentUserRole
+                      const isSuperAdminCore = role.is_system && role.level === 'super_admin'
+                      const isLocked = isCurrentUserRole || isSuperAdminCore
+                      const lockTooltip = isSuperAdminCore
+                        ? '系統管理角色不可移除此權限'
+                        : isCurrentUserRole
+                        ? '當前帳號所屬角色，不可移除此權限'
+                        : undefined
                       return (
                         <label
                           key={key}
                           className={`flex items-center gap-2 select-none ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                          title={isLocked ? '當前帳號所屬角色，不可移除此權限' : undefined}
+                          title={lockTooltip}
                         >
                           <input
                             type="checkbox"
@@ -888,6 +900,17 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                   <p className="text-[10px] text-[#a08060] mb-2">
                     設定此角色在帳號管理頁可指派給他人的角色清單。
                   </p>
+                  <div className="mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
+                      disabled={isSavingPerm}
+                      className="px-2.5 py-1 text-[11px] text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
+                      title="重設可指派角色為系統預設值"
+                    >
+                      重設為預設
+                    </button>
+                  </div>
                   <div className="space-y-1.5">
                     {roles.map(r => {
                       const assignableDraft = draftAssignable[role.id]
@@ -931,14 +954,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName }: Prop
                   >
                     {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                     儲存變更
-                  </button>
-                  <button
-                    onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
-                    disabled={isSavingPerm}
-                    className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
-                    title="重設可指派角色為系統預設值"
-                  >
-                    恢復預設
                   </button>
                   <button
                     onClick={() => discardDraft(role)}

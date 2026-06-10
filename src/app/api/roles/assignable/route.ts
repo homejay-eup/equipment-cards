@@ -5,7 +5,7 @@ import { isAllowedDomain, getAssignableRolesData } from '@/lib/admin'
 // GET /api/roles/assignable
 // 回傳目前使用者可指派給別人的角色清單
 // - super_admin → 所有角色
-// - dept_admin  → 同 dept_group 且 level IN ('member','viewer') 的角色
+// - dept_admin  → 同 department 且 level IN ('member','viewer') 的角色
 // - 其他        → 空陣列
 export async function GET() {
   const supabase = createSupabaseServerClient()

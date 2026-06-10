@@ -5,11 +5,18 @@ import { requirePermission } from '@/lib/admin'
 import { createClient } from '@supabase/supabase-js'
 import DepartmentsManager from '@/components/DepartmentsManager'
 
+export interface Department {
+  id: string
+  name: string
+  created_at: string
+}
+
 export interface RoleBasic {
   id: string
   name: string
   is_system: boolean
-  dept_group: string | null
+  department_id: string | null
+  department_name: string | null
   level: string | null
 }
 
@@ -29,17 +36,36 @@ function sortByRoleOrder<T extends { name: string }>(roles: T[]): T[] {
   })
 }
 
-async function fetchRoles(): Promise<RoleBasic[]> {
-  const supabase = createClient(
+function getServiceClient() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
+}
+
+async function fetchDepartments(): Promise<Department[]> {
+  const supabase = getServiceClient()
+  try {
+    const { data, error } = await supabase
+      .from('departments')
+      .select('id, name, created_at')
+      .order('name', { ascending: true })
+
+    if (error || !data) return []
+    return data as Department[]
+  } catch {
+    return []
+  }
+}
+
+async function fetchRoles(): Promise<RoleBasic[]> {
+  const supabase = getServiceClient()
 
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, dept_group, level')
+      .select('id, name, is_system, department_id, level, departments(name)')
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -48,15 +74,22 @@ async function fetchRoles(): Promise<RoleBasic[]> {
       id: string
       name: string
       is_system: boolean
-      dept_group: string | null
+      department_id: string | null
       level: string | null
-    }) => ({
-      id: row.id,
-      name: row.name,
-      is_system: row.is_system ?? false,
-      dept_group: row.dept_group ?? null,
-      level: row.level ?? null,
-    }))
+      departments: { name: string }[] | { name: string } | null
+    }) => {
+      const deptName = Array.isArray(row.departments)
+        ? (row.departments[0]?.name ?? null)
+        : (row.departments?.name ?? null)
+      return {
+        id: row.id,
+        name: row.name,
+        is_system: row.is_system ?? false,
+        department_id: row.department_id ?? null,
+        department_name: deptName,
+        level: row.level ?? null,
+      }
+    })
     return sortByRoleOrder(mapped)
   } catch {
     return []
@@ -64,8 +97,9 @@ async function fetchRoles(): Promise<RoleBasic[]> {
 }
 
 export default async function AdminDepartmentsPage() {
-  const [user, roles] = await Promise.all([
+  const [user, departments, roles] = await Promise.all([
     requirePermission('manage_roles'),
+    fetchDepartments(),
     fetchRoles(),
   ])
 
@@ -86,7 +120,7 @@ export default async function AdminDepartmentsPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <DepartmentsManager initialRoles={roles} />
+        <DepartmentsManager initialDepartments={departments} initialRoles={roles} />
       </div>
     </main>
   )

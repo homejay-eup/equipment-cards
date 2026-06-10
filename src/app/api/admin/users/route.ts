@@ -11,8 +11,8 @@ function getSupabase() {
   )
 }
 
-// 取得目前登入者的角色資訊（level + dept_group）
-async function getCallerRoleInfo(): Promise<{ level: string; dept_group: string | null } | null> {
+// 取得目前登入者的角色資訊（level + department_id）
+async function getCallerRoleInfo(): Promise<{ level: string; department_id: string | null } | null> {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email || !isAllowedDomain(user.email)) return null
@@ -28,12 +28,12 @@ async function getCallerRoleInfo(): Promise<{ level: string; dept_group: string 
 
   const { data: roleData } = await service
     .from('roles')
-    .select('level, dept_group')
+    .select('level, department_id')
     .eq('name', emailData.role)
     .single()
 
   if (!roleData) return null
-  return roleData as { level: string; dept_group: string | null }
+  return roleData as { level: string; department_id: string | null }
 }
 
 // GET /api/admin/users
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '角色參數錯誤' }, { status: 400 })
   }
 
-  // Step 23：dept_admin 只能指派同 dept_group 且 level = member/viewer 的角色
+  // dept_admin 只能指派同 department 且 level = member/viewer 的角色
   const callerRole = await getCallerRoleInfo()
   if (!callerRole) {
     return NextResponse.json({ error: '無法驗證操作者角色' }, { status: 403 })
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   if (callerRole.level !== 'super_admin') {
     const { data: targetRoleData } = await getSupabase()
       .from('roles')
-      .select('level, dept_group')
+      .select('level, department_id')
       .eq('name', resolvedRole)
       .single()
 
@@ -84,12 +84,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '指定角色不存在' }, { status: 400 })
     }
 
-    const target = targetRoleData as { level: string; dept_group: string | null }
+    const target = targetRoleData as { level: string; department_id: string | null }
     const isDeptAdmin = callerRole.level === 'dept_admin'
-    const sameGroup = target.dept_group === callerRole.dept_group
+    const sameDept = target.department_id === callerRole.department_id
     const allowedLevel = target.level === 'member' || target.level === 'viewer'
 
-    if (!isDeptAdmin || !sameGroup || !allowedLevel) {
+    if (!isDeptAdmin || !sameDept || !allowedLevel) {
       return NextResponse.json({ error: '無權指派此角色' }, { status: 403 })
     }
   }
@@ -120,16 +120,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 
-  // Step 23：dept_admin 只能指派同 dept_group 且 level = member/viewer 的角色
+  // dept_admin 只能指派同 department 且 level = member/viewer 的角色
   const callerRole = await getCallerRoleInfo()
   if (!callerRole) {
     return NextResponse.json({ error: '無法驗證操作者角色' }, { status: 403 })
   }
   if (callerRole.level !== 'super_admin') {
-    // 非 super_admin → 查目標角色的 level + dept_group
+    // 非 super_admin → 查目標角色的 level + department_id
     const { data: targetRoleData } = await getSupabase()
       .from('roles')
-      .select('level, dept_group')
+      .select('level, department_id')
       .eq('name', role)
       .single()
 
@@ -137,12 +137,12 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: '指定角色不存在' }, { status: 400 })
     }
 
-    const target = targetRoleData as { level: string; dept_group: string | null }
+    const target = targetRoleData as { level: string; department_id: string | null }
     const isDeptAdmin = callerRole.level === 'dept_admin'
-    const sameGroup = target.dept_group === callerRole.dept_group
+    const sameDept = target.department_id === callerRole.department_id
     const allowedLevel = target.level === 'member' || target.level === 'viewer'
 
-    if (!isDeptAdmin || !sameGroup || !allowedLevel) {
+    if (!isDeptAdmin || !sameDept || !allowedLevel) {
       return NextResponse.json({ error: '無權指派此角色' }, { status: 403 })
     }
   }

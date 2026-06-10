@@ -12,7 +12,8 @@ function getSupabase() {
 
 const VALID_PERMISSION_KEYS = [
   'read_all_cards', 'read_active_only', 'read_documents', 'read_notes', 'read_vendor',
-  'read_updated_by', 'read_updated_content', 'use_bookmarks', 'filter_all_statuses', 'filter_no_photo',
+  'read_updated_by', 'read_updated_content', 'read_tags', 'read_weight', 'read_created_at',
+  'use_bookmarks', 'filter_all_statuses', 'filter_no_photo',
   'create_delete_cards',
   'edit_card_equipment_id', 'edit_card_name', 'edit_card_category', 'edit_card_status',
   'edit_card_vendor', 'edit_card_tags', 'edit_card_notes', 'edit_card_weight',
@@ -79,15 +80,25 @@ export async function PUT(
 
   const supabase = getSupabase()
 
-  // 確認角色存在
+  // 確認角色存在，同時取出 is_system 與 level
   const { data: role, error: fetchError } = await supabase
     .from('roles')
-    .select('id')
+    .select('id, is_system, level')
     .eq('id', id)
     .single()
 
   if (fetchError || !role) {
     return NextResponse.json({ error: '找不到角色' }, { status: 404 })
+  }
+
+  // super_admin 系統角色的核心權限必須保留
+  if (role.is_system === true && role.level === 'super_admin') {
+    const corePermissions = ['manage_roles', 'manage_users']
+    for (const perm of corePermissions) {
+      if (!finalPermissions.includes(perm)) {
+        finalPermissions.push(perm)
+      }
+    }
   }
 
   // 覆寫：先刪除再插入
