@@ -453,10 +453,10 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   disabled={creating}
                   className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
                 >
-                  <option value="viewer">一般檢視</option>
-                  <option value="member">部門成員</option>
+                  <option value="viewer">一般</option>
+                  <option value="member">成員</option>
                   <option value="dept_admin">部門管理員</option>
-                  <option value="super_admin">超級管理員</option>
+                  <option value="super_admin">管理員</option>
                 </select>
               </div>
             </div>
