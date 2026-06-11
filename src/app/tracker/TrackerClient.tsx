@@ -393,7 +393,7 @@ export default function TrackerClient({
           return (
             <div
               key={col.key}
-              className={`bg-[#c8b49a] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.16)]'}`}
+              className={`bg-[#ede5db] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.20)]'}`}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
@@ -460,7 +460,7 @@ export default function TrackerClient({
                                 }
                               }
                             }}
-                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[#faf6f0] border-[rgba(122,82,48,.12)] opacity-60 hover:opacity-90 ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-white border-[rgba(122,82,48,.12)] opacity-50 hover:opacity-80 ${draggingId === issue.id ? 'opacity-40 cursor-grabbing' : ''}`}
                           >
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
@@ -516,7 +516,7 @@ export default function TrackerClient({
                                 }
                               }
                             }}
-                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-[#faf6f0] border-[rgba(122,82,48,.12)] hover:border-[rgba(122,82,48,.35)] hover:shadow-[2px_2px_0_rgba(122,82,48,.1)] hover:-translate-x-px hover:-translate-y-px ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
+                            className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all cursor-pointer group bg-white border-[rgba(122,82,48,.15)] hover:border-[rgba(122,82,48,.40)] hover:shadow-[0_2px_8px_rgba(122,82,48,.12)] hover:-translate-y-px ${draggingId === issue.id ? 'opacity-50 cursor-grabbing' : ''}`}
                           >
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
