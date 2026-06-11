@@ -19,8 +19,6 @@ const ADMIN_PERMISSIONS = [
 ]
 const VIEWER_PERMISSIONS = [
   'read_active_only',
-  'read_documents', 'read_notes', 'read_vendor',
-  'use_bookmarks', 'use_groups',
 ]
 
 const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.com.vn']

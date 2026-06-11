@@ -19,8 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 查詢 caller 的 level + department_id，用於 dept 隔離
-  let callerLevel: string | null = null
+  // 查詢 caller 的 department_id，用於部門隔離
   let callerDepartmentId: string | null = null
   try {
     const service = getSupabase()
@@ -32,18 +31,17 @@ export async function GET(req: NextRequest) {
     if (emailRow?.role) {
       const { data: roleRow } = await service
         .from('roles')
-        .select('level, department_id')
+        .select('department_id')
         .eq('name', emailRow.role)
         .single()
-      callerLevel = roleRow?.level ?? null
-      callerDepartmentId = (roleRow as { level: string | null; department_id: string | null } | null)?.department_id ?? null
+      callerDepartmentId = (roleRow as { department_id: string | null } | null)?.department_id ?? null
     }
   } catch {
     // 查詢失敗不阻斷，後面的 null 保護會回傳空陣列
   }
 
-  // 非 super_admin 且 department_id 為 null → 無部門歸屬，直接回空
-  if (callerLevel !== 'super_admin' && callerDepartmentId === null) {
+  // 無部門歸屬（含管理員未設部門）→ 直接回空
+  if (callerDepartmentId === null) {
     return NextResponse.json([])
   }
 
@@ -66,10 +64,8 @@ export async function GET(req: NextRequest) {
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
 
-    // 非 super_admin 依 department_id 過濾（super_admin 看全部）
-    if (callerLevel !== 'super_admin' && callerDepartmentId !== null) {
-      query = query.eq('department_id', callerDepartmentId)
-    }
+    // 所有角色一律依 department_id 過濾
+    query = query.eq('department_id', callerDepartmentId)
 
     if (type) query = query.eq('type', type)
     if (status) query = query.eq('status', status)

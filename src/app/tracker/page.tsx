@@ -66,24 +66,23 @@ export default async function TrackerPage() {
   const { permissions } = roleData
   const userRoleName = (userRoleResult as { data: { role: string } | null }).data?.role ?? null
 
-  // 第二批：依 role 名稱查 department_id、assignable_role_names、level
+  // 第二批：依 role 名稱查 department_id、assignable_role_names
   const roleInfoResult = userRoleName
     ? await adminClient
         .from('roles')
-        .select('department_id, assignable_role_names, level')
+        .select('department_id, assignable_role_names')
         .eq('name', userRoleName)
         .single()
     : { data: null }
 
-  type RoleInfo = { department_id: string | null; assignable_role_names: string[] | null; level?: string }
+  type RoleInfo = { department_id: string | null; assignable_role_names: string[] | null }
   const roleInfoData = (roleInfoResult as { data: RoleInfo | null }).data
   const userDepartmentId = roleInfoData?.department_id ?? null
   const assignableRoleNames = roleInfoData?.assignable_role_names ?? null
-  const callerLevel = roleInfoData?.level ?? null
 
-  // 第三批：依 department_id / level 篩選 issues
-  // super_admin → 看全部，不加 department_id 過濾
-  // 其他 → null department_id 回傳空清單，有 department_id 只看同部門
+  // 第三批：依 department_id 篩選 issues
+  // 所有角色（含管理員）一律只看自己部門的議題
+  // department_id === null → 回空清單（無部門歸屬）
   type RawIssue = {
     id: string
     title: string
@@ -109,16 +108,8 @@ export default async function TrackerPage() {
   `
 
   let rawIssues: RawIssue[] = []
-  if (callerLevel === 'super_admin') {
-    // super_admin 看全部部門的議題
-    const issuesResult = await adminClient
-      .from('issues')
-      .select(issueSelectQuery)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .order('created_at', { referencedTable: 'issue_updates', ascending: false })
-    rawIssues = (issuesResult.data ?? []) as RawIssue[]
-  } else if (userDepartmentId !== null) {
+  if (userDepartmentId !== null) {
+    // 所有角色（含管理員）一律只看自己部門的議題
     const issuesResult = await adminClient
       .from('issues')
       .select(issueSelectQuery)
@@ -128,7 +119,7 @@ export default async function TrackerPage() {
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
     rawIssues = (issuesResult.data ?? []) as RawIssue[]
   }
-  // else：userDepartmentId === null 且非 super_admin → rawIssues = []（不可見）
+  // userDepartmentId === null → rawIssues = []（無部門歸屬，不可見）
 
   const issues: Issue[] = rawIssues.map((raw: RawIssue) => {
     const emails = (raw.issue_assignees ?? []).map((a) => a.user_email)
