@@ -120,6 +120,11 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 
+  const { data: { user: callerUser } } = await createSupabaseServerClient().auth.getUser()
+  if (callerUser?.email?.toLowerCase() === email) {
+    return NextResponse.json({ error: '不可修改自己的角色' }, { status: 403 })
+  }
+
   // dept_admin 只能指派同 department 且 level = member/viewer 的角色
   const callerRole = await getCallerRoleInfo()
   if (!callerRole) {
@@ -164,6 +169,11 @@ export async function DELETE(req: NextRequest) {
 
   const { email } = await req.json()
   if (!email) return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
+
+  const { data: { user: callerUser } } = await createSupabaseServerClient().auth.getUser()
+  if (callerUser?.email?.toLowerCase() === email.toLowerCase()) {
+    return NextResponse.json({ error: '不可刪除自己的帳號' }, { status: 403 })
+  }
 
   const { error } = await getSupabase()
     .from('allowed_emails')

@@ -108,16 +108,24 @@ export default async function TrackerPage() {
   `
 
   let rawIssues: RawIssue[] = []
+  let deptRoleNames: string[] | null = null
   if (userDepartmentId !== null) {
-    // 所有角色（含管理員）一律只看自己部門的議題
-    const issuesResult = await adminClient
-      .from('issues')
-      .select(issueSelectQuery)
-      .eq('department_id', userDepartmentId)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .order('created_at', { referencedTable: 'issue_updates', ascending: false })
+    // 平行：議題查詢 + 同部門角色名稱（供 allowedEmails 部門過濾）
+    const [issuesResult, deptRolesResult] = await Promise.all([
+      adminClient
+        .from('issues')
+        .select(issueSelectQuery)
+        .eq('department_id', userDepartmentId)
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .order('created_at', { referencedTable: 'issue_updates', ascending: false }),
+      adminClient
+        .from('roles')
+        .select('name')
+        .eq('department_id', userDepartmentId),
+    ])
     rawIssues = (issuesResult.data ?? []) as RawIssue[]
+    deptRoleNames = (deptRolesResult.data ?? []).map((r: { name: string }) => r.name)
   }
   // userDepartmentId === null → rawIssues = []（無部門歸屬，不可見）
 
@@ -146,7 +154,9 @@ export default async function TrackerPage() {
   const filteredUsers =
     assignableRoleNames && assignableRoleNames.length > 0
       ? rawUsers.filter((u) => assignableRoleNames.includes(u.role))
-      : rawUsers
+      : deptRoleNames && deptRoleNames.length > 0
+        ? rawUsers.filter((u) => deptRoleNames!.includes(u.role))
+        : rawUsers
   const allowedEmails = filteredUsers.map((u) => u.email)
 
   return (

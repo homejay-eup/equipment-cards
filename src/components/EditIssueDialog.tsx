@@ -352,7 +352,6 @@ export default function EditIssueDialog({
           <button
             type="button"
             onClick={() => handleSubmit()}
-            disabled={!title.trim() || !type}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
           >
             <Save className="h-3.5 w-3.5" />
