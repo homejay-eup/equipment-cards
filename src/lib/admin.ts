@@ -21,7 +21,7 @@ const VIEWER_PERMISSIONS = [
   'read_active_only',
 ]
 
-const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.com.vn']
+const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.net.vn']
 
 export function isAllowedDomain(email: string): boolean {
   const domain = email.split('@')[1]
