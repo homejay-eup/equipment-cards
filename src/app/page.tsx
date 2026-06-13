@@ -91,6 +91,26 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
   return (groups ?? []) as UserGroup[]
 }
 
+async function getSubfilterConfig(): Promise<Record<string, string[]>> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+
+  const { data } = await supabase
+    .from('category_subfilter_tags')
+    .select('category, tag, sort_order')
+    .order('sort_order', { ascending: true })
+
+  const result: Record<string, string[]> = {}
+  for (const row of (data ?? []) as { category: string; tag: string; sort_order: number }[]) {
+    if (!result[row.category]) result[row.category] = []
+    result[row.category].push(row.tag)
+  }
+  return result
+}
+
 async function getTrackerData(userEmail: string): Promise<{
   initialIssues: Issue[]
   allowedEmails: string[]
@@ -156,12 +176,13 @@ export default async function HomePage() {
 
   if (!user) redirect('/login')
 
-  const [cards, roleData, settings, initialGroups, initialBookmarkNotes] = await Promise.all([
+  const [cards, roleData, settings, initialGroups, initialBookmarkNotes, subfilterConfig] = await Promise.all([
     getEquipmentCards(),
     getUserRoleWithPermissions(),
     getSettings(),
     getUserGroups(user.id),
     getUserBookmarkNotes(user.id),
+    getSubfilterConfig(),
   ])
 
   const { permissions, roleName } = roleData
@@ -193,6 +214,7 @@ export default async function HomePage() {
           permissions={permissions}
           userRole={roleName}
           trackerData={trackerData ?? undefined}
+          subfilterConfig={subfilterConfig}
         />
       </Suspense>
     </main>

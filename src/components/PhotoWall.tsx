@@ -13,6 +13,7 @@ import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
+import SubfilterTagBar from '@/components/SubfilterTagBar'
 import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
@@ -34,6 +35,7 @@ interface Props {
   permissions?: string[]
   userRole?: string
   trackerData?: TrackerData
+  subfilterConfig?: Record<string, string[]>
 }
 
 const SORT_OPTIONS = [
@@ -42,12 +44,14 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
   const canManage   = permissions.includes('manage_users')
   const canEditCard = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
+
+  const [localSubfilterConfig, setLocalSubfilterConfig] = useState<Record<string, string[]>>(subfilterConfig ?? {})
 
   const activeStatus = settings.statuses[0] ?? '現役'
 
@@ -56,6 +60,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     const cat = searchParams.get('cat')
     return cat ? new Set(cat.split(',').filter(Boolean)) : new Set()
   })
+  const [selectedSubTags, setSelectedSubTags] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(() => {
     const s = searchParams.get('status')
     return s ? new Set(s.split(',').filter(Boolean)) : new Set()
@@ -197,6 +202,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     if (selectedStatuses.size > 0) result = result.filter(c => selectedStatuses.has(c.status ?? ''))
     if (isNewFilter)               result = result.filter(c => c.is_new)
     if (noPhotoFilter)             result = result.filter(c => !c.main_photo)
+    if (selectedSubTags.length > 0) {
+      result = result.filter(card =>
+        card.tags?.some(t => selectedSubTags.includes(t))
+      )
+    }
 
     if (!q) {
       result.sort((a, b) => {
@@ -212,7 +222,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       })
     }
     return result
-  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse])
+  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse, selectedSubTags])
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter)
 
@@ -224,6 +234,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       else next.add(cat)
       return next
     })
+    setSelectedSubTags([])
   }
 
   function toggleStatus(s: string) {
@@ -713,6 +724,24 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               </button>
             )}
           </div>
+          {/* 次級篩選列：單一分類選中且有設定 subfilterConfig 才顯示 */}
+          {selectedCats.size === 1 &&
+            localSubfilterConfig[Array.from(selectedCats)[0]]?.length > 0 && (
+            <div className="pb-2">
+              <SubfilterTagBar
+                category={Array.from(selectedCats)[0]}
+                tags={localSubfilterConfig[Array.from(selectedCats)[0]]}
+                selectedTags={selectedSubTags}
+                onTagToggle={(tag) => setSelectedSubTags(prev =>
+                  prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                )}
+                canManage={permissions.includes('manage_subfilter_tags')}
+                onTagsUpdated={(cat, newTags) => {
+                  setLocalSubfilterConfig(prev => ({ ...prev, [cat]: newTags }))
+                }}
+              />
+            </div>
+          )}
           </div>
         </div>
       </div>
