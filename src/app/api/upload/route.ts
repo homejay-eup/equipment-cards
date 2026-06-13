@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/admin'
 
 function getCloudinary() {
   cloudinary.config({
@@ -19,18 +19,12 @@ function getSupabase() {
   )
 }
 
-async function requireAuth() {
-  const client = createSupabaseServerClient()
-  const { data: { user } } = await client.auth.getUser()
-  return user
-}
-
 // ── POST /api/upload ──────────────────────────────────────────
 // Body: { equipment_id: string, type: 'main' | 'detail' }
 // 回傳簽名參數，前端直接 POST 到 Cloudinary（避免檔案經過 Vercel）
 export async function POST(req: NextRequest) {
-  if (!await requireAuth()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requirePermission('create_delete_cards')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {
     const { equipment_id, type } = await req.json()
@@ -81,8 +75,8 @@ export async function POST(req: NextRequest) {
 //   url: string,
 // }
 export async function PATCH(req: NextRequest) {
-  if (!await requireAuth()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requirePermission('create_delete_cards')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {
     const { equipment_id, type, public_id, url } = await req.json()

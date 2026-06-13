@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { requirePermission } from '@/lib/admin'
 
 function getCloudinary() {
   cloudinary.config({
@@ -19,12 +19,6 @@ function getSupabase() {
   )
 }
 
-async function requireAuth() {
-  const client = createSupabaseServerClient()
-  const { data: { user } } = await client.auth.getUser()
-  return user
-}
-
 // ── DELETE /api/upload/[id] ───────────────────────────────────
 // [id] = URL-encoded Cloudinary public_id
 //        e.g. equipment-cards%2F1000003_main
@@ -37,8 +31,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  if (!await requireAuth()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requirePermission('create_delete_cards')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {
     const public_id     = decodeURIComponent(params.id)
