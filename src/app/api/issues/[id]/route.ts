@@ -194,7 +194,7 @@ export async function PATCH(
 
 // ── DELETE /api/issues/[id] ───────────────────────────────────
 // 刪除議題（前端需通過 ConfirmDialog 確認後才呼叫）
-// 權限：本人（created_by = 當前 email）或有 crud_cards 權限
+// 權限：僅建立者（created_by = 當前 email）
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } },
@@ -219,9 +219,8 @@ export async function DELETE(
     }
 
     const isAuthor = issue.created_by === user.email
-    const hasCrudCards = await requirePermission('crud_cards')
 
-    if (!isAuthor && !hasCrudCards) {
+    if (!isAuthor) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
