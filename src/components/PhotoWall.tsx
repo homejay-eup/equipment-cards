@@ -880,33 +880,35 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             </div>
           )}
 
-          {/* 批次選取 + 批次匯入 + 新增料卡 */}
-          <div className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40 transition-all duration-200`}>
-            <button
-              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-              title={selectMode ? '取消選取' : '批次選取'}
-              className={`flex items-center gap-2 font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
-                selectMode
-                  ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
-                  : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
-              }`}
-            >
-              <CheckSquare className="h-5 w-5" />
-              <span className="hidden sm:inline">{selectMode ? '取消選取' : '批次選取'}</span>
-            </button>
-            <button onClick={() => setImportOpen(true)}
-              title="批次匯入"
-              className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
-              <FileUp className="h-5 w-5" />
-              <span className="hidden sm:inline">批次匯入</span>
-            </button>
-            <button onClick={openCreate}
-              title="新增料卡"
-              className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
-              <Plus className="h-5 w-5" />
-              <span className="hidden sm:inline">新增料卡</span>
-            </button>
-          </div>
+          {/* 批次選取 + 批次匯入 + 新增料卡（僅限有 CRUD 權限者） */}
+          {canEditCard && (
+            <div className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40 transition-all duration-200`}>
+              <button
+                onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+                title={selectMode ? '取消選取' : '批次選取'}
+                className={`flex items-center gap-2 font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
+                  selectMode
+                    ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
+                    : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
+                }`}
+              >
+                <CheckSquare className="h-5 w-5" />
+                <span className="hidden sm:inline">{selectMode ? '取消選取' : '批次選取'}</span>
+              </button>
+              <button onClick={() => setImportOpen(true)}
+                title="批次匯入"
+                className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
+                <FileUp className="h-5 w-5" />
+                <span className="hidden sm:inline">批次匯入</span>
+              </button>
+              <button onClick={openCreate}
+                title="新增料卡"
+                className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
+                <Plus className="h-5 w-5" />
+                <span className="hidden sm:inline">新增料卡</span>
+              </button>
+            </div>
+          )}
 
           <CardFormDialog
             mode={formMode}

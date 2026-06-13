@@ -358,7 +358,7 @@ export default function NewIssueDialog({
           <button
             type="button"
             onClick={() => handleSubmit()}
-            disabled={submitting || !title.trim() || !type}
+            disabled={submitting}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
