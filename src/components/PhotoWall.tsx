@@ -724,9 +724,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               </button>
             )}
           </div>
-          {/* 次級篩選列：單一分類選中且有設定 subfilterConfig 才顯示 */}
+          {/* 次級篩選列：單一分類選中時，有標籤設定或管理員才顯示 */}
           {selectedCats.size === 1 &&
-            localSubfilterConfig[Array.from(selectedCats)[0]]?.length > 0 && (
+            (localSubfilterConfig[Array.from(selectedCats)[0]]?.length > 0 ||
+              permissions.includes('manage_subfilter_tags')) && (
             <div className="pb-2">
               <SubfilterTagBar
                 category={Array.from(selectedCats)[0]}
