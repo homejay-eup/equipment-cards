@@ -731,7 +731,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             <div className="pb-2">
               <SubfilterTagBar
                 category={Array.from(selectedCats)[0]}
-                tags={localSubfilterConfig[Array.from(selectedCats)[0]]}
+                tags={localSubfilterConfig[Array.from(selectedCats)[0]] ?? []}
                 selectedTags={selectedSubTags}
                 onTagToggle={(tag) => setSelectedSubTags(prev =>
                   prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
