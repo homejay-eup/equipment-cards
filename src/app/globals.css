@@ -53,6 +53,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  input[type="date"] {
+    accent-color: #7a5230;
+  }
 }
 
 @layer utilities {
