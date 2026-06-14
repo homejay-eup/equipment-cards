@@ -83,18 +83,21 @@ export default function IssueDetailDialog({
         const res = await fetch(`/api/issues/${issue.id}`)
         if (res.ok) {
           const data = await res.json()
-          setUpdates(data.issue_updates ?? [])
+          const freshUpdates = data.issue_updates ?? []
+          setUpdates(freshUpdates)
           const emails: string[] = (data.issue_assignees ?? []).map(
             (a: { user_email: string }) => a.user_email,
           )
-          setLocalIssue({
+          const updatedIssue = {
             ...issue,
             ...data,
-            issue_updates: undefined,
+            issue_updates: freshUpdates,
             issue_assignees: undefined,
             assignee_emails: emails,
             assignees: emails.map((e: string) => e.split('@')[0]),
-          })
+          }
+          setLocalIssue({ ...updatedIssue, issue_updates: undefined })
+          onUpdated(updatedIssue)
         }
       } catch {
         // silent
