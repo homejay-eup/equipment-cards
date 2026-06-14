@@ -232,6 +232,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse, selectedSubTags])
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter || selectedSubTags.length > 0)
+  const activeFilterCount = selectedCats.size + selectedStatuses.size + selectedSubTags.length + (isNewFilter ? 1 : 0) + (noPhotoFilter ? 1 : 0)
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); setSelectedSubTags([]); return }
@@ -574,14 +575,17 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
               {/* 手機篩選切換按鈕 */}
               <button
                 onClick={() => setShowFilters(v => !v)}
-                className={`md:hidden relative flex items-center justify-center w-9 h-9 border rounded-md bg-white transition-colors focus:outline-none ${
+                className={`md:hidden flex items-center gap-1.5 h-9 px-2.5 border rounded-md bg-white transition-colors focus:outline-none ${
                   showFilters || hasActiveFilters
                     ? 'border-[#c49a72] text-[#7a5230] glow-wood'
                     : 'border-[#e8ddd0] text-[#a08060] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}
-                title="篩選"
               >
                 <SlidersHorizontal className="h-4 w-4" />
+                <span className="text-sm">篩選</span>
+                {activeFilterCount > 0 && (
+                  <span className="bg-[#7a5230] text-white text-xs rounded-full px-1.5 leading-5 min-w-[20px] text-center">{activeFilterCount}</span>
+                )}
               </button>
               {/* 自訂排序下拉 */}
               <div ref={sortRef} className="relative">
@@ -622,134 +626,180 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
             </div>
           </div>
 
-          {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
-          <div className={`${showFilters ? 'flex' : 'hidden'} md:flex gap-2 flex-wrap items-center pb-1`}>
-            {categories.map(cat => {
-              const isActive = cat === '全部' ? selectedCats.size === 0 : selectedCats.has(cat)
-              return (
+          {/* 手機版：收合時顯示已選條件 chips */}
+          {!showFilters && hasActiveFilters && (
+            <div className="md:hidden flex flex-wrap gap-1.5 pb-1">
+              {Array.from(selectedCats).map(cat => (
                 <button key={cat} onClick={() => toggleCat(cat)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                  }`}>
-                  {cat}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+                  {cat}<X className="h-3 w-3" />
                 </button>
-              )
-            })}
-            {/* 孤兒分類 */}
-            {orphanCategories.map(cat => {
-              const isActive = selectedCats.has(cat)
-              const count = initialCards.filter(c => c.category === cat).length
-              return (
-                <button
-                  key={cat}
-                  onClick={() => toggleCat(cat)}
-                  title={`此分類已從清單移除，仍有 ${count} 張料卡使用此值`}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
-                      : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
-                  }`}
-                >
-                  <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                  {cat}
-                  <span className="opacity-70">({count})</span>
+              ))}
+              {Array.from(selectedStatuses).map(s => (
+                <button key={s} onClick={() => toggleStatus(s)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+                  {s}<X className="h-3 w-3" />
                 </button>
-              )
-            })}
-            {permissions.includes('filter_all_statuses') && (
-              <>
-                <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
-                {statusOptions.map(opt => {
-                  const isActive = opt.value === 'all' ? selectedStatuses.size === 0 : selectedStatuses.has(opt.value)
-                  return (
-                    <button key={opt.value} onClick={() => toggleStatus(opt.value)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                        isActive
-                          ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                          : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                      }`}>
-                      {opt.label}
-                    </button>
-                  )
-                })}
-                {/* 孤兒狀態：已從清單移除但仍有料卡使用 */}
-                {orphanStatuses.length > 0 && (
-                  <>
-                    <span className="w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
-                    {orphanStatuses.map(s => {
-                      const isActive = selectedStatuses.has(s)
-                      const count = initialCards.filter(c => c.status === s).length
-                      return (
-                        <button
-                          key={s}
-                          onClick={() => toggleStatus(s)}
-                          title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
-                            isActive
-                              ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
-                              : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
-                          }`}
-                        >
-                          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                          {s}
-                          <span className="opacity-70">({count})</span>
-                        </button>
-                      )
-                    })}
-                  </>
-                )}
-              </>
-            )}
-            <span className="w-px h-5 bg-[#e8ddd0] mx-1" />
-            <button onClick={() => setIsNewFilter(v => !v)}
-              className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-all duration-200 ${
-                isNewFilter
-                  ? 'bg-[#b5451b] text-white border-[#b5451b] shadow-[0_0_10px_rgba(181,69,27,.5),0_0_20px_rgba(181,69,27,.18)]'
-                  : 'bg-white text-[#b5451b] border-[rgba(181,69,27,.35)] hover:border-[#b5451b] hover:shadow-[0_0_8px_rgba(181,69,27,.3)]'
-              }`}>
-              NEW
-            </button>
-            {permissions.includes('filter_no_photo') && (
-              <button
-                onClick={() => setNoPhotoFilter(v => !v)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  noPhotoFilter
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
-                }`}
-              >
-                無主圖
-              </button>
-            )}
-            {hasActiveFilters && (
+              ))}
+              {selectedSubTags.map(tag => (
+                <button key={tag}
+                  onClick={() => setSelectedSubTags(prev => prev.filter(t => t !== tag))}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+                  {tag}<X className="h-3 w-3" />
+                </button>
+              ))}
+              {isNewFilter && (
+                <button onClick={() => setIsNewFilter(false)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-[rgba(181,69,27,.1)] text-[#b5451b] border border-[rgba(181,69,27,.35)]">
+                  NEW<X className="h-3 w-3" />
+                </button>
+              )}
+              {noPhotoFilter && (
+                <button onClick={() => setNoPhotoFilter(false)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+                  無主圖<X className="h-3 w-3" />
+                </button>
+              )}
               <button onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-[#a08060] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.18)] transition-all duration-200">
-                <X className="h-3 w-3" />
-                清除篩選
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-[#a08060] border border-[#e8ddd0] hover:text-[#7a5230]">
+                <X className="h-3 w-3" />清除篩選
               </button>
-            )}
-          </div>
-          {/* 次級篩選列：單一分類選中時，有標籤設定或管理員才顯示 */}
-          {selectedCats.size === 1 &&
-            (localSubfilterConfig[Array.from(selectedCats)[0]]?.length > 0 ||
-              permissions.includes('manage_subfilter_tags')) && (
-            <div className="pb-2">
-              <SubfilterTagBar
-                category={Array.from(selectedCats)[0]}
-                tags={localSubfilterConfig[Array.from(selectedCats)[0]] ?? []}
-                selectedTags={selectedSubTags}
-                onTagToggle={(tag) => setSelectedSubTags(prev =>
-                  prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-                )}
-                canManage={permissions.includes('manage_subfilter_tags')}
-                onTagsUpdated={(cat, newTags) => {
-                  setLocalSubfilterConfig(prev => ({ ...prev, [cat]: newTags }))
-                }}
-              />
             </div>
           )}
+
+          {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
+          <div className={`${showFilters ? 'block' : 'hidden'} md:block pb-1`}>
+            {/* 類別 */}
+            <div className="flex flex-wrap gap-2 items-center mb-2">
+              <span className="block md:hidden text-xs font-medium text-[#a08060] mr-1">類別</span>
+              {categories.map(cat => {
+                const isActive = cat === '全部' ? selectedCats.size === 0 : selectedCats.has(cat)
+                return (
+                  <button key={cat} onClick={() => toggleCat(cat)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                      isActive
+                        ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                        : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                    }`}>
+                    {cat}
+                  </button>
+                )
+              })}
+              {orphanCategories.map(cat => {
+                const isActive = selectedCats.has(cat)
+                const count = initialCards.filter(c => c.category === cat).length
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCat(cat)}
+                    title={`此分類已從清單移除，仍有 ${count} 張料卡使用此值`}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                      isActive
+                        ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                        : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                    }`}
+                  >
+                    <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                    {cat}
+                    <span className="opacity-70">({count})</span>
+                  </button>
+                )
+              })}
+            </div>
+            {/* 次級篩選：緊接在類別下方 */}
+            {selectedCats.size === 1 &&
+              (localSubfilterConfig[Array.from(selectedCats)[0]]?.length > 0 ||
+                permissions.includes('manage_subfilter_tags')) && (
+              <div className="mb-2">
+                <SubfilterTagBar
+                  category={Array.from(selectedCats)[0]}
+                  tags={localSubfilterConfig[Array.from(selectedCats)[0]] ?? []}
+                  selectedTags={selectedSubTags}
+                  onTagToggle={(tag) => setSelectedSubTags(prev =>
+                    prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                  )}
+                  canManage={permissions.includes('manage_subfilter_tags')}
+                  onTagsUpdated={(cat, newTags) => {
+                    setLocalSubfilterConfig(prev => ({ ...prev, [cat]: newTags }))
+                  }}
+                />
+              </div>
+            )}
+            {/* 狀態 + 其他篩選 */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="block md:hidden text-xs font-medium text-[#a08060] mr-1">狀態</span>
+              {permissions.includes('filter_all_statuses') && (
+                <>
+                  {statusOptions.map(opt => {
+                    const isActive = opt.value === 'all' ? selectedStatuses.size === 0 : selectedStatuses.has(opt.value)
+                    return (
+                      <button key={opt.value} onClick={() => toggleStatus(opt.value)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                          isActive
+                            ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                            : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                        }`}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                  {orphanStatuses.length > 0 && (
+                    <>
+                      <span className="hidden md:inline-block w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
+                      {orphanStatuses.map(s => {
+                        const isActive = selectedStatuses.has(s)
+                        const count = initialCards.filter(c => c.status === s).length
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => toggleStatus(s)}
+                            title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                              isActive
+                                ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                                : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                            }`}
+                          >
+                            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                            {s}
+                            <span className="opacity-70">({count})</span>
+                          </button>
+                        )
+                      })}
+                    </>
+                  )}
+                </>
+              )}
+              <span className="hidden md:inline-block w-px h-5 bg-[#e8ddd0] mx-1" />
+              <button onClick={() => setIsNewFilter(v => !v)}
+                className={`badge-new-pulse px-3 py-1.5 rounded-full text-sm font-bold tracking-widest border transition-all duration-200 ${
+                  isNewFilter
+                    ? 'bg-[#b5451b] text-white border-[#b5451b] shadow-[0_0_10px_rgba(181,69,27,.5),0_0_20px_rgba(181,69,27,.18)]'
+                    : 'bg-white text-[#b5451b] border-[rgba(181,69,27,.35)] hover:border-[#b5451b] hover:shadow-[0_0_8px_rgba(181,69,27,.3)]'
+                }`}>
+                NEW
+              </button>
+              {permissions.includes('filter_no_photo') && (
+                <button
+                  onClick={() => setNoPhotoFilter(v => !v)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                    noPhotoFilter
+                      ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                  }`}
+                >
+                  無主圖
+                </button>
+              )}
+              {hasActiveFilters && (
+                <button onClick={clearFilters}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm text-[#a08060] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.18)] transition-all duration-200">
+                  <X className="h-3 w-3" />
+                  清除篩選
+                </button>
+              )}
+            </div>
+          </div>
           </div>
         </div>
       </div>
