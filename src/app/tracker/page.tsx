@@ -150,9 +150,9 @@ export default async function TrackerPage() {
   })
 
   const rawUsers = (usersResult.data ?? []) as { email: string; role: string }[]
-  const filteredUsers = deptRoleNames && deptRoleNames.length > 0
+  const filteredUsers = deptRoleNames !== null && deptRoleNames.length > 0
     ? rawUsers.filter((u) => deptRoleNames!.includes(u.role))
-    : rawUsers
+    : []
   const allowedEmails = filteredUsers.map((u) => u.email)
 
   return (
