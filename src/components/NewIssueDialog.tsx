@@ -233,7 +233,7 @@ export default function NewIssueDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="任務說明（選填）"
-              rows={3}
+              rows={5}
               disabled={submitting}
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all resize-none"
             />
@@ -268,7 +268,7 @@ export default function NewIssueDialog({
               placeholder="搜尋成員…"
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all mb-1.5"
             />
-            <div className="max-h-28 overflow-y-auto border border-[rgba(122,82,48,.1)] rounded-lg bg-white divide-y divide-[rgba(122,82,48,.06)]">
+            <div className="max-h-56 overflow-y-auto border border-[rgba(122,82,48,.1)] rounded-lg bg-white divide-y divide-[rgba(122,82,48,.06)]">
               {filteredEmails.length === 0 && (
                 <p className="text-xs text-[#c0a882] px-3 py-2">無符合成員</p>
               )}

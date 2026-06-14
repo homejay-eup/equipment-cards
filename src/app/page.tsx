@@ -130,7 +130,8 @@ async function getTrackerData(userEmail: string): Promise<{
       .select(`
         id, title, type, priority, status, due_date, description, tags,
         created_by, created_at, updated_at,
-        issue_assignees(user_email)
+        issue_assignees(user_email),
+        issue_updates(id, content, created_by, created_at)
       `)
       .order('created_at', { ascending: false }),
     supabase
@@ -151,6 +152,7 @@ async function getTrackerData(userEmail: string): Promise<{
       issue_assignees: undefined,
       assignee_emails: emails,
       assignees: emails.map((e) => e.split('@')[0]),
+      issue_updates: (issue.issue_updates ?? []) as Issue['issue_updates'],
     }
   })
 
