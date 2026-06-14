@@ -17,6 +17,7 @@ interface RoleData {
   department_id: string | null
   department_name: string | null
   level: string | null
+  sort_order?: number
   permissions: string[]
   assignable_role_names: string[] | null
   custom_default_permissions: string[] | null
@@ -28,6 +29,7 @@ const ROLE_ORDER = [
   '供應鏈', '採購', '工程', '業務', '技師', '一般使用者',
 ]
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function sortByRoleOrder<T extends { name: string }>(roles: T[]): T[] {
   return [...roles].sort((a, b) => {
     const ai = ROLE_ORDER.indexOf(a.name)
@@ -68,7 +70,8 @@ async function fetchRoles(): Promise<RoleData[]> {
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, department_id, level, assignable_role_names, custom_default_permissions, custom_default_assignable_role_names, departments(name), role_permissions(permission_key)')
+      .select('id, name, is_system, department_id, level, sort_order, assignable_role_names, custom_default_permissions, custom_default_assignable_role_names, departments(name), role_permissions(permission_key)')
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -79,6 +82,7 @@ async function fetchRoles(): Promise<RoleData[]> {
       is_system: boolean
       department_id: string | null
       level: string | null
+      sort_order: number | null
       assignable_role_names: string[] | null
       custom_default_permissions: string[] | null
       custom_default_assignable_role_names: string[] | null
@@ -95,13 +99,14 @@ async function fetchRoles(): Promise<RoleData[]> {
         department_id: row.department_id ?? null,
         department_name: deptName,
         level: row.level ?? null,
+        sort_order: row.sort_order ?? undefined,
         assignable_role_names: row.assignable_role_names ?? null,
         custom_default_permissions: row.custom_default_permissions ?? null,
         custom_default_assignable_role_names: row.custom_default_assignable_role_names ?? null,
         permissions: (row.role_permissions ?? []).map(p => p.permission_key),
       }
     })
-    return sortByRoleOrder(mapped)
+    return mapped
   } catch {
     return []
   }

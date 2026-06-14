@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X, GripVertical } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface Department {
@@ -22,6 +22,7 @@ interface RoleData {
   assignable_role_names?: string[] | null
   custom_default_permissions: string[] | null
   custom_default_assignable_role_names: string[] | null
+  sort_order?: number
 }
 
 interface Props {
@@ -181,6 +182,9 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RoleData | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   function toggleExpand(id: string, role: RoleData) {
     setExpandedIds(prev => {
@@ -450,6 +454,36 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     }
   }
 
+  async function handleReorder(fromId: string, toId: string) {
+    if (fromId === toId) return
+    const fromIdx = roles.findIndex(r => r.id === fromId)
+    const toIdx   = roles.findIndex(r => r.id === toId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...roles]
+    const [dragged] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, dragged)
+    const orders = reordered.map((r, i) => ({ id: r.id, sort_order: (i + 1) * 1000 }))
+    const sortMap = Object.fromEntries(orders.map(o => [o.id, o.sort_order]))
+    const originalRoles = roles
+
+    setRoles(reordered.map(r => ({ ...r, sort_order: sortMap[r.id] })))
+    setDraggingId(null)
+    setDragOverId(null)
+
+    try {
+      const res = await fetch('/api/roles/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      setRoles(originalRoles)
+      alert('排序更新失敗，請重試')
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -669,9 +703,18 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
         const visibility = draft.includes('read_all_cards') ? 'read_all_cards' : draft.includes('read_active_only') ? 'read_active_only' : null
 
         return (
-          <div key={role.id} className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] shadow-sm overflow-hidden">
+          <div
+            key={role.id}
+            draggable
+            onDragStart={() => setDraggingId(role.id)}
+            onDragOver={(e) => { e.preventDefault(); setDragOverId(role.id) }}
+            onDrop={() => handleReorder(draggingId!, role.id)}
+            onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
+            className={`group bg-white rounded-xl border shadow-sm overflow-hidden transition-colors ${draggingId && dragOverId === role.id ? 'border-[#c49a72] border-2' : 'border-[rgba(122,82,48,.15)]'}`}
+          >
             {/* 卡片 Header */}
             <div className="px-5 py-4 flex items-center gap-3">
+              <GripVertical className="h-4 w-4 text-[#d4bda0] cursor-grab shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="flex-1 min-w-0">
                 {isRenamingThis ? (
                   <div className="flex items-center gap-2">
@@ -726,23 +769,21 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => startRename(role)}
+                  title="重命名"
+                  className="p-1.5 rounded-lg text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.06)] transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
                 {!role.is_system && (
-                  <>
-                    <button
-                      onClick={() => startRename(role)}
-                      title="重命名"
-                      className="p-1.5 rounded-lg text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.06)] transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => askDelete(role)}
-                      title="刪除角色"
-                      className="p-1.5 rounded-lg text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.08)] transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </>
+                  <button
+                    onClick={() => askDelete(role)}
+                    title="刪除角色"
+                    className="p-1.5 rounded-lg text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.08)] transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 )}
                 <button
                   onClick={() => toggleExpand(role.id, role)}

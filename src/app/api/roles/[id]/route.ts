@@ -71,10 +71,6 @@ export async function PATCH(
     return NextResponse.json({ error: '找不到角色' }, { status: 404 })
   }
 
-  if (hasName && role.is_system) {
-    return NextResponse.json({ error: '系統角色不可重命名' }, { status: 403 })
-  }
-
   const updateFields: Record<string, unknown> = {}
   if (hasName) updateFields.name = (name as string).trim()
   if (hasDepartmentId) updateFields.department_id = (department_id as string | null)
