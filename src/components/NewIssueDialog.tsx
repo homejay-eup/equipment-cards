@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { X, Loader2, Plus, Check } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
 import SettingsPopover from '@/components/SettingsPopover'
+import DatePicker from '@/components/DatePicker'
 
 interface Props {
   open: boolean
@@ -216,13 +217,7 @@ export default function NewIssueDialog({
             </div>
             <div>
               <label className="text-xs font-semibold text-[#6b4f38] mb-1.5 block">預計日期</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={submitting}
-                className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
-              />
+              <DatePicker value={dueDate} onChange={setDueDate} disabled={submitting} />
             </div>
           </div>
 
