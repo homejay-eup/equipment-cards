@@ -20,7 +20,6 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
   const parsed = value ? parseISO(value) : undefined
   const selected = parsed && isValid(parsed) ? parsed : undefined
 
-  // 點外部關閉
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent) => {
@@ -32,20 +31,18 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
 
-  // 底部超出視窗時往上翻
+  // 底部/右側超出視窗時位移
   useEffect(() => {
     if (!open || !dropRef.current) return
     const dd = dropRef.current.getBoundingClientRect()
     const vh = window.innerHeight
+    const vw = window.innerWidth
     if (dd.bottom > vh - 8) {
       const triggerRect = triggerRef.current?.getBoundingClientRect()
-      if (triggerRect) {
-        setPos(prev => ({ ...prev, top: triggerRect.top - dd.height - 4 }))
-      }
+      if (triggerRect) setPos(prev => ({ ...prev, top: triggerRect.top - dd.height - 4 }))
     }
-    // 右側超出視窗時往左移
-    if (dd.right > window.innerWidth - 8) {
-      setPos(prev => ({ ...prev, left: window.innerWidth - dd.width - 8 }))
+    if (dd.right > vw - 8) {
+      setPos(prev => ({ ...prev, left: vw - dd.width - 8 }))
     }
   }, [open])
 
@@ -56,6 +53,16 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
       setPos({ top: rect.bottom + 4, left: rect.left })
     }
     setOpen(v => !v)
+  }
+
+  function handleClear() {
+    onChange('')
+    setOpen(false)
+  }
+
+  function handleToday() {
+    onChange(format(new Date(), 'yyyy-MM-dd'))
+    setOpen(false)
   }
 
   return (
@@ -87,7 +94,7 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
         <div
           ref={dropRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_4px_24px_rgba(122,82,48,.18)]"
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_4px_24px_rgba(122,82,48,.18)] overflow-hidden"
         >
           <Calendar
             mode="single"
@@ -96,7 +103,24 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
               onChange(date ? format(date, 'yyyy-MM-dd') : '')
               setOpen(false)
             }}
+            className="[--cell-size:2.25rem] p-3"
           />
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[rgba(122,82,48,.12)] bg-[#faf6f0]">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
+            >
+              清除
+            </button>
+            <button
+              type="button"
+              onClick={handleToday}
+              className="text-sm text-[#7a5230] font-medium hover:text-[#5a3820] transition-colors"
+            >
+              今天
+            </button>
+          </div>
         </div>
       )}
     </>
