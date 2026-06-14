@@ -41,3 +41,13 @@ next-env.d.ts
 
 # 原始資料（照片已上傳 Cloudinary，1.1GB，不進 Git）
 /_開發檔案/data/
+
+# 執行產物（可重建，不進 Git）
+/_開發檔案/backup/
+/_開發檔案/logs/
+
+# CodeGraph 索引快取（換機器重建）
+/.codegraph/
+
+# Claude Code agent 暫存工作目錄
+/.claude/worktrees/

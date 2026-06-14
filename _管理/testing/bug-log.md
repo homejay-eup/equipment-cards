@@ -18,7 +18,7 @@
 - **預期結果**：
 - **實際結果**：
 - **截圖**：（路徑或無）
-- **狀態**：未修復 / 已修復（StepXX）
+- **狀態**：已修復 / 已修復（StepXX）
 ```
 
 ---
@@ -40,7 +40,7 @@
   使有 CRUD 權限的非管理員角色可用，無權限的 viewer 被擋住。
 - **預期結果**：需有 `create_delete_cards` 權限才能上傳/刪除照片
 - **實際結果**：任何登入者（含 viewer）均可操作
-- **狀態**：未修復
+- **狀態**：已修復（3132c9d）— POST / PATCH / DELETE 三個 handler 均已改用 `requirePermission('create_delete_cards')` 守衛
 
 ---
 
