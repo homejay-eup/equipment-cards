@@ -343,10 +343,7 @@ export default function TrackerClient({
             onClick={() => setFilterPriority(chip.key)}
             className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
               filterPriority === chip.key
-                ? chip.key === 'high'   ? 'bg-[rgba(181,69,27,.18)] border-[rgba(181,69,27,.35)] text-[#b5451b] font-medium'
-                : chip.key === 'medium' ? 'bg-[rgba(156,107,66,.18)] border-[rgba(156,107,66,.35)] text-[#7a5230] font-medium'
-                : chip.key === 'low'    ? 'bg-[rgba(122,82,48,.14)] border-[rgba(122,82,48,.3)] text-[#a08060] font-medium'
-                :                         'bg-[#7a5230] border-[#7a5230] text-white font-medium'
+                ? 'bg-[#7a5230] border-[#7a5230] text-white font-medium'
                 : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
             }`}
           >

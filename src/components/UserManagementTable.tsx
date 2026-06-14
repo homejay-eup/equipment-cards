@@ -181,11 +181,11 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${roleOpen ? 'rotate-180' : ''}`} />
             </button>
             {roleOpen && (
-              <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-full">
+              <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-full w-max max-w-[calc(100vw-2rem)]">
                 {availableRoles.map(role => (
                   <button key={role} type="button"
                     onClick={() => { setNewRole(role); setRoleOpen(false) }}
-                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
                       newRole === role
                         ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                         : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'

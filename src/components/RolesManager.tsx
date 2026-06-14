@@ -293,6 +293,20 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     return draftPerms[role.id] ?? role.permissions
   }
 
+  function isDirty(role: RoleData): boolean {
+    const draftP = draftPerms[role.id]
+    const draftA = draftAssignable[role.id]
+    if (draftP === undefined && draftA === undefined) return false
+    if (draftP !== undefined) {
+      if (JSON.stringify([...draftP].sort()) !== JSON.stringify([...role.permissions].sort())) return true
+    }
+    if (draftA !== undefined) {
+      const orig = role.assignable_role_names ?? getDefaultAssignable(role, roles)
+      if (JSON.stringify([...(draftA ?? [])].sort()) !== JSON.stringify([...orig].sort())) return true
+    }
+    return false
+  }
+
   function handleVisibilityChange(role: RoleData, selected: 'read_all_cards' | 'read_active_only') {
     const removed = selected === 'read_all_cards' ? 'read_active_only' : 'read_all_cards'
     const cur = getDraft(role).filter(p => p !== removed)
@@ -1060,7 +1074,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                 <div className="flex items-center flex-wrap gap-2 pt-2 border-t border-[rgba(122,82,48,.1)]">
                   <button
                     onClick={() => saveAll(role)}
-                    disabled={isSavingPerm || savingDefaultId === role.id}
+                    disabled={isSavingPerm || savingDefaultId === role.id || !isDirty(role)}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
                   >
                     {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -1068,14 +1082,14 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </button>
                   <button
                     onClick={() => discardDraft(role)}
-                    disabled={isSavingPerm || savingDefaultId === role.id}
+                    disabled={isSavingPerm || savingDefaultId === role.id || !isDirty(role)}
                     className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
                   >
                     取消
                   </button>
                   <button
                     onClick={() => handleRestoreDefault(role)}
-                    disabled={isSavingPerm || savingDefaultId === role.id || !role.custom_default_permissions}
+                    disabled={isSavingPerm || savingDefaultId === role.id || !role.custom_default_permissions || !isDirty(role)}
                     title={!role.custom_default_permissions ? '尚未記憶預設，請先按「記憶預設」' : '恢復至上次記憶的快照'}
                     className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

@@ -367,16 +367,15 @@ export default function DepartmentsManager({ initialDepartments, initialRoles }:
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      {!hasMember && (
-                        <button
-                          type="button"
-                          onClick={() => askDeleteDept(dept)}
-                          title="刪除部門"
-                          className="p-1 rounded text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.08)] transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => !hasMember && askDeleteDept(dept)}
+                        title={hasMember ? '此部門仍有角色，請先將角色移出再刪除' : '刪除部門'}
+                        disabled={hasMember}
+                        className={`p-1 rounded transition-colors ${hasMember ? 'text-[#d4c4b8] cursor-not-allowed' : 'text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.08)]'}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 )}
