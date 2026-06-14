@@ -84,6 +84,7 @@ export default function TrackerClient({
   const [confirmDeleteIssueId, setConfirmDeleteIssueId] = useState<string | null>(null)
   const [clearingCompleted,    setClearingCompleted]    = useState(false)
   const [deletingIssueId,      setDeletingIssueId]      = useState<string | null>(null)
+  const [activeCol,            setActiveCol]            = useState<string>(COLUMNS[0].key)
 
   const myPendingCount = useMemo(() =>
     issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
@@ -383,14 +384,40 @@ export default function TrackerClient({
       )}
 
       {/* ── Kanban 看板 ── */}
+
+      {/* 手機：欄位 Tab（sm 以上隱藏） */}
+      <div className="flex sm:hidden gap-1 bg-[#ede5db] rounded-xl p-1 mb-3">
+        {COLUMNS.map(col => {
+          const count = columnIssues[col.key]?.length ?? 0
+          return (
+            <button
+              key={col.key}
+              onClick={() => setActiveCol(col.key)}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeCol === col.key
+                  ? 'bg-white text-[#7a5230] shadow-sm'
+                  : 'text-[#a08060] hover:text-[#6b4f38]'
+              }`}
+            >
+              <span>{col.label}</span>
+              <span className={`text-[10px] px-1.5 rounded-full ${
+                activeCol === col.key ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230]' : ''
+              }`}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6">
-      <div className="grid grid-cols-4 gap-3 min-w-[700px]">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:min-w-[700px]">
         {COLUMNS.map(col => {
           const colItems = columnIssues[col.key] ?? []
           return (
             <div
               key={col.key}
-              className={`bg-[#ede5db] rounded-xl border shadow-sm flex flex-col transition-colors ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.20)]'}`}
+              className={`bg-[#ede5db] rounded-xl border shadow-sm flex-col transition-colors ${
+                col.key !== activeCol ? 'hidden sm:flex' : 'flex'
+              } ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.20)]'}`}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
