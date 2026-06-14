@@ -123,7 +123,8 @@ async function getTrackerData(userEmail: string): Promise<{
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  const [issuesResult, allowedEmailsResult, settingsResult] = await Promise.allSettled([
+  // 第一批：平行取得議題、設定、當前使用者角色、全部使用者清單
+  const [issuesResult, settingsResult, userRoleResult, allUsersResult] = await Promise.allSettled([
     supabase
       .from('issues')
       .select(`
@@ -132,11 +133,12 @@ async function getTrackerData(userEmail: string): Promise<{
         issue_assignees(user_email)
       `)
       .order('created_at', { ascending: false }),
-    supabase.from('allowed_emails').select('email'),
     supabase
       .from('app_settings')
       .select('key, value')
       .in('key', ['issueTypes', 'issueTags']),
+    supabase.from('allowed_emails').select('role').eq('email', userEmail).single(),
+    supabase.from('allowed_emails').select('email, role').order('created_at', { ascending: true }),
   ])
 
   const issuesData = issuesResult.status === 'fulfilled' ? (issuesResult.value.data ?? []) : []
@@ -152,11 +154,6 @@ async function getTrackerData(userEmail: string): Promise<{
     }
   })
 
-  const allowedEmails: string[] =
-    allowedEmailsResult.status === 'fulfilled'
-      ? ((allowedEmailsResult.value.data ?? []) as { email: string }[]).map((r) => r.email)
-      : []
-
   const settingsRows =
     settingsResult.status === 'fulfilled' ? (settingsResult.value.data ?? []) : []
   let issueTypes = ['缺貨', '韌體', '維修', '客戶反應', '其他']
@@ -166,7 +163,30 @@ async function getTrackerData(userEmail: string): Promise<{
     if (row.key === 'issueTags' && Array.isArray(row.value)) issueTags = row.value as string[]
   }
 
-  void userEmail // 保留參數供未來擴充（如個人化篩選）
+  // 第二批：依使用者角色查部門
+  const userRoleName = userRoleResult.status === 'fulfilled'
+    ? (userRoleResult.value.data as { role: string } | null)?.role ?? null
+    : null
+
+  const roleInfoResult = userRoleName
+    ? await supabase.from('roles').select('department_id').eq('name', userRoleName).single()
+    : null
+  const userDepartmentId = (roleInfoResult?.data as { department_id: string | null } | null)?.department_id ?? null
+
+  // 第三批：依部門取同部門角色名稱，再過濾使用者
+  let allowedEmails: string[] = []
+  if (userDepartmentId) {
+    const deptRolesResult = await supabase
+      .from('roles')
+      .select('name')
+      .eq('department_id', userDepartmentId)
+    const deptRoleNames = ((deptRolesResult.data ?? []) as { name: string }[]).map((r) => r.name)
+    const allUsers = allUsersResult.status === 'fulfilled'
+      ? ((allUsersResult.value.data ?? []) as { email: string; role: string }[])
+      : []
+    allowedEmails = allUsers.filter((u) => deptRoleNames.includes(u.role)).map((u) => u.email)
+  }
+
   return { initialIssues, allowedEmails, issueTypes, issueTags }
 }
 
