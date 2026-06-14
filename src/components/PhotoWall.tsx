@@ -367,7 +367,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     }, 800)
   }, [])
 
-  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false); setNoPhotoFilter(false) }
+  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false); setNoPhotoFilter(false); setSelectedSubTags([]) }
 
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
