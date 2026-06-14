@@ -92,6 +92,29 @@
 - **Step 16 Phase 2 待執行**：批次淨重照片上傳腳本（等照片提供後）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
+### CodeGraph 工作規範（強制）
+
+本專案已安裝 **CodeGraph**（`npm i -g codegraph`），並設定為 Claude Code MCP server。
+
+**換機器時的初始化步驟**：
+```bash
+npm install -g codegraph
+cd 設備料卡
+codegraph init        # 建立索引（約 2–3 秒）
+codegraph install     # 選 Claude Code，設定 MCP server，重啟 Claude Code
+```
+
+**每次修改 code 前的強制流程**：
+1. 呼叫 `codegraph_explore <要改的 symbol 或功能描述>` 查影響範圍
+2. 確認 blast radius（哪些檔案依賴這個 symbol）
+3. 將所有受影響的地方一起改完
+4. `npm run build` 驗證
+5. 若有新增/刪除檔案，執行 `codegraph sync` 更新索引
+
+**原因**：多次出現「改A壞B」前例（如新增 permission key 只改 UI、未同步更新 API 白名單），CodeGraph 一次呼叫即可取得完整依賴關係，避免遺漏。
+
+---
+
 ### 規範與約定
 
 - 命名規則：TypeScript 檔案 `PascalCase`（元件）/ `camelCase`（hooks/lib）
