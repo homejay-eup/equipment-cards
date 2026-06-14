@@ -203,9 +203,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     if (isNewFilter)               result = result.filter(c => c.is_new)
     if (noPhotoFilter)             result = result.filter(c => !c.main_photo)
     if (selectedSubTags.length > 0) {
-      result = result.filter(card =>
-        card.tags?.some(t => selectedSubTags.includes(t))
-      )
+      const matchedIds = new Set<string>()
+      for (const tag of selectedSubTags) {
+        const t = tag.trim()
+        if (/^\d+$/.test(t)) {
+          result.forEach(c => { if (c.equipment_id.includes(t) || c.name.includes(t)) matchedIds.add(c.equipment_id) })
+        } else {
+          fuse.search(t).forEach(r => matchedIds.add(r.item.equipment_id))
+        }
+      }
+      result = result.filter(c => matchedIds.has(c.equipment_id))
     }
 
     if (!q) {
@@ -224,10 +231,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     return result
   }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse, selectedSubTags])
 
-  const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter)
+  const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter || selectedSubTags.length > 0)
 
   function toggleCat(cat: string) {
-    if (cat === '全部') { setSelectedCats(new Set()); return }
+    if (cat === '全部') { setSelectedCats(new Set()); setSelectedSubTags([]); return }
     setSelectedCats(prev => {
       const next = new Set(prev)
       if (next.has(cat)) next.delete(cat)
