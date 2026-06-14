@@ -135,13 +135,18 @@ export default function IssueDetailDialog({
         return
       }
       const real: IssueUpdate = await res.json()
-      setUpdates((prev) => prev.map((u) => u.id === pendingId ? real : u))
+      let nextUpdates: IssueUpdate[] = []
+      setUpdates((prev) => {
+        nextUpdates = prev.map((u) => u.id === pendingId ? real : u)
+        return nextUpdates
+      })
+      onUpdated({ ...issue, issue_updates: nextUpdates })
     } catch {
       setError('新增更新紀錄失敗，請重試')
       setUpdates((prev) => prev.filter((u) => u.id !== pendingId))
       setUpdateContent(content)
     }
-  }, [updateContent, localIssue.id, userEmail])
+  }, [updateContent, localIssue.id, userEmail, issue, onUpdated])
 
   const handleDelete = useCallback(async () => {
     setDeleting(true)
@@ -175,13 +180,18 @@ export default function IssueDetailDialog({
         method: 'DELETE',
       })
       if (!res.ok) { setError('刪除失敗'); return }
-      setUpdates(prev => prev.filter(u => u.id !== updateId))
+      let nextUpdates: IssueUpdate[] = []
+      setUpdates((prev) => {
+        nextUpdates = prev.filter((u) => u.id !== updateId)
+        return nextUpdates
+      })
+      onUpdated({ ...issue, issue_updates: nextUpdates })
     } catch {
       setError('刪除失敗，請重試')
     } finally {
       setDeletingUpdateId(null)
     }
-  }, [localIssue.id])
+  }, [localIssue.id, issue, onUpdated])
 
   if (!open) return null
 
