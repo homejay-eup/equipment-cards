@@ -20,6 +20,7 @@ const VALID_PERMISSION_KEYS = [
   'edit_card_documents', 'edit_card_is_new', 'edit_card_main_photo', 'edit_card_detail_photos',
   'manage_users', 'manage_roles', 'use_groups',
   'view_tracker', 'view_my_tasks', 'create_issues', 'tracker_edit_issue',
+  'manage_subfilter_tags',
 ]
 
 // GET /api/roles/[id]/permissions
