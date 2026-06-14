@@ -656,115 +656,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
             />
           </div>
 
-          {/* 淨重照片 */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-[#6b4f38]">淨重照片</label>
-              {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && canEdit('edit_card_weight') && (
-                <button type="button" onClick={() => {
-                  setSelectWeightMode(v => !v)
-                  setSelectedWeightIds(new Set())
-                  setSelectedPendingWeightIdxs(new Set())
-                }} disabled={isBusy}
-                  className="text-xs text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors">
-                  {selectWeightMode ? '取消選取' : '選取'}
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {visibleWeightPhotos.map(photo => {
-                const isSelected = selectedWeightIds.has(photo.public_id)
-                return (
-                  <div
-                    key={photo.public_id}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      selectWeightMode
-                        ? isSelected
-                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
-                          : 'border-[#e8ddd0] cursor-pointer'
-                        : 'border-[rgba(122,82,48,.15)]'
-                    } bg-[#e8ddd0]`}
-                    onClick={selectWeightMode ? () => toggleSelectWeight(photo.public_id) : undefined}
-                  >
-                    <Image src={photo.url} alt="淨重照片" fill className="object-cover" />
-                    {selectWeightMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
-                        {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
-                          : <Square className="h-5 w-5 text-white drop-shadow" />
-                        }
-                      </div>
-                    ) : canEdit('edit_card_weight') ? (
-                      <button type="button" onClick={() => handleDeleteExistingWeight(photo.public_id)}
-                        disabled={isBusy}
-                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                )
-              })}
-
-              {pendingWeightPhotos.map((item, idx) => {
-                const isSelected = selectedPendingWeightIdxs.has(idx)
-                return (
-                  <div
-                    key={idx}
-                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      selectWeightMode
-                        ? isSelected
-                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
-                          : 'border-[#c49a72] cursor-pointer'
-                        : 'border-[#c49a72]'
-                    } bg-[#f2ebe0]`}
-                    onClick={selectWeightMode ? () => toggleSelectPendingWeight(idx) : undefined}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.preview} alt="淨重照片預覽" className="w-full h-full object-cover" />
-                    {selectWeightMode ? (
-                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
-                        {isSelected
-                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
-                          : <Square className="h-5 w-5 text-white drop-shadow" />
-                        }
-                      </div>
-                    ) : canEdit('edit_card_weight') ? (
-                      <button type="button" onClick={() => handleDeletePendingWeight(idx)}
-                        disabled={isBusy}
-                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                )
-              })}
-
-              {!selectWeightMode && canEdit('edit_card_weight') && (
-                <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
-                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
-                  <Plus className="h-5 w-5" />
-                </button>
-              )}
-            </div>
-
-            {selectWeightMode && (
-              <div className="mt-3 flex items-center justify-between bg-[rgba(122,82,48,.05)] border border-[rgba(122,82,48,.18)] rounded-lg px-3 py-2">
-                <span className="text-sm text-[#6b4f38]">
-                  已選 <span className="font-semibold text-[#7a5230]">{totalSelectedWeight}</span> 張
-                </span>
-                <button type="button" onClick={handleBatchDeleteWeight}
-                  disabled={isBusy || totalSelectedWeight === 0}
-                  className="text-sm font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  刪除選取
-                </button>
-              </div>
-            )}
-
-            <input ref={weightFileRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={handleAddWeightPhoto} />
-          </div>
-
           {/* 文件連結 */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1023,6 +914,115 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
 
             <input ref={detailFileRef} type="file" accept="image/*" multiple className="hidden"
               onChange={handleAddDetail} />
+          </div>
+
+          {/* 淨重照片 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-[#6b4f38]">淨重照片</label>
+              {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && canEdit('edit_card_weight') && (
+                <button type="button" onClick={() => {
+                  setSelectWeightMode(v => !v)
+                  setSelectedWeightIds(new Set())
+                  setSelectedPendingWeightIdxs(new Set())
+                }} disabled={isBusy}
+                  className="text-xs text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors">
+                  {selectWeightMode ? '取消選取' : '選取'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {visibleWeightPhotos.map(photo => {
+                const isSelected = selectedWeightIds.has(photo.public_id)
+                return (
+                  <div
+                    key={photo.public_id}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectWeightMode
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#e8ddd0] cursor-pointer'
+                        : 'border-[rgba(122,82,48,.15)]'
+                    } bg-[#e8ddd0]`}
+                    onClick={selectWeightMode ? () => toggleSelectWeight(photo.public_id) : undefined}
+                  >
+                    <Image src={photo.url} alt="淨重照片" fill className="object-cover" />
+                    {selectWeightMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : canEdit('edit_card_weight') ? (
+                      <button type="button" onClick={() => handleDeleteExistingWeight(photo.public_id)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                )
+              })}
+
+              {pendingWeightPhotos.map((item, idx) => {
+                const isSelected = selectedPendingWeightIdxs.has(idx)
+                return (
+                  <div
+                    key={idx}
+                    className={`relative group w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectWeightMode
+                        ? isSelected
+                          ? 'border-[#7a5230] cursor-pointer shadow-[0_0_8px_rgba(122,82,48,.35)]'
+                          : 'border-[#c49a72] cursor-pointer'
+                        : 'border-[#c49a72]'
+                    } bg-[#f2ebe0]`}
+                    onClick={selectWeightMode ? () => toggleSelectPendingWeight(idx) : undefined}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.preview} alt="淨重照片預覽" className="w-full h-full object-cover" />
+                    {selectWeightMode ? (
+                      <div className={`absolute inset-0 flex items-end justify-end p-1 ${isSelected ? 'bg-[rgba(122,82,48,.2)]' : ''}`}>
+                        {isSelected
+                          ? <CheckSquare className="h-5 w-5 text-[#7a5230] drop-shadow" />
+                          : <Square className="h-5 w-5 text-white drop-shadow" />
+                        }
+                      </div>
+                    ) : canEdit('edit_card_weight') ? (
+                      <button type="button" onClick={() => handleDeletePendingWeight(idx)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                )
+              })}
+
+              {!selectWeightMode && canEdit('edit_card_weight') && (
+                <button type="button" onClick={() => weightFileRef.current?.click()} disabled={isBusy}
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#e8ddd0] flex items-center justify-center text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] hover:shadow-[0_0_6px_rgba(122,82,48,.2)] transition-all disabled:opacity-40">
+                  <Plus className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {selectWeightMode && (
+              <div className="mt-3 flex items-center justify-between bg-[rgba(122,82,48,.05)] border border-[rgba(122,82,48,.18)] rounded-lg px-3 py-2">
+                <span className="text-sm text-[#6b4f38]">
+                  已選 <span className="font-semibold text-[#7a5230]">{totalSelectedWeight}</span> 張
+                </span>
+                <button type="button" onClick={handleBatchDeleteWeight}
+                  disabled={isBusy || totalSelectedWeight === 0}
+                  className="text-sm font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  刪除選取
+                </button>
+              </div>
+            )}
+
+            <input ref={weightFileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={handleAddWeightPhoto} />
           </div>
 
           {uploading && (

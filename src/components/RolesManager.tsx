@@ -20,6 +20,8 @@ interface RoleData {
   level: string | null
   permissions: string[]
   assignable_role_names?: string[] | null
+  custom_default_permissions: string[] | null
+  custom_default_assignable_role_names: string[] | null
 }
 
 interface Props {
@@ -171,6 +173,10 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
 
   const [draftAssignable, setDraftAssignable] = useState<Record<string, string[] | null>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  const [savingDefaultId, setSavingDefaultId] = useState<string | null>(null)
+  const [defaultSavedFeedback, setDefaultSavedFeedback] = useState<string | null>(null)
+  const [defaultSaveError, setDefaultSaveError] = useState<string | null>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<RoleData | null>(null)
@@ -328,6 +334,50 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     setSaveError(null)
   }
 
+  async function handleSaveDefault(role: RoleData) {
+    setSavingDefaultId(role.id)
+    setDefaultSaveError(null)
+    setDefaultSavedFeedback(null)
+    try {
+      const draft = getDraft(role)
+      const assignableDraft = draftAssignable[role.id] ?? role.assignable_role_names
+      const res = await fetch(`/api/roles/${role.id}/default`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          permissions: draft,
+          assignable_role_names: assignableDraft ?? [],
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setDefaultSaveError(d.error ?? '記憶失敗')
+        return
+      }
+      setRoles(prev => prev.map(r => r.id === role.id
+        ? { ...r, custom_default_permissions: draft, custom_default_assignable_role_names: assignableDraft && assignableDraft.length > 0 ? assignableDraft : null }
+        : r
+      ))
+      setDefaultSavedFeedback(role.id)
+      setTimeout(() => setDefaultSavedFeedback(null), 2000)
+    } catch {
+      setDefaultSaveError('記憶失敗，請重試')
+    } finally {
+      setSavingDefaultId(null)
+    }
+  }
+
+  function handleRestoreDefault(role: RoleData) {
+    if (!role.custom_default_permissions) return
+    setDraftPerms(d => ({ ...d, [role.id]: [...role.custom_default_permissions!] }))
+    setDraftAssignable(d => ({
+      ...d,
+      [role.id]: role.custom_default_assignable_role_names ?? [],
+    }))
+    setSaveError(null)
+    setPermError(null)
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = newRoleName.trim()
@@ -359,6 +409,8 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
         department_name: selectedDept?.name ?? null,
         level: d.level ?? null,
         permissions: newRolePerms,
+        custom_default_permissions: null,
+        custom_default_assignable_role_names: null,
       }
       setRoles(prev => [...prev, newRole])
       setNewRoleName('')
@@ -926,17 +978,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   <p className="text-[10px] text-[#a08060] mb-2">
                     設定此角色在帳號管理頁可指派給他人的角色清單。
                   </p>
-                  <div className="mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setDraftAssignable(d => ({ ...d, [role.id]: getDefaultAssignable(role, roles) }))}
-                      disabled={isSavingPerm}
-                      className="px-2.5 py-1 text-[11px] text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
-                      title="重設可指派角色為系統預設值"
-                    >
-                      重設為預設
-                    </button>
-                  </div>
                   <div className="space-y-1.5">
                     {roles.map(r => {
                       const assignableDraft = draftAssignable[role.id]
@@ -971,11 +1012,14 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   <p className="text-xs text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2">{saveError}</p>
                 )}
 
-                {/* 常駐 footer：儲存變更 / 恢復預設 / 取消 */}
-                <div className="flex items-center gap-2 pt-2 border-t border-[rgba(122,82,48,.1)]">
+                {/* footer：儲存變更 / 取消 / 恢復預設 / 記憶預設 */}
+                {defaultSaveError && (
+                  <p className="text-xs text-[#b5451b]">{defaultSaveError}</p>
+                )}
+                <div className="flex items-center flex-wrap gap-2 pt-2 border-t border-[rgba(122,82,48,.1)]">
                   <button
                     onClick={() => saveAll(role)}
-                    disabled={isSavingPerm}
+                    disabled={isSavingPerm || savingDefaultId === role.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"
                   >
                     {isSavingPerm ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -983,10 +1027,31 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </button>
                   <button
                     onClick={() => discardDraft(role)}
-                    disabled={isSavingPerm}
+                    disabled={isSavingPerm || savingDefaultId === role.id}
                     className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
                   >
                     取消
+                  </button>
+                  <button
+                    onClick={() => handleRestoreDefault(role)}
+                    disabled={isSavingPerm || savingDefaultId === role.id || !role.custom_default_permissions}
+                    title={!role.custom_default_permissions ? '尚未記憶預設，請先按「記憶預設」' : '恢復至上次記憶的快照'}
+                    className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    恢復預設
+                  </button>
+                  <button
+                    onClick={() => handleSaveDefault(role)}
+                    disabled={isSavingPerm || savingDefaultId === role.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-50 transition-colors"
+                  >
+                    {savingDefaultId === role.id
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : defaultSavedFeedback === role.id
+                        ? <Check className="h-3 w-3 text-green-600" />
+                        : null
+                    }
+                    {defaultSavedFeedback === role.id ? '已記憶' : '記憶預設'}
                   </button>
                 </div>
               </div>

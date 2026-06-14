@@ -66,19 +66,18 @@ export default async function TrackerPage() {
   const { permissions } = roleData
   const userRoleName = (userRoleResult as { data: { role: string } | null }).data?.role ?? null
 
-  // 第二批：依 role 名稱查 department_id、assignable_role_names
+  // 第二批：依 role 名稱查 department_id
   const roleInfoResult = userRoleName
     ? await adminClient
         .from('roles')
-        .select('department_id, assignable_role_names')
+        .select('department_id')
         .eq('name', userRoleName)
         .single()
     : { data: null }
 
-  type RoleInfo = { department_id: string | null; assignable_role_names: string[] | null }
+  type RoleInfo = { department_id: string | null }
   const roleInfoData = (roleInfoResult as { data: RoleInfo | null }).data
   const userDepartmentId = roleInfoData?.department_id ?? null
-  const assignableRoleNames = roleInfoData?.assignable_role_names ?? null
 
   // 第三批：依 department_id 篩選 issues
   // 所有角色（含管理員）一律只看自己部門的議題
@@ -151,12 +150,9 @@ export default async function TrackerPage() {
   })
 
   const rawUsers = (usersResult.data ?? []) as { email: string; role: string }[]
-  const filteredUsers =
-    assignableRoleNames && assignableRoleNames.length > 0
-      ? rawUsers.filter((u) => assignableRoleNames.includes(u.role))
-      : deptRoleNames && deptRoleNames.length > 0
-        ? rawUsers.filter((u) => deptRoleNames!.includes(u.role))
-        : rawUsers
+  const filteredUsers = deptRoleNames && deptRoleNames.length > 0
+    ? rawUsers.filter((u) => deptRoleNames!.includes(u.role))
+    : rawUsers
   const allowedEmails = filteredUsers.map((u) => u.email)
 
   return (

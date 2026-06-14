@@ -19,6 +19,8 @@ interface RoleData {
   level: string | null
   permissions: string[]
   assignable_role_names: string[] | null
+  custom_default_permissions: string[] | null
+  custom_default_assignable_role_names: string[] | null
 }
 
 const ROLE_ORDER = [
@@ -66,7 +68,7 @@ async function fetchRoles(): Promise<RoleData[]> {
   try {
     const { data, error } = await supabase
       .from('roles')
-      .select('id, name, is_system, department_id, level, assignable_role_names, departments(name), role_permissions(permission_key)')
+      .select('id, name, is_system, department_id, level, assignable_role_names, custom_default_permissions, custom_default_assignable_role_names, departments(name), role_permissions(permission_key)')
       .order('id', { ascending: true })
 
     if (error || !data) return []
@@ -78,6 +80,8 @@ async function fetchRoles(): Promise<RoleData[]> {
       department_id: string | null
       level: string | null
       assignable_role_names: string[] | null
+      custom_default_permissions: string[] | null
+      custom_default_assignable_role_names: string[] | null
       departments: { name: string }[] | { name: string } | null
       role_permissions: { permission_key: string }[]
     }) => {
@@ -92,6 +96,8 @@ async function fetchRoles(): Promise<RoleData[]> {
         department_name: deptName,
         level: row.level ?? null,
         assignable_role_names: row.assignable_role_names ?? null,
+        custom_default_permissions: row.custom_default_permissions ?? null,
+        custom_default_assignable_role_names: row.custom_default_assignable_role_names ?? null,
         permissions: (row.role_permissions ?? []).map(p => p.permission_key),
       }
     })
