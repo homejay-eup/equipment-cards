@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -123,23 +125,53 @@ async function getTrackerData(userEmail: string): Promise<{
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  // 第一批：平行取得議題、設定、當前使用者角色、全部使用者清單
-  const [issuesResult, settingsResult, userRoleResult, allUsersResult] = await Promise.allSettled([
-    supabase
-      .from('issues')
-      .select(`
-        id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at,
-        issue_assignees(user_email),
-        issue_updates(id, content, created_by, created_at)
-      `)
-      .order('created_at', { ascending: false }),
+  // 第一批：平行取得設定、當前使用者角色、全部使用者清單
+  const [settingsResult, userRoleResult, allUsersResult] = await Promise.allSettled([
     supabase
       .from('app_settings')
       .select('key, value')
       .in('key', ['issueTypes', 'issueTags']),
     supabase.from('allowed_emails').select('role').eq('email', userEmail).single(),
     supabase.from('allowed_emails').select('email, role').order('created_at', { ascending: true }),
+  ])
+
+  // 第二批：依使用者角色查部門
+  const userRoleName = userRoleResult.status === 'fulfilled'
+    ? (userRoleResult.value.data as { role: string } | null)?.role ?? null
+    : null
+
+  const roleInfoResult = userRoleName
+    ? await supabase.from('roles').select('department_id').eq('name', userRoleName).single()
+    : null
+  const userDepartmentId = (roleInfoResult?.data as { department_id: string | null } | null)?.department_id ?? null
+
+  const settingsRows =
+    settingsResult.status === 'fulfilled' ? (settingsResult.value.data ?? []) : []
+  let issueTypes = ['缺貨', '韌體', '維修', '客戶反應', '其他']
+  let issueTags: string[] = []
+  for (const row of settingsRows as { key: string; value: unknown }[]) {
+    if (row.key === 'issueTypes' && Array.isArray(row.value)) issueTypes = row.value as string[]
+    if (row.key === 'issueTags' && Array.isArray(row.value)) issueTags = row.value as string[]
+  }
+
+  if (!userDepartmentId) {
+    return { initialIssues: [], allowedEmails: [], issueTypes, issueTags }
+  }
+
+  // 第三批：依 department_id 平行取議題 + 同部門角色名稱
+  const [issuesResult, deptRolesResult] = await Promise.allSettled([
+    supabase
+      .from('issues')
+      .select(`
+        id, title, type, priority, status, due_date, description, tags,
+        created_by, created_at, updated_at, sort_order,
+        issue_assignees(user_email),
+        issue_updates(id, content, created_by, created_at)
+      `)
+      .eq('department_id', userDepartmentId)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+    supabase.from('roles').select('name').eq('department_id', userDepartmentId),
   ])
 
   const issuesData = issuesResult.status === 'fulfilled' ? (issuesResult.value.data ?? []) : []
@@ -152,42 +184,18 @@ async function getTrackerData(userEmail: string): Promise<{
       issue_assignees: undefined,
       assignee_emails: emails,
       assignees: emails.map((e) => e.split('@')[0]),
+      sort_order: issue.sort_order ?? undefined,
       issue_updates: (issue.issue_updates ?? []) as Issue['issue_updates'],
     }
   })
 
-  const settingsRows =
-    settingsResult.status === 'fulfilled' ? (settingsResult.value.data ?? []) : []
-  let issueTypes = ['缺貨', '韌體', '維修', '客戶反應', '其他']
-  let issueTags: string[] = []
-  for (const row of settingsRows as { key: string; value: unknown }[]) {
-    if (row.key === 'issueTypes' && Array.isArray(row.value)) issueTypes = row.value as string[]
-    if (row.key === 'issueTags' && Array.isArray(row.value)) issueTags = row.value as string[]
-  }
-
-  // 第二批：依使用者角色查部門
-  const userRoleName = userRoleResult.status === 'fulfilled'
-    ? (userRoleResult.value.data as { role: string } | null)?.role ?? null
-    : null
-
-  const roleInfoResult = userRoleName
-    ? await supabase.from('roles').select('department_id').eq('name', userRoleName).single()
-    : null
-  const userDepartmentId = (roleInfoResult?.data as { department_id: string | null } | null)?.department_id ?? null
-
-  // 第三批：依部門取同部門角色名稱，再過濾使用者
-  let allowedEmails: string[] = []
-  if (userDepartmentId) {
-    const deptRolesResult = await supabase
-      .from('roles')
-      .select('name')
-      .eq('department_id', userDepartmentId)
-    const deptRoleNames = ((deptRolesResult.data ?? []) as { name: string }[]).map((r) => r.name)
-    const allUsers = allUsersResult.status === 'fulfilled'
-      ? ((allUsersResult.value.data ?? []) as { email: string; role: string }[])
-      : []
-    allowedEmails = allUsers.filter((u) => deptRoleNames.includes(u.role)).map((u) => u.email)
-  }
+  const deptRoleNames = deptRolesResult.status === 'fulfilled'
+    ? ((deptRolesResult.value.data ?? []) as { name: string }[]).map((r) => r.name)
+    : []
+  const allUsers = allUsersResult.status === 'fulfilled'
+    ? ((allUsersResult.value.data ?? []) as { email: string; role: string }[])
+    : []
+  const allowedEmails = allUsers.filter((u) => deptRoleNames.includes(u.role)).map((u) => u.email)
 
   return { initialIssues, allowedEmails, issueTypes, issueTags }
 }
