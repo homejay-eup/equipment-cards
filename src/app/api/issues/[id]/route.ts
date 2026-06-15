@@ -90,27 +90,18 @@ export async function PATCH(
 
     const isAuthor = issue.created_by === user.email
 
-    // 判斷是否為負責人（負責人可更新狀態）
-    const { data: assigneeRow } = await adminClient
-      .from('issue_assignees')
-      .select('user_email')
-      .eq('issue_id', params.id)
-      .eq('user_email', user.email)
-      .maybeSingle()
-
-    const isAssignee = !!assigneeRow
-
     const body = await req.json()
     const { title, type, priority, status, due_date, description, tags, assignees } = body
 
-    // 狀態更新：負責人 + 建立者 + 有 create_issues 者
-    if (status !== undefined && !isAuthor && !isAssignee && !canCreateIssues) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
+    // 狀態更新（拖曳換欄）：有 view_tracker 即可，部門成員都能操作
     // 其他欄位更新：本人 或 有 create_issues
     const hasFullEdit = isAuthor || canCreateIssues
-    if (!hasFullEdit && status === undefined) {
+    const onlyStatusUpdate = status !== undefined &&
+      title === undefined && type === undefined && priority === undefined &&
+      due_date === undefined && description === undefined && tags === undefined &&
+      assignees === undefined
+
+    if (!onlyStatusUpdate && !hasFullEdit) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
