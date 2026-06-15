@@ -69,6 +69,7 @@ export default async function TrackerPage() {
   const userRoleName = (userRoleResult as { data: { role: string } | null }).data?.role ?? null
 
   // 第二批：依 role 名稱查 department_id
+  console.log('[tracker] userEmail:', userEmail, '| userRoleName:', userRoleName)
   const roleInfoResult = userRoleName
     ? await adminClient
         .from('roles')
@@ -80,6 +81,7 @@ export default async function TrackerPage() {
   type RoleInfo = { department_id: string | null }
   const roleInfoData = (roleInfoResult as { data: RoleInfo | null }).data
   const userDepartmentId = roleInfoData?.department_id ?? null
+  console.log('[tracker] userDepartmentId:', userDepartmentId)
 
   // 第三批：依 department_id 篩選 issues
   // 所有角色（含管理員）一律只看自己部門的議題
@@ -127,6 +129,7 @@ export default async function TrackerPage() {
     ])
     rawIssues = (issuesResult.data ?? []) as RawIssue[]
     deptRoleNames = (deptRolesResult.data ?? []).map((r: { name: string }) => r.name)
+    console.log('[tracker] rawIssues.length:', rawIssues.length, '| issuesResult.error:', issuesResult.error)
   }
   // userDepartmentId === null → rawIssues = []（無部門歸屬，不可見）
 
