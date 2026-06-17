@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, AlertTriangle, ArrowUpDown, Trash2 } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
@@ -66,6 +66,8 @@ export default function TrackerClient({
   issueTags,
   onMyTasksCountChange,
 }: Props) {
+  const router = useRouter()
+  const hasMutatedRef = useRef(false)
   const searchParams = useSearchParams()
 
   const canCreateIssues = permissions.includes('create_issues')
@@ -93,6 +95,18 @@ export default function TrackerClient({
   useEffect(() => {
     onMyTasksCountChange?.(myPendingCount)
   }, [myPendingCount, onMyTasksCountChange])
+
+  // 每次掛載時強制重取 server 資料，確保切頁返回後看到最新狀態
+  useEffect(() => {
+    router.refresh()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // router.refresh() 完成後 initialIssues prop 更新，同步至 state
+  // hasMutatedRef 防止在使用者操作期間被 server 資料覆蓋
+  useEffect(() => {
+    if (!hasMutatedRef.current) setIssues(initialIssues)
+  }, [initialIssues])
 
   // 依篩選後的 base list
   const baseIssues = useMemo(() => {
@@ -139,16 +153,19 @@ export default function TrackerClient({
   }, [issues, myTasksOnly, userEmail, today])
 
   const handleIssueCreated = useCallback((newIssue: Issue) => {
+    hasMutatedRef.current = true
     setIssues(prev => [newIssue, ...prev])
     setNewIssueOpen(false)
   }, [])
 
   const handleIssueUpdated = useCallback((updated: Issue) => {
+    hasMutatedRef.current = true
     setIssues(prev => prev.map(i => i.id === updated.id ? updated : i))
     setSelectedIssue(prev => prev?.id === updated.id ? updated : prev)
   }, [])
 
   const handleIssueDeleted = useCallback((id: string) => {
+    hasMutatedRef.current = true
     setIssues(prev => prev.filter(i => i.id !== id))
     setSelectedIssue(null)
   }, [])
@@ -177,6 +194,7 @@ export default function TrackerClient({
           fetch(`/api/issues/${issue.id}`, { method: 'DELETE' })
         )
       )
+      hasMutatedRef.current = true
       setIssues(prev => prev.filter(i => i.status !== '已完成'))
     } finally {
       setClearingCompleted(false)
@@ -188,6 +206,7 @@ export default function TrackerClient({
     setDeletingIssueId(id)
     try {
       await fetch(`/api/issues/${id}`, { method: 'DELETE' })
+      hasMutatedRef.current = true
       setIssues(prev => prev.filter(i => i.id !== id))
     } finally {
       setDeletingIssueId(null)
@@ -212,6 +231,7 @@ export default function TrackerClient({
     // ── 跨欄拖曳（原有邏輯）──
     if (issue.status !== targetStatus) {
       const originalStatus = issue.status
+      hasMutatedRef.current = true
       setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
       try {
         const res = await fetch(`/api/issues/${id}`, {
@@ -247,6 +267,7 @@ export default function TrackerClient({
       const originalSortMap = Object.fromEntries(colItems.map(i => [i.id, i.sort_order ?? null]))
 
       // 樂觀更新
+      hasMutatedRef.current = true
       setIssues(prev => prev.map(i =>
         sortMap[i.id] !== undefined ? { ...i, sort_order: sortMap[i.id] } : i
       ))
