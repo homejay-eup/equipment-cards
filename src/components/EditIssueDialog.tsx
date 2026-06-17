@@ -30,7 +30,9 @@ export default function EditIssueDialog({
   const [description, setDescription] = useState(issue.description ?? '')
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(issue.assignee_emails)
   const [selectedTags, setSelectedTags] = useState<string[]>(issue.tags)
-  const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(issueTypes)
+  const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(
+    issueTypes.includes(issue.type) ? issueTypes : [...issueTypes, issue.type]
+  )
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
 
@@ -44,7 +46,7 @@ export default function EditIssueDialog({
     setDescription(issue.description ?? '')
     setSelectedAssignees(issue.assignee_emails)
     setSelectedTags(issue.tags)
-    setLocalIssueTypes(issueTypes)
+    setLocalIssueTypes(issueTypes.includes(issue.type) ? issueTypes : [...issueTypes, issue.type])
     setError(null)
     setAssigneeInput('')
   }, [issue, issueTypes])
