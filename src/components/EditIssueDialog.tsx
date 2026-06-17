@@ -192,7 +192,7 @@ export default function EditIssueDialog({
                   settingKey="issueTypes"
                   items={localIssueTypes}
                   deferred
-                  onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); setPendingTypes(newTypes) }}
+                  onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); setPendingTypes(newTypes); if (!newTypes.includes(type)) setType(newTypes[0] ?? '') }}
                 />
               </label>
               <select
