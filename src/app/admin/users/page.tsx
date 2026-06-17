@@ -51,21 +51,6 @@ async function fetchAllowedEmails(
   return []
 }
 
-const ROLE_ORDER = [
-  '管理員', '管理員(供應鏈)', '管理員(採購)', '管理員(工程)', '管理員(業務)', '管理員(技師)',
-  '供應鏈', '採購', '工程', '業務', '技師', '一般使用者',
-]
-
-function sortRoleNames(names: string[]): string[] {
-  return [...names].sort((a, b) => {
-    const ai = ROLE_ORDER.indexOf(a)
-    const bi = ROLE_ORDER.indexOf(b)
-    if (ai === -1 && bi === -1) return 0
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
-}
 
 export default async function AdminUsersPage() {
   const supabase = createSupabaseServerClient()
@@ -100,7 +85,7 @@ export default async function AdminUsersPage() {
     user?.email ? getAssignableRolesData(user.email) : Promise.resolve([]),
   ])
 
-  const roleNames = sortRoleNames(assignableRoles.map(r => r.name))
+  const roleNames = assignableRoles.map(r => r.name)
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">

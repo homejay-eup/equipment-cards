@@ -142,7 +142,7 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
       .from('roles')
       .select('id, name, is_system, department_id, level')
       .in('name', assignable_role_names)
-      .order('id', { ascending: true })
+      .order('sort_order', { ascending: true, nullsFirst: false })
     return (data ?? []) as AssignableRoleRow[]
   }
 
@@ -151,7 +151,7 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
     const { data } = await service
       .from('roles')
       .select('id, name, is_system, department_id, level')
-      .order('created_at', { ascending: true })
+      .order('sort_order', { ascending: true, nullsFirst: false })
     return (data ?? []) as AssignableRoleRow[]
   }
 
@@ -162,7 +162,7 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
       .select('id, name, is_system, department_id, level')
       .eq('department_id', department_id)
       .in('level', ['member', 'viewer'])
-      .order('created_at', { ascending: true })
+      .order('sort_order', { ascending: true, nullsFirst: false })
     return (data ?? []) as AssignableRoleRow[]
   }
 
