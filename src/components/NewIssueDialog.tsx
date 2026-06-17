@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { X, Loader2, Plus, Check } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
 import SettingsPopover from '@/components/SettingsPopover'
@@ -15,10 +15,11 @@ interface Props {
   allowedEmails: string[]
   userEmail?: string
   defaultStatus?: string
+  onTypesChange?: (types: string[]) => void
 }
 
 export default function NewIssueDialog({
-  open, onClose, onCreated, issueTypes, issueTags, allowedEmails, defaultStatus,
+  open, onClose, onCreated, issueTypes, issueTags, allowedEmails, defaultStatus, onTypesChange,
 }: Props) {
   const [title, setTitle] = useState('')
   const [type, setType] = useState('')
@@ -30,6 +31,8 @@ export default function NewIssueDialog({
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(issueTypes)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => { setLocalIssueTypes(issueTypes) }, [issueTypes])
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
   const [tagInput, setTagInput] = useState('')
@@ -168,6 +171,7 @@ export default function NewIssueDialog({
                   items={localIssueTypes}
                   onConfirm={(newTypes) => {
                     setLocalIssueTypes(newTypes)
+                    onTypesChange?.(newTypes)
                     if (!newTypes.includes(type)) setType(newTypes[0] ?? '')
                   }}
                 />

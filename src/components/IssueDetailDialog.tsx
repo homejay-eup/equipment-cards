@@ -17,6 +17,7 @@ interface Props {
   onClose: () => void
   onUpdated: (updated: Issue) => void
   onDeleted: (issueId: string) => void
+  onTypesChange?: (types: string[]) => void
 }
 
 const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
@@ -44,7 +45,7 @@ function formatDatetime(dateStr: string): string {
 
 export default function IssueDetailDialog({
   open, issue, permissions, userEmail, allowedEmails,
-  issueTypes, issueTags, onClose, onUpdated, onDeleted,
+  issueTypes, issueTags, onClose, onUpdated, onDeleted, onTypesChange,
 }: Props) {
   const [localIssue, setLocalIssue] = useState<Issue>(issue)
   const [updates, setUpdates] = useState<IssueUpdate[]>(issue.issue_updates ?? [])
@@ -423,6 +424,7 @@ export default function IssueDetailDialog({
           allowedEmails={allowedEmails}
           onClose={() => setEditOpen(false)}
           onUpdated={handleEditUpdated}
+          onTypesChange={onTypesChange}
         />
       )}
 

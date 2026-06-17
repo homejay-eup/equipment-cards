@@ -74,6 +74,7 @@ export default function TrackerClient({
   const canViewMyTasks  = permissions.includes('view_my_tasks')
 
   const [issues,               setIssues]               = useState<Issue[]>(initialIssues)
+  const [currentIssueTypes,    setCurrentIssueTypes]    = useState<string[]>(issueTypes)
   const [myTasksOnly,          setMyTasksOnly]          = useState(() => searchParams.get('tab') === 'my')
   const [filterPriority,       setFilterPriority]       = useState<'' | 'high' | 'medium' | 'low'>('')
   const [selectedIssue,        setSelectedIssue]        = useState<Issue | null>(null)
@@ -621,11 +622,12 @@ export default function TrackerClient({
           permissions={permissions}
           userEmail={userEmail}
           allowedEmails={allowedEmails}
-          issueTypes={issueTypes}
+          issueTypes={currentIssueTypes}
           issueTags={issueTags}
           onClose={() => setSelectedIssue(null)}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onTypesChange={setCurrentIssueTypes}
         />
       )}
 
@@ -635,11 +637,12 @@ export default function TrackerClient({
           open={newIssueOpen}
           onClose={() => setNewIssueOpen(false)}
           onCreated={handleIssueCreated}
-          issueTypes={issueTypes}
+          issueTypes={currentIssueTypes}
           issueTags={issueTags}
           allowedEmails={allowedEmails}
           userEmail={userEmail}
           defaultStatus={newIssueStatus}
+          onTypesChange={setCurrentIssueTypes}
         />
       )}
 

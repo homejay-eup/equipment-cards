@@ -105,13 +105,16 @@ codegraph install     # 選 Claude Code，設定 MCP server，重啟 Claude Code
 ```
 
 **每次修改 code 前的強制流程**：
-1. 呼叫 `codegraph_explore <要改的 symbol 或功能描述>` 查影響範圍
-2. 確認 blast radius（哪些檔案依賴這個 symbol）
-3. 將所有受影響的地方一起改完
-4. `npm run build` 驗證
-5. 若有新增/刪除檔案，執行 `codegraph sync` 更新索引
+1. 用「功能描述」呼叫 `codegraph_explore` → 找出要改的 symbol 名稱
+2. **確定 symbol 後，再用 symbol 名稱呼叫 `codegraph_explore`** → 取得完整 caller 清單（blast radius）
+   - ⚠️ 步驟 1 是「探索理解」，步驟 2 才是「blast radius check」，兩者目的不同，不可合併
+   - ⚠️ 用功能描述查詢不等於 blast radius check，即使結果看起來已經夠用
+3. 逐一確認每個 caller 是否需要同步修改，**明確列出「需改 / 不需改」的理由**
+4. 將所有受影響的地方一起改完
+5. `npm run build` 驗證
+6. 若有新增/刪除檔案，執行 `codegraph sync` 更新索引
 
-**原因**：多次出現「改A壞B」前例（如新增 permission key 只改 UI、未同步更新 API 白名單），CodeGraph 一次呼叫即可取得完整依賴關係，避免遺漏。
+**原因**：多次出現「改A壞B」前例（如新增 permission key 只改 UI、未同步更新 API 白名單），CodeGraph 一次呼叫即可取得完整依賴關係，避免遺漏。「用功能描述探索」與「用 symbol 名稱查 caller」是兩個不同步驟，前者不能取代後者。
 
 ---
 

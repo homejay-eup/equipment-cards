@@ -14,10 +14,11 @@ interface Props {
   allowedEmails: string[]
   onClose: () => void
   onUpdated: (updated: Issue) => void
+  onTypesChange?: (types: string[]) => void
 }
 
 export default function EditIssueDialog({
-  open, issue, issueTypes, issueTags, allowedEmails, onClose, onUpdated,
+  open, issue, issueTypes, issueTags, allowedEmails, onClose, onUpdated, onTypesChange,
 }: Props) {
   const [title, setTitle] = useState(issue.title)
   const [type, setType] = useState(issue.type)
@@ -170,7 +171,7 @@ export default function EditIssueDialog({
                 <SettingsPopover
                   settingKey="issueTypes"
                   items={localIssueTypes}
-                  onConfirm={(newTypes) => setLocalIssueTypes(newTypes)}
+                  onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); onTypesChange?.(newTypes) }}
                 />
               </label>
               <select
