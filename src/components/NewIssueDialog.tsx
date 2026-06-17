@@ -30,9 +30,13 @@ export default function NewIssueDialog({
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(issueTypes)
+  const [pendingTypes, setPendingTypes] = useState<string[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => { setLocalIssueTypes(issueTypes) }, [issueTypes])
+  // 當父層 currentIssueTypes 更新時同步（只在無暫存變更時才覆寫）
+  useEffect(() => {
+    if (pendingTypes === null) setLocalIssueTypes(issueTypes)
+  }, [issueTypes, pendingTypes])
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
   const [tagInput, setTagInput] = useState('')
@@ -46,6 +50,7 @@ export default function NewIssueDialog({
     setDescription('')
     setSelectedAssignees([])
     setSelectedTags([])
+    setPendingTypes(null)
     setError(null)
     setAssigneeInput('')
     setTagInput('')
@@ -80,6 +85,22 @@ export default function NewIssueDialog({
     e?.preventDefault()
     if (!title.trim()) { setError('標題為必填'); return }
     if (!type) { setError('類型為必填'); return }
+
+    // 類型清單有暫存變更 → 先寫 DB，再建立 issue
+    if (pendingTypes !== null) {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'issueTypes', value: pendingTypes }),
+        })
+        if (!res.ok) { setError('類型選項儲存失敗'); return }
+        onTypesChange?.(pendingTypes)
+      } catch {
+        setError('類型選項儲存失敗')
+        return
+      }
+    }
 
     setSubmitting(true)
     setError(null)
@@ -119,7 +140,7 @@ export default function NewIssueDialog({
     } finally {
       setSubmitting(false)
     }
-  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, onCreated, reset])
+  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, onCreated, reset, pendingTypes, onTypesChange])
 
   if (!open) return null
 
@@ -169,9 +190,10 @@ export default function NewIssueDialog({
                 <SettingsPopover
                   settingKey="issueTypes"
                   items={localIssueTypes}
+                  deferred
                   onConfirm={(newTypes) => {
                     setLocalIssueTypes(newTypes)
-                    onTypesChange?.(newTypes)
+                    setPendingTypes(newTypes)
                     if (!newTypes.includes(type)) setType(newTypes[0] ?? '')
                   }}
                 />

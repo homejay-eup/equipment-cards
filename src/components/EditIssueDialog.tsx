@@ -33,6 +33,7 @@ export default function EditIssueDialog({
   const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(
     issueTypes.includes(issue.type) ? issueTypes : [...issueTypes, issue.type]
   )
+  const [pendingTypes, setPendingTypes] = useState<string[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
 
@@ -47,6 +48,7 @@ export default function EditIssueDialog({
     setSelectedAssignees(issue.assignee_emails)
     setSelectedTags(issue.tags)
     setLocalIssueTypes(issueTypes.includes(issue.type) ? issueTypes : [...issueTypes, issue.type])
+    setPendingTypes(null)
     setError(null)
     setAssigneeInput('')
   }, [issue, issueTypes])
@@ -71,6 +73,22 @@ export default function EditIssueDialog({
     e?.preventDefault()
     if (!title.trim()) { setError('標題為必填'); return }
     if (!type) { setError('類型為必填'); return }
+
+    // 類型清單有暫存變更 → 先寫 DB，再繼續儲存 issue
+    if (pendingTypes !== null) {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'issueTypes', value: pendingTypes }),
+        })
+        if (!res.ok) { setError('類型選項儲存失敗'); return }
+        onTypesChange?.(pendingTypes)
+      } catch {
+        setError('類型選項儲存失敗')
+        return
+      }
+    }
 
     const originalIssue = issue
 
@@ -125,7 +143,7 @@ export default function EditIssueDialog({
     } catch {
       onUpdated(originalIssue)
     }
-  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue, onUpdated, onClose])
+  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue, onUpdated, onClose, pendingTypes, onTypesChange])
 
   if (!open) return null
 
@@ -173,7 +191,8 @@ export default function EditIssueDialog({
                 <SettingsPopover
                   settingKey="issueTypes"
                   items={localIssueTypes}
-                  onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); onTypesChange?.(newTypes) }}
+                  deferred
+                  onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); setPendingTypes(newTypes) }}
                 />
               </label>
               <select

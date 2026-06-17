@@ -6,12 +6,14 @@ import { Settings, X, Plus, Loader2 } from 'lucide-react'
 interface Props {
   settingKey: 'categories' | 'statuses' | 'documentTypes' | 'issueTypes'
   items: string[]
-  /** 按「確認」後回傳最新清單（已寫入 DB） */
+  /** 按「確認」後回傳最新清單。deferred=false（預設）時已寫入 DB；deferred=true 時由父層決定何時寫入 DB */
   onConfirm: (newItems: string[]) => void
   disabled?: boolean
+  /** true：確認時不寫 DB，由父層 form 儲存時一併處理（用於 EditIssueDialog / NewIssueDialog） */
+  deferred?: boolean
 }
 
-export default function SettingsPopover({ settingKey, items, onConfirm, disabled }: Props) {
+export default function SettingsPopover({ settingKey, items, onConfirm, disabled, deferred }: Props) {
   const [open, setOpen]     = useState(false)
   const [draft, setDraft]   = useState<string[]>([])
   const [input, setInput]   = useState('')
@@ -59,6 +61,11 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
   }
 
   async function handleConfirm() {
+    if (deferred) {
+      onConfirm(draft)
+      setOpen(false)
+      return
+    }
     setSaving(true)
     setError(null)
     try {
