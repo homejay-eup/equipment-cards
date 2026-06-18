@@ -18,7 +18,7 @@ export async function GET() {
   return NextResponse.json(settings)
 }
 
-// PATCH /api/settings — 管理員或有 edit_card_category / edit_card_status 權限
+// PATCH /api/settings — 管理員或有 edit_card_category / edit_card_status / create_issues / tracker_edit_issue 權限
 export async function PATCH(req: NextRequest) {
   // Session check
   const supabase = createSupabaseServerClient()
@@ -29,7 +29,9 @@ export async function PATCH(req: NextRequest) {
   const canManageSettings =
     permissions.includes('manage_roles') ||
     permissions.includes('edit_card_category') ||
-    permissions.includes('edit_card_status')
+    permissions.includes('edit_card_status') ||
+    permissions.includes('create_issues') ||
+    permissions.includes('tracker_edit_issue')
   if (!canManageSettings) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -39,16 +41,47 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 
-  // 欄位層級隔離：根據各自 permission 限制可操作的 key
+  // issueTypes / issueTags → 寫入 department_issue_types（按部門隔離）
+  if (key === 'issueTypes' || key === 'issueTags') {
+    if (!permissions.includes('manage_roles') &&
+        !permissions.includes('create_issues') &&
+        !permissions.includes('tracker_edit_issue')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const service = getSupabase()
+    // 查呼叫者的 department_id
+    const { data: emailRow } = await service
+      .from('allowed_emails')
+      .select('role')
+      .eq('email', user.email)
+      .single()
+    if (!emailRow?.role) return NextResponse.json({ error: '無部門歸屬' }, { status: 403 })
+
+    const { data: roleRow } = await service
+      .from('roles')
+      .select('department_id')
+      .eq('name', emailRow.role)
+      .single()
+    const departmentId = (roleRow as { department_id: string | null } | null)?.department_id
+    if (!departmentId) return NextResponse.json({ error: '無部門歸屬' }, { status: 403 })
+
+    const column = key === 'issueTypes' ? 'types' : 'tags'
+    const { error } = await service
+      .from('department_issue_types')
+      .upsert({ department_id: departmentId, [column]: value, updated_at: new Date().toISOString() }, { onConflict: 'department_id' })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // 其餘 key (categories / statuses / documentTypes) → 欄位層級隔離寫 app_settings
   const allowedKeys: string[] = []
   if (permissions.includes('manage_roles')) {
-    allowedKeys.push('categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags')
+    allowedKeys.push('categories', 'statuses', 'documentTypes')
   } else {
     if (permissions.includes('edit_card_category')) allowedKeys.push('categories', 'documentTypes')
     if (permissions.includes('edit_card_status')) allowedKeys.push('statuses')
-    if (permissions.includes('create_issues') || permissions.includes('tracker_edit_issue')) {
-      allowedKeys.push('issueTypes', 'issueTags')
-    }
   }
   if (!allowedKeys.includes(key)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

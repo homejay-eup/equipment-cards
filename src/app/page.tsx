@@ -125,12 +125,8 @@ async function getTrackerData(userEmail: string): Promise<{
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  // 第一批：平行取得設定、當前使用者角色、全部使用者清單
-  const [settingsResult, userRoleResult, allUsersResult] = await Promise.allSettled([
-    supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['issueTypes', 'issueTags']),
+  // 第一批：平行取得當前使用者角色、全部使用者清單
+  const [userRoleResult, allUsersResult] = await Promise.allSettled([
     supabase.from('allowed_emails').select('role').eq('email', userEmail).single(),
     supabase.from('allowed_emails').select('email, role').order('created_at', { ascending: true }),
   ])
@@ -145,21 +141,12 @@ async function getTrackerData(userEmail: string): Promise<{
     : null
   const userDepartmentId = (roleInfoResult?.data as { department_id: string | null } | null)?.department_id ?? null
 
-  const settingsRows =
-    settingsResult.status === 'fulfilled' ? (settingsResult.value.data ?? []) : []
-  let issueTypes = ['缺貨', '韌體', '維修', '客戶反應', '其他']
-  let issueTags: string[] = []
-  for (const row of settingsRows as { key: string; value: unknown }[]) {
-    if (row.key === 'issueTypes' && Array.isArray(row.value)) issueTypes = row.value as string[]
-    if (row.key === 'issueTags' && Array.isArray(row.value)) issueTags = row.value as string[]
-  }
-
   if (!userDepartmentId) {
-    return { initialIssues: [], allowedEmails: [], issueTypes, issueTags }
+    return { initialIssues: [], allowedEmails: [], issueTypes: [], issueTags: [] }
   }
 
-  // 第三批：依 department_id 平行取議題 + 同部門角色名稱
-  const [issuesResult, deptRolesResult] = await Promise.allSettled([
+  // 第三批：依 department_id 平行取議題 + 同部門角色名稱 + 部門任務類型
+  const [issuesResult, deptRolesResult, deptIssueTypesResult] = await Promise.allSettled([
     supabase
       .from('issues')
       .select(`
@@ -172,6 +159,7 @@ async function getTrackerData(userEmail: string): Promise<{
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false }),
     supabase.from('roles').select('name').eq('department_id', userDepartmentId),
+    supabase.from('department_issue_types').select('types, tags').eq('department_id', userDepartmentId).single(),
   ])
 
   const issuesData = issuesResult.status === 'fulfilled' ? (issuesResult.value.data ?? []) : []
@@ -196,6 +184,13 @@ async function getTrackerData(userEmail: string): Promise<{
     ? ((allUsersResult.value.data ?? []) as { email: string; role: string }[])
     : []
   const allowedEmails = allUsers.filter((u) => deptRoleNames.includes(u.role)).map((u) => u.email)
+
+  type DeptIssueTypes = { types: string[]; tags: string[] }
+  const deptIssueTypesData = deptIssueTypesResult.status === 'fulfilled'
+    ? (deptIssueTypesResult.value.data as DeptIssueTypes | null)
+    : null
+  const issueTypes: string[] = Array.isArray(deptIssueTypesData?.types) ? deptIssueTypesData!.types : []
+  const issueTags: string[] = Array.isArray(deptIssueTypesData?.tags) ? deptIssueTypesData!.tags : []
 
   return { initialIssues, allowedEmails, issueTypes, issueTags }
 }

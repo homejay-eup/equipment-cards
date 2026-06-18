@@ -5,7 +5,6 @@ import { Suspense } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getSettings } from '@/lib/settings'
 import TrackerClient from './TrackerClient'
 
 export interface Issue {
@@ -52,10 +51,9 @@ export default async function TrackerPage() {
   const adminClient = getServiceClient()
   const userEmail = authUser?.email ?? ''
 
-  // 第一批：平行取得角色資料、設定、使用者清單
-  const [roleData, settings, userRoleResult, usersResult] = await Promise.all([
+  // 第一批：平行取得角色資料、使用者清單
+  const [roleData, userRoleResult, usersResult] = await Promise.all([
     getUserRoleWithPermissions(),
-    getSettings(),
     userEmail
       ? adminClient.from('allowed_emails').select('role').eq('email', userEmail).single()
       : Promise.resolve({ data: null }),
@@ -110,9 +108,11 @@ export default async function TrackerPage() {
 
   let rawIssues: RawIssue[] = []
   let deptRoleNames: string[] | null = null
+  let issueTypes: string[] = []
+  let issueTags: string[] = []
   if (userDepartmentId !== null) {
-    // 平行：議題查詢 + 同部門角色名稱（供 allowedEmails 部門過濾）
-    const [issuesResult, deptRolesResult] = await Promise.all([
+    // 平行：議題查詢 + 同部門角色名稱 + 部門任務類型
+    const [issuesResult, deptRolesResult, deptIssueTypesResult] = await Promise.all([
       adminClient
         .from('issues')
         .select(issueSelectQuery)
@@ -124,9 +124,18 @@ export default async function TrackerPage() {
         .from('roles')
         .select('name')
         .eq('department_id', userDepartmentId),
+      adminClient
+        .from('department_issue_types')
+        .select('types, tags')
+        .eq('department_id', userDepartmentId)
+        .single(),
     ])
     rawIssues = (issuesResult.data ?? []) as RawIssue[]
     deptRoleNames = (deptRolesResult.data ?? []).map((r: { name: string }) => r.name)
+    type DeptIssueTypes = { types: string[]; tags: string[] }
+    const dit = deptIssueTypesResult.data as DeptIssueTypes | null
+    issueTypes = Array.isArray(dit?.types) ? dit!.types : []
+    issueTags  = Array.isArray(dit?.tags)  ? dit!.tags  : []
   }
   // userDepartmentId === null → rawIssues = []（無部門歸屬，不可見）
 
@@ -165,8 +174,8 @@ export default async function TrackerPage() {
           permissions={permissions}
           userEmail={userEmail}
           allowedEmails={allowedEmails}
-          issueTypes={settings.issueTypes ?? []}
-          issueTags={settings.issueTags ?? []}
+          issueTypes={issueTypes}
+          issueTags={issueTags}
         />
       </Suspense>
     </main>
