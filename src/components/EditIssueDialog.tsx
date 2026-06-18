@@ -12,13 +12,14 @@ interface Props {
   issueTypes: string[]
   issueTags: string[]
   allowedEmails: string[]
+  canManageIssueTypes?: boolean
   onClose: () => void
   onUpdated: (updated: Issue) => void
   onTypesChange?: (types: string[]) => void
 }
 
 export default function EditIssueDialog({
-  open, issue, issueTypes, issueTags, allowedEmails, onClose, onUpdated, onTypesChange,
+  open, issue, issueTypes, issueTags, allowedEmails, canManageIssueTypes = false, onClose, onUpdated, onTypesChange,
 }: Props) {
   const [title, setTitle] = useState(issue.title)
   const [type, setType] = useState(issue.type)
@@ -193,6 +194,7 @@ export default function EditIssueDialog({
                   items={localIssueTypes}
                   deferred
                   onConfirm={(newTypes) => { setLocalIssueTypes(newTypes); setPendingTypes(newTypes); if (!newTypes.includes(type)) setType(newTypes[0] ?? '') }}
+                  disabled={!canManageIssueTypes}
                 />
               </label>
               <select

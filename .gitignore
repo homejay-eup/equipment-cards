@@ -51,3 +51,7 @@ next-env.d.ts
 
 # Claude Code agent 暫存工作目錄
 /.claude/worktrees/
+
+# Google Drive OAuth 憑證（敏感，勿 commit）
+/_開發檔案/drive-credentials.json
+/_開發檔案/drive-token.json

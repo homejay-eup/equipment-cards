@@ -422,6 +422,7 @@ export default function IssueDetailDialog({
           issueTypes={issueTypes}
           issueTags={issueTags}
           allowedEmails={allowedEmails}
+          canManageIssueTypes={canCreateIssues || canEditIssue}
           onClose={() => setEditOpen(false)}
           onUpdated={handleEditUpdated}
           onTypesChange={onTypesChange}

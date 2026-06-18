@@ -46,6 +46,9 @@ export async function PATCH(req: NextRequest) {
   } else {
     if (permissions.includes('edit_card_category')) allowedKeys.push('categories', 'documentTypes')
     if (permissions.includes('edit_card_status')) allowedKeys.push('statuses')
+    if (permissions.includes('create_issues') || permissions.includes('tracker_edit_issue')) {
+      allowedKeys.push('issueTypes', 'issueTags')
+    }
   }
   if (!allowedKeys.includes(key)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

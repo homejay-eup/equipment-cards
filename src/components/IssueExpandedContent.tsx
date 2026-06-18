@@ -268,6 +268,7 @@ export default function IssueExpandedContent({
           issueTypes={issueTypes}
           issueTags={issueTags}
           allowedEmails={allowedEmails}
+          canManageIssueTypes={canCreateIssues || canEditIssue}
           onClose={() => setEditOpen(false)}
           onUpdated={handleEditUpdated}
         />

@@ -474,7 +474,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     return Array.from(found).sort()
   }, [initialCards, settings.statuses])
 
-  const mainPhotosCount = initialCards.filter(c => c.main_photo).length
+const mainPhotosCount = initialCards.filter(c => c.main_photo).length
   const detailPhotosCount = initialCards.reduce((sum, c) => sum + c.detail_photos.length, 0)
 
   return (
@@ -743,31 +743,31 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
                       </button>
                     )
                   })}
-                  {orphanStatuses.length > 0 && (
-                    <>
-                      <span className="hidden md:inline-block w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
-                      {orphanStatuses.map(s => {
-                        const isActive = selectedStatuses.has(s)
-                        const count = initialCards.filter(c => c.status === s).length
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => toggleStatus(s)}
-                            title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
-                              isActive
-                                ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
-                                : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
-                            }`}
-                          >
-                            <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-                            {s}
-                            <span className="opacity-70">({count})</span>
-                          </button>
-                        )
-                      })}
-                    </>
-                  )}
+                </>
+              )}
+              {orphanStatuses.length > 0 && (
+                <>
+                  <span className="hidden md:inline-block w-px h-5 bg-[rgba(122,82,48,.2)] mx-1" />
+                  {orphanStatuses.map(s => {
+                    const isActive = selectedStatuses.has(s)
+                    const count = initialCards.filter(c => c.status === s).length
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => toggleStatus(s)}
+                        title={`此狀態已從清單移除，仍有 ${count} 張料卡使用此值`}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed transition-all duration-200 ${
+                          isActive
+                            ? 'bg-[rgba(122,82,48,.1)] text-[#7a5230] border-[#c49a72]'
+                            : 'bg-transparent text-[#a08060] border-[rgba(122,82,48,.3)] hover:border-[rgba(122,82,48,.5)] hover:text-[#7a5230]'
+                        }`}
+                      >
+                        <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        {s}
+                        <span className="opacity-70">({count})</span>
+                      </button>
+                    )
+                  })}
                 </>
               )}
               <span className="hidden md:inline-block w-px h-5 bg-[#e8ddd0] mx-1" />
