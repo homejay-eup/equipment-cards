@@ -50,13 +50,14 @@ export function useIssueRealtime({
           table: 'issues',
         },
         async (payload) => {
-          // server-side filter 對 UUID 欄位不可靠，改在 callback 手動過濾
+          // 診斷用：先 log 所有進來的事件（過濾前）
           const row = payload.eventType === 'DELETE'
             ? (payload.old as Record<string, unknown>)
             : (payload.new as Record<string, unknown>)
-          if (row?.department_id !== userDepartmentId) return
+          console.log('[Realtime] raw event:', payload.eventType, 'row.dept:', row?.department_id, '| my dept:', userDepartmentId, '| match:', row?.department_id === userDepartmentId)
 
-          console.log('[Realtime] event received:', payload.eventType, payload)
+          if (row?.department_id !== userDepartmentId) return
+          console.log('[Realtime] passed dept filter:', payload.eventType)
           const issueId =
             payload.eventType === 'DELETE'
               ? (payload.old as { id?: string })?.id
