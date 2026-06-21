@@ -17,7 +17,6 @@ function normalizeIssue(raw: Record<string, unknown>) {
   )
   return {
     ...raw,
-    issue_assignees: undefined,
     assignee_emails: emails,
     assignees: emails.map((e) => e.split('@')[0]),
   }
