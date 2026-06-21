@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const skipped: string[] = []
   const errors: string[] = []
 
-  for (const row of rows) {
+  const processRow = async (row: BatchRow) => {
     const { error } = await supabase
       .from('equipment_cards')
       .insert({
@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       if (error.code === '23505') {
-        // 料號已存在：改為更新有提供且非空的欄位
         const updatePayload: Record<string, unknown> = {
           updated_at: new Date().toISOString(),
         }
@@ -91,6 +90,12 @@ export async function POST(req: NextRequest) {
     } else {
       inserted.push(row.equipment_id)
     }
+  }
+
+  // 並行處理，每批 50 筆
+  const CHUNK = 50
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await Promise.all(rows.slice(i, i + CHUNK).map(processRow))
   }
 
   return NextResponse.json({ inserted: inserted.length, updated: updated.length, skipped, errors })
