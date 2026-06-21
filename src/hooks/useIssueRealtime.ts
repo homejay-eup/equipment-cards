@@ -29,9 +29,16 @@ export function useIssueRealtime({
   })
 
   useEffect(() => {
-    if (!userDepartmentId) return
+    if (!userDepartmentId) {
+      console.log('[Realtime] skipped: userDepartmentId is null/undefined')
+      return
+    }
 
     const supabase = createSupabaseBrowserClient()
+
+    supabase.auth.getSession().then(({ data }) => {
+      console.log('[Realtime] session present:', !!data.session, '| user:', data.session?.user?.email)
+    })
 
     const channel = supabase
       .channel(`issues:dept:${userDepartmentId}`)
@@ -44,6 +51,7 @@ export function useIssueRealtime({
           filter: `department_id=eq.${userDepartmentId}`,
         },
         async (payload) => {
+          console.log('[Realtime] event received:', payload.eventType, payload)
           const issueId =
             payload.eventType === 'DELETE'
               ? (payload.old as { id?: string })?.id
@@ -71,7 +79,9 @@ export function useIssueRealtime({
           }
         },
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log('[Realtime] subscribe status:', status, err ?? '')
+      })
 
     return () => {
       supabase.removeChannel(channel)
