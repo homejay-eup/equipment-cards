@@ -48,9 +48,14 @@ export function useIssueRealtime({
           event: '*',
           schema: 'public',
           table: 'issues',
-          filter: `department_id=eq.${userDepartmentId}`,
         },
         async (payload) => {
+          // server-side filter 對 UUID 欄位不可靠，改在 callback 手動過濾
+          const row = payload.eventType === 'DELETE'
+            ? (payload.old as Record<string, unknown>)
+            : (payload.new as Record<string, unknown>)
+          if (row?.department_id !== userDepartmentId) return
+
           console.log('[Realtime] event received:', payload.eventType, payload)
           const issueId =
             payload.eventType === 'DELETE'
