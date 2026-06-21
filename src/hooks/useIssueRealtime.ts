@@ -17,7 +17,6 @@ export function useIssueRealtime({
   onUpdate,
   onDelete,
 }: Options) {
-  // callbacks 存 ref，避免每次 render 重新訂閱
   const onInsertRef = useRef(onInsert)
   const onUpdateRef = useRef(onUpdate)
   const onDeleteRef = useRef(onDelete)
@@ -29,68 +28,65 @@ export function useIssueRealtime({
   })
 
   useEffect(() => {
-    if (!userDepartmentId) {
-      console.log('[Realtime] skipped: userDepartmentId is null/undefined')
-      return
-    }
+    if (!userDepartmentId) return
 
     const supabase = createSupabaseBrowserClient()
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    let removed = false
 
+    // @supabase/ssr 以 cookie 儲存 session，Realtime WebSocket 不會自動帶入 JWT；
+    // 需明確呼叫 setAuth() 才能讓伺服器端 RLS 驗證通過並投遞事件
     supabase.auth.getSession().then(({ data }) => {
-      console.log('[Realtime] session present:', !!data.session, '| user:', data.session?.user?.email)
+      if (removed) return
+
+      if (data.session?.access_token) {
+        supabase.realtime.setAuth(data.session.access_token)
+      }
+
+      channel = supabase
+        .channel(`issues:dept:${userDepartmentId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'issues',
+            filter: `department_id=eq.${userDepartmentId}`,
+          },
+          async (payload) => {
+            const issueId =
+              payload.eventType === 'DELETE'
+                ? (payload.old as { id?: string })?.id
+                : (payload.new as { id?: string })?.id
+
+            if (!issueId) return
+
+            if (payload.eventType === 'DELETE') {
+              onDeleteRef.current(issueId)
+              return
+            }
+
+            try {
+              const res = await fetch(`/api/issues/${issueId}`)
+              if (!res.ok) return
+              const issue: Issue = await res.json()
+
+              if (payload.eventType === 'INSERT') {
+                onInsertRef.current(issue)
+              } else {
+                onUpdateRef.current(issue)
+              }
+            } catch {
+              // 靜默失敗
+            }
+          },
+        )
+        .subscribe()
     })
 
-    const channel = supabase
-      .channel(`issues:dept:${userDepartmentId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'issues',
-        },
-        async (payload) => {
-          // 診斷用：先 log 所有進來的事件（過濾前）
-          const row = payload.eventType === 'DELETE'
-            ? (payload.old as Record<string, unknown>)
-            : (payload.new as Record<string, unknown>)
-          console.log('[Realtime] raw event:', payload.eventType, 'row.dept:', row?.department_id, '| my dept:', userDepartmentId, '| match:', row?.department_id === userDepartmentId)
-
-          if (row?.department_id !== userDepartmentId) return
-          console.log('[Realtime] passed dept filter:', payload.eventType)
-          const issueId =
-            payload.eventType === 'DELETE'
-              ? (payload.old as { id?: string })?.id
-              : (payload.new as { id?: string })?.id
-
-          if (!issueId) return
-
-          if (payload.eventType === 'DELETE') {
-            onDeleteRef.current(issueId)
-            return
-          }
-
-          try {
-            const res = await fetch(`/api/issues/${issueId}`)
-            if (!res.ok) return
-            const issue: Issue = await res.json()
-
-            if (payload.eventType === 'INSERT') {
-              onInsertRef.current(issue)
-            } else {
-              onUpdateRef.current(issue)
-            }
-          } catch {
-            // 靜默失敗，下次操作或刷新時自然補齊
-          }
-        },
-      )
-      .subscribe((status, err) => {
-        console.log('[Realtime] subscribe status:', status, err ?? '')
-      })
-
     return () => {
-      supabase.removeChannel(channel)
+      removed = true
+      if (channel) supabase.removeChannel(channel)
     }
   }, [userDepartmentId])
 }
