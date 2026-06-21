@@ -118,6 +118,7 @@ async function getTrackerData(userEmail: string): Promise<{
   allowedEmails: string[]
   issueTypes: string[]
   issueTags: string[]
+  userDepartmentId: string | null
 }> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -142,7 +143,7 @@ async function getTrackerData(userEmail: string): Promise<{
   const userDepartmentId = (roleInfoResult?.data as { department_id: string | null } | null)?.department_id ?? null
 
   if (!userDepartmentId) {
-    return { initialIssues: [], allowedEmails: [], issueTypes: [], issueTags: [] }
+    return { initialIssues: [], allowedEmails: [], issueTypes: [], issueTags: [], userDepartmentId: null }
   }
 
   // 第三批：依 department_id 平行取議題 + 同部門角色名稱 + 部門任務類型
@@ -192,7 +193,7 @@ async function getTrackerData(userEmail: string): Promise<{
   const issueTypes: string[] = Array.isArray(deptIssueTypesData?.types) ? deptIssueTypesData!.types : []
   const issueTags: string[] = Array.isArray(deptIssueTypesData?.tags) ? deptIssueTypesData!.tags : []
 
-  return { initialIssues, allowedEmails, issueTypes, issueTags }
+  return { initialIssues, allowedEmails, issueTypes, issueTags, userDepartmentId }
 }
 
 export default async function HomePage() {

@@ -11,6 +11,18 @@ function getSupabase() {
   )
 }
 
+function normalizeIssue(raw: Record<string, unknown>) {
+  const emails = ((raw.issue_assignees ?? []) as { user_email: string }[]).map(
+    (a) => a.user_email,
+  )
+  return {
+    ...raw,
+    issue_assignees: undefined,
+    assignee_emails: emails,
+    assignees: emails.map((e) => e.split('@')[0]),
+  }
+}
+
 // ── GET /api/issues/[id] ──────────────────────────────────────
 // 查詢單筆議題（含 assignees + updates）
 // 權限：view_tracker
@@ -45,7 +57,7 @@ export async function GET(
       throw error
     }
 
-    return NextResponse.json(issue)
+    return NextResponse.json(normalizeIssue(issue as Record<string, unknown>))
   } catch (err) {
     console.error('[issues] get error', err)
     return NextResponse.json({ error: '查詢失敗' }, { status: 500 })
@@ -176,7 +188,7 @@ export async function PATCH(
 
     if (refetchError) throw refetchError
 
-    return NextResponse.json(updated)
+    return NextResponse.json(normalizeIssue(updated as Record<string, unknown>))
   } catch (err) {
     console.error('[issues] update error', err)
     return NextResponse.json({ error: '更新失敗' }, { status: 500 })

@@ -23,6 +23,7 @@ interface TrackerData {
   allowedEmails: string[]
   issueTypes: string[]
   issueTags: string[]
+  userDepartmentId?: string | null
 }
 
 interface Props {
@@ -879,6 +880,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             issueTypes={trackerData.issueTypes}
             issueTags={trackerData.issueTags}
             onMyTasksCountChange={setTrackerPendingCount}
+            userDepartmentId={trackerData.userDepartmentId ?? null}
           />
         </div>
       )}

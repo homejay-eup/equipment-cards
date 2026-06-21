@@ -7,6 +7,7 @@ import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { useIssueRealtime } from '@/hooks/useIssueRealtime'
 
 interface Props {
   initialIssues: Issue[]
@@ -16,6 +17,7 @@ interface Props {
   issueTypes: string[]
   issueTags: string[]
   onMyTasksCountChange?: (count: number) => void
+  userDepartmentId?: string | null
 }
 
 const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
@@ -65,10 +67,17 @@ export default function TrackerClient({
   issueTypes,
   issueTags,
   onMyTasksCountChange,
+  userDepartmentId,
 }: Props) {
   const router = useRouter()
   const hasMutatedRef = useRef(false)
+  const recentMutationIdsRef = useRef<Map<string, number>>(new Map())
   const searchParams = useSearchParams()
+
+  function markMutation(id: string) {
+    recentMutationIdsRef.current.set(id, Date.now())
+    setTimeout(() => recentMutationIdsRef.current.delete(id), 3000)
+  }
 
   const canCreateIssues = permissions.includes('create_issues')
   const canViewMyTasks  = permissions.includes('view_my_tasks')
@@ -108,6 +117,31 @@ export default function TrackerClient({
   useEffect(() => {
     if (!hasMutatedRef.current) setIssues(initialIssues)
   }, [initialIssues])
+
+  useIssueRealtime({
+    userDepartmentId: userDepartmentId ?? null,
+    onInsert: useCallback((issue: Issue) => {
+      if (recentMutationIdsRef.current.has(issue.id)) return
+      setIssues(prev =>
+        prev.some(i => i.id === issue.id)
+          ? prev.map(i => i.id === issue.id ? issue : i)
+          : [issue, ...prev],
+      )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+    onUpdate: useCallback((issue: Issue) => {
+      if (recentMutationIdsRef.current.has(issue.id)) return
+      setIssues(prev => prev.map(i => i.id === issue.id ? issue : i))
+      setSelectedIssue(prev => prev?.id === issue.id ? issue : prev)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+    onDelete: useCallback((id: string) => {
+      if (recentMutationIdsRef.current.has(id)) return
+      setIssues(prev => prev.filter(i => i.id !== id))
+      setSelectedIssue(prev => prev?.id === id ? null : prev)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  })
 
   // 依篩選後的 base list
   const baseIssues = useMemo(() => {
@@ -155,18 +189,21 @@ export default function TrackerClient({
 
   const handleIssueCreated = useCallback((newIssue: Issue) => {
     hasMutatedRef.current = true
+    markMutation(newIssue.id)
     setIssues(prev => [newIssue, ...prev])
     setNewIssueOpen(false)
   }, [])
 
   const handleIssueUpdated = useCallback((updated: Issue) => {
     hasMutatedRef.current = true
+    markMutation(updated.id)
     setIssues(prev => prev.map(i => i.id === updated.id ? updated : i))
     setSelectedIssue(prev => prev?.id === updated.id ? updated : prev)
   }, [])
 
   const handleIssueDeleted = useCallback((id: string) => {
     hasMutatedRef.current = true
+    markMutation(id)
     setIssues(prev => prev.filter(i => i.id !== id))
     setSelectedIssue(null)
   }, [])
@@ -196,6 +233,7 @@ export default function TrackerClient({
         )
       )
       hasMutatedRef.current = true
+      completedIssues.forEach(i => markMutation(i.id))
       setIssues(prev => prev.filter(i => i.status !== '已完成'))
     } finally {
       setClearingCompleted(false)
@@ -208,6 +246,7 @@ export default function TrackerClient({
     try {
       await fetch(`/api/issues/${id}`, { method: 'DELETE' })
       hasMutatedRef.current = true
+      markMutation(id)
       setIssues(prev => prev.filter(i => i.id !== id))
     } finally {
       setDeletingIssueId(null)
@@ -233,6 +272,7 @@ export default function TrackerClient({
     if (issue.status !== targetStatus) {
       const originalStatus = issue.status
       hasMutatedRef.current = true
+      markMutation(id)
       setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
       try {
         const res = await fetch(`/api/issues/${id}`, {
@@ -269,6 +309,7 @@ export default function TrackerClient({
 
       // 樂觀更新
       hasMutatedRef.current = true
+      orders.forEach(o => markMutation(o.id))
       setIssues(prev => prev.map(i =>
         sortMap[i.id] !== undefined ? { ...i, sort_order: sortMap[i.id] } : i
       ))

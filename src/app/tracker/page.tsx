@@ -176,6 +176,7 @@ export default async function TrackerPage() {
           allowedEmails={allowedEmails}
           issueTypes={issueTypes}
           issueTags={issueTags}
+          userDepartmentId={userDepartmentId}
         />
       </Suspense>
     </main>
