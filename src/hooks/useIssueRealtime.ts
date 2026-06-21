@@ -34,6 +34,16 @@ export function useIssueRealtime({
     let channel: ReturnType<typeof supabase.channel> | null = null
     let removed = false
 
+    // JWT 預設 1 小時過期；token 更新時需重新授權 Realtime，
+    // 否則伺服器端 RLS 會以過期 token 驗證失敗，事件靜默停止投遞
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+          supabase.realtime.setAuth(session.access_token)
+        }
+      },
+    )
+
     // @supabase/ssr 以 cookie 儲存 session，Realtime WebSocket 不會自動帶入 JWT；
     // 需明確呼叫 setAuth() 才能讓伺服器端 RLS 驗證通過並投遞事件
     supabase.auth.getSession().then(({ data }) => {
@@ -86,6 +96,7 @@ export function useIssueRealtime({
 
     return () => {
       removed = true
+      authListener.subscription.unsubscribe()
       if (channel) supabase.removeChannel(channel)
     }
   }, [userDepartmentId])

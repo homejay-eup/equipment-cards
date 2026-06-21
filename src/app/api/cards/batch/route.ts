@@ -45,6 +45,13 @@ export async function POST(req: NextRequest) {
   const errors: string[] = []
 
   const processRow = async (row: BatchRow) => {
+    // 缺必填欄位（料號/名稱）→ 記為錯誤後跳過，避免 row.xxx.trim() 拋錯
+    // 拖垮整個 Promise.all 批次
+    if (!row?.equipment_id?.trim() || !row?.name?.trim()) {
+      errors.push(`${row?.equipment_id?.trim() || '(無料號)'}：缺少必填欄位（料號或名稱）`)
+      return
+    }
+
     const { error } = await supabase
       .from('equipment_cards')
       .insert({

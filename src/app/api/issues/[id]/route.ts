@@ -41,7 +41,7 @@ export async function GET(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at,
+        created_by, created_at, updated_at, sort_order,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
@@ -177,7 +177,7 @@ export async function PATCH(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at,
+        created_by, created_at, updated_at, sort_order,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
