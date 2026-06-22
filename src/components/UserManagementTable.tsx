@@ -311,7 +311,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: dropdownPos.top, left: Math.min(dropdownPos.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280 - 8), zIndex: 9999 }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] min-w-[9rem]"
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] w-max"
         >
           {availableRoles.map(role => {
             const currentRole = users.find(u => u.email === openRoleEmail)?.role
@@ -324,7 +324,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                   setOpenRoleEmail(null)
                   if (user && role !== user.role) changeRole(user, role)
                 }}
-                className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
+                className={`block text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
                   role === currentRole
                     ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                     : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
