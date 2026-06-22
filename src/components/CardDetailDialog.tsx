@@ -213,7 +213,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </span>
                   )}
                   {permissions.includes('read_vendor') && card.vendor && (
-                    <span className="text-xs text-[#a08060]">{card.vendor}</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">{card.vendor}</span>
                   )}
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         </span>
                       )}
                       {permissions.includes('read_vendor') && card.vendor && (
-                        <span className="text-xs text-[#a08060]">{card.vendor}</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[rgba(122,82,48,.2)]">{card.vendor}</span>
                       )}
                     </div>
                   </DialogHeader>
