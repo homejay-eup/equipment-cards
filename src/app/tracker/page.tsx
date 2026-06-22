@@ -19,6 +19,7 @@ export interface Issue {
   created_by: string
   created_at: string
   updated_at: string
+  updated_by?: string | null
   sort_order?: number
   assignees: string[]         // email 前綴（顯示用）
   assignee_emails: string[]   // 完整 email（篩選用）
@@ -94,6 +95,7 @@ export default async function TrackerPage() {
     created_by: string
     created_at: string
     updated_at: string
+    updated_by: string | null
     sort_order: number | null
     issue_assignees: { user_email: string }[]
     issue_updates: { id: string; content: string; created_by: string; created_at: string }[]
@@ -101,7 +103,7 @@ export default async function TrackerPage() {
 
   const issueSelectQuery = `
     id, title, type, priority, status, due_date, description, tags,
-    created_by, created_at, updated_at, sort_order,
+    created_by, created_at, updated_at, updated_by, sort_order,
     issue_assignees(user_email),
     issue_updates(id, content, created_by, created_at)
   `
@@ -153,6 +155,7 @@ export default async function TrackerPage() {
       created_by: raw.created_by,
       created_at: raw.created_at,
       updated_at: raw.updated_at,
+      updated_by: raw.updated_by ?? null,
       sort_order: raw.sort_order ?? undefined,
       assignees: emails.map((e) => e.split('@')[0]),
       assignee_emails: emails,

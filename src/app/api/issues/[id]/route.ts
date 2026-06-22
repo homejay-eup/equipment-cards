@@ -41,7 +41,7 @@ export async function GET(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, sort_order,
+        created_by, created_at, updated_at, updated_by, sort_order,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
@@ -130,6 +130,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updateFields).length > 0) {
+      updateFields.updated_by = user.email
       const { error: updateError } = await adminClient
         .from('issues')
         .update(updateFields)
@@ -177,7 +178,7 @@ export async function PATCH(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, sort_order,
+        created_by, created_at, updated_at, updated_by, sort_order,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)

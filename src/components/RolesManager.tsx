@@ -572,10 +572,10 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
               {[
                 { label: '可見性', keys: VISIBILITY_PERMS, radio: true },
                 { label: '料卡列表', keys: LIST_PERMS, radio: false },
+                { label: '功能設定', keys: FEATURE_PERMS, radio: false },
                 { label: '料卡細節', keys: DETAIL_PERMS, radio: false },
                 { label: '帳號管理', keys: ACCOUNT_PERMS, radio: false },
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
-                { label: '功能設定', keys: FEATURE_PERMS, radio: false },
               ].map(section => (
                 <div key={section.label}>
                   <p className="text-[11px] font-semibold text-[#a08060] mb-1">{section.label}</p>
@@ -860,6 +860,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </div>
                 </div>
 
+                {/* 功能設定 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">功能設定</p>
+                  <div className="space-y-1.5">
+                    {FEATURE_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 料卡細節 */}
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">料卡細節</p>
@@ -1007,25 +1026,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                         </label>
                       )
                     })}
-                  </div>
-                </div>
-
-                {/* 功能設定 */}
-                <div>
-                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">功能設定</p>
-                  <div className="space-y-1.5">
-                    {FEATURE_PERMS.map(key => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={draft.includes(key)}
-                          onChange={() => handleDetailToggle(role, key)}
-                          disabled={isSavingPerm}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
-                      </label>
-                    ))}
                   </div>
                 </div>
 

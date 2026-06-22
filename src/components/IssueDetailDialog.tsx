@@ -274,6 +274,16 @@ export default function IssueDetailDialog({
                 <p className="text-xs text-[#a08060] mb-1">建立日期</p>
                 <p className="text-sm text-[#4a3422]">{formatDatetime(localIssue.created_at)}</p>
               </div>
+              <div>
+                <p className="text-xs text-[#a08060] mb-1">最後更新</p>
+                <p className="text-sm text-[#4a3422]">{formatDatetime(localIssue.updated_at)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[#a08060] mb-1">更新人員</p>
+                <p className="text-sm text-[#4a3422]">
+                  {localIssue.updated_by ? localIssue.updated_by.split('@')[0] : '—'}
+                </p>
+              </div>
             </div>
 
             {/* 標籤 */}
