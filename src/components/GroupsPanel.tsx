@@ -604,6 +604,23 @@ export default function GroupsPanel({
                   新增群組
                 </button>
               )}
+              {groups.length > 0 && (
+                <div className="flex items-center gap-0.5 text-xs text-[#c0a882] shrink-0">
+                  <button
+                    onClick={() => setExpandedIds(new Set(groups.map(g => g.id)))}
+                    className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                  >
+                    展開全部
+                  </button>
+                  <span className="select-none">|</span>
+                  <button
+                    onClick={() => setExpandedIds(new Set())}
+                    className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                  >
+                    收合全部
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 群組列表 */}

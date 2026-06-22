@@ -283,6 +283,33 @@ export default function EditIssueDialog({
               className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all mb-1.5"
             />
             <div className="max-h-56 overflow-y-auto border border-[rgba(122,82,48,.1)] rounded-lg bg-white divide-y divide-[rgba(122,82,48,.06)]">
+              {filteredEmails.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allSelected = filteredEmails.every(e => selectedAssignees.includes(e))
+                    setSelectedAssignees(prev =>
+                      allSelected
+                        ? prev.filter(e => !filteredEmails.includes(e))
+                        : [...new Set([...prev, ...filteredEmails])]
+                    )
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-[rgba(122,82,48,.04)] transition-colors"
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                    filteredEmails.every(e => selectedAssignees.includes(e))
+                      ? 'bg-[#7a5230] border-[#7a5230]'
+                      : 'border-[#d0b898]'
+                  }`}>
+                    {filteredEmails.every(e => selectedAssignees.includes(e)) && (
+                      <Check className="h-2.5 w-2.5 text-white" />
+                    )}
+                  </span>
+                  <span className="font-semibold text-xs text-[#6b4f38]">
+                    {filteredEmails.every(e => selectedAssignees.includes(e)) ? '取消全選' : '全選'}
+                  </span>
+                </button>
+              )}
               {filteredEmails.length === 0 && (
                 <p className="text-xs text-[#c0a882] px-3 py-2">無符合成員</p>
               )}
