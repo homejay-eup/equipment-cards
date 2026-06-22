@@ -77,7 +77,7 @@ export function useIssueRealtime({
             }
 
             try {
-              const res = await fetch(`/api/issues/${issueId}`)
+              const res = await fetch(`/api/issues/${issueId}`, { cache: 'no-store' })
               if (!res.ok) return
               const issue: Issue = await res.json()
 

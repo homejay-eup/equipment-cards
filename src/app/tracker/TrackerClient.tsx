@@ -201,10 +201,20 @@ export default function TrackerClient({
     setSelectedIssue(prev => prev?.id === updated.id ? updated : prev)
   }, [])
 
-  const handleIssueDeleted = useCallback((id: string) => {
+  // 樂觀刪除：立即移除 issues（Banner 即時消失），dialog 保持開著等 API
+  const handleIssueDeleteStart = useCallback((id: string) => {
     hasMutatedRef.current = true
     markMutation(id)
     setIssues(prev => prev.filter(i => i.id !== id))
+  }, [])
+
+  // 回滾：API 失敗時補回 issue，dialog 仍可顯示錯誤
+  const handleIssueDeleteRollback = useCallback((issue: Issue) => {
+    setIssues(prev => prev.some(i => i.id === issue.id) ? prev : [issue, ...prev])
+  }, [])
+
+  // 成功後：關閉 dialog
+  const handleIssueDeleted = useCallback(() => {
     setSelectedIssue(null)
   }, [])
 
@@ -243,11 +253,20 @@ export default function TrackerClient({
 
   const handleDeleteIssue = useCallback(async (id: string) => {
     setDeletingIssueId(id)
+    // 樂觀更新：立即從本地狀態移除，確保 Banner 即時消失
+    hasMutatedRef.current = true
+    markMutation(id)
+    setIssues(prev => prev.filter(i => i.id !== id))
     try {
-      await fetch(`/api/issues/${id}`, { method: 'DELETE' })
-      hasMutatedRef.current = true
-      markMutation(id)
-      setIssues(prev => prev.filter(i => i.id !== id))
+      const res = await fetch(`/api/issues/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        // API 失敗：回滾（重新向 server 取最新資料補回）
+        const refetch = await fetch(`/api/issues/${id}`)
+        if (refetch.ok) {
+          const issue = await refetch.json()
+          setIssues(prev => prev.some(i => i.id === id) ? prev : [issue, ...prev])
+        }
+      }
     } finally {
       setDeletingIssueId(null)
       setConfirmDeleteIssueId(null)
@@ -667,6 +686,8 @@ export default function TrackerClient({
           issueTags={issueTags}
           onClose={() => setSelectedIssue(null)}
           onUpdated={handleIssueUpdated}
+          onDeleteStart={handleIssueDeleteStart}
+          onDeleteRollback={handleIssueDeleteRollback}
           onDeleted={handleIssueDeleted}
           onTypesChange={setCurrentIssueTypes}
         />

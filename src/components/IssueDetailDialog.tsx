@@ -16,6 +16,8 @@ interface Props {
   issueTags: string[]
   onClose: () => void
   onUpdated: (updated: Issue) => void
+  onDeleteStart: (issueId: string) => void
+  onDeleteRollback: (issue: Issue) => void
   onDeleted: (issueId: string) => void
   onTypesChange?: (types: string[]) => void
 }
@@ -45,7 +47,7 @@ function formatDatetime(dateStr: string): string {
 
 export default function IssueDetailDialog({
   open, issue, permissions, userEmail, allowedEmails,
-  issueTypes, issueTags, onClose, onUpdated, onDeleted, onTypesChange,
+  issueTypes, issueTags, onClose, onUpdated, onDeleteStart, onDeleteRollback, onDeleted, onTypesChange,
 }: Props) {
   const [localIssue, setLocalIssue] = useState<Issue>(issue)
   const [updates, setUpdates] = useState<IssueUpdate[]>(issue.issue_updates ?? [])
@@ -152,21 +154,25 @@ export default function IssueDetailDialog({
   const handleDelete = useCallback(async () => {
     setDeleting(true)
     setError(null)
+    // 樂觀更新：立即從 banner 移除，dialog 保持開著
+    onDeleteStart(localIssue.id)
     try {
       const res = await fetch(`/api/issues/${localIssue.id}`, { method: 'DELETE' })
       if (!res.ok) {
         const d = await res.json()
         setError(d.error ?? '刪除失敗')
+        onDeleteRollback(localIssue)
         return
       }
       onDeleted(localIssue.id)
     } catch {
       setError('刪除失敗，請重試')
+      onDeleteRollback(localIssue)
     } finally {
       setDeleting(false)
       setConfirmDeleteOpen(false)
     }
-  }, [localIssue.id, onDeleted])
+  }, [localIssue, onDeleteStart, onDeleteRollback, onDeleted])
 
   const handleEditUpdated = useCallback((updated: Issue) => {
     setLocalIssue(updated)
