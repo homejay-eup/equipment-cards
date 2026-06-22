@@ -5,7 +5,7 @@ import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, Lock } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, Lock, GripVertical } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -348,6 +348,9 @@ export default function GroupsPanel({
   const [replaceTarget, setReplaceTarget] = useState<{ card: EquipmentCard } | null>(null)
   const [addTarget, setAddTarget] = useState<{ groupId: string } | null>(null)
 
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+
   // 搜尋篩選 Set：O(1) 查詢用
   const filteredSet = useMemo(() =>
     filteredCards ? new Set(filteredCards.map(c => c.equipment_id)) : null,
@@ -519,6 +522,38 @@ export default function GroupsPanel({
     setAddTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function handleGroupReorder(fromId: string, toId: string) {
+    if (fromId === toId) return
+    const defaultGroup = groups.find(g => g.is_default)
+    const nonDefault = groups.filter(g => !g.is_default)
+    const fromIdx = nonDefault.findIndex(g => g.id === fromId)
+    const toIdx = nonDefault.findIndex(g => g.id === toId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...nonDefault]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    const newGroups = defaultGroup ? [defaultGroup, ...reordered] : reordered
+    const originalGroups = groups
+    applyGroups(newGroups)
+    setDraggingId(null)
+    setDragOverId(null)
+
+    const orders = reordered.map((g, i) => ({ id: g.id, sort_order: (i + 1) * 1000 }))
+    try {
+      const res = await fetch('/api/groups/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      applyGroups(originalGroups)
+      alert('排序更新失敗，請重試')
+    }
+  }
+
   const addTargetGroup = addTarget ? groups.find(g => g.id === addTarget.groupId) : null
 
   return (
@@ -589,7 +624,13 @@ export default function GroupsPanel({
                   : validCards
 
                 return (
-                  <div key={group.id} className="py-2">
+                  <div
+                    key={group.id}
+                    className={`py-2 rounded-lg transition-all ${draggingId === group.id ? 'opacity-40' : ''} ${dragOverId === group.id && draggingId !== group.id ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+                    onDragOver={!group.is_default ? e => { e.preventDefault(); if (draggingId && draggingId !== group.id) setDragOverId(group.id) } : undefined}
+                    onDragLeave={!group.is_default ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null) } : undefined}
+                    onDrop={!group.is_default ? e => { e.preventDefault(); if (draggingId) handleGroupReorder(draggingId, group.id); setDragOverId(null) } : undefined}
+                  >
                     {/* 群組標題列 */}
                     <div className="relative flex items-center group/header">
                       {renamingId === group.id ? (
@@ -629,26 +670,38 @@ export default function GroupsPanel({
                         </div>
                       ) : (
                         /* 一般模式：點擊展開/收合 */
-                        <button
-                          onClick={() => toggleExpand(group.id)}
-                          className="flex items-center gap-2 w-full min-w-0 text-left py-1"
-                        >
-                          {group.is_default
-                            ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
-                            : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
-                          }
-                          <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
-                          <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">
-                            {filteredSet && displayCards.length !== itemCount
-                              ? `${displayCards.length} / ${itemCount} 筆`
-                              : `${itemCount} 筆`
+                        <>
+                          {!group.is_default && (
+                            <span
+                              draggable
+                              onDragStart={e => { e.stopPropagation(); setDraggingId(group.id) }}
+                              onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
+                              className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0 px-0.5"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </span>
+                          )}
+                          <button
+                            onClick={() => toggleExpand(group.id)}
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left py-1"
+                          >
+                            {group.is_default
+                              ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
+                              : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
                             }
-                          </span>
-                          {isExpanded
-                            ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                            : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                          }
-                        </button>
+                            <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
+                            <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">
+                              {filteredSet && displayCards.length !== itemCount
+                                ? `${displayCards.length} / ${itemCount} 筆`
+                                : `${itemCount} 筆`
+                              }
+                            </span>
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                              : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                            }
+                          </button>
+                        </>
                       )}
 
                       {/* 編輯按鈕：重命名時隱藏，absolute 不佔計數空間 */}

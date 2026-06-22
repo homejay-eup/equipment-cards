@@ -181,11 +181,11 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${roleOpen ? 'rotate-180' : ''}`} />
             </button>
             {roleOpen && (
-              <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-full max-w-[200px]">
+              <div className="absolute top-full mt-1 left-0 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden z-50 min-w-full">
                 {availableRoles.map(role => (
                   <button key={role} type="button"
                     onClick={() => { setNewRole(role); setRoleOpen(false) }}
-                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors ${
+                    className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
                       newRole === role
                         ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                         : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
@@ -310,8 +310,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
       {openRoleEmail && (
         <div
           ref={dropdownRef}
-          style={{ position: 'fixed', top: dropdownPos.top, left: Math.min(dropdownPos.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 200 - 8), zIndex: 9999 }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] max-w-[200px] min-w-[8rem]"
+          style={{ position: 'fixed', top: dropdownPos.top, left: Math.min(dropdownPos.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280 - 8), zIndex: 9999 }}
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] min-w-max"
         >
           {availableRoles.map(role => {
             const currentRole = users.find(u => u.email === openRoleEmail)?.role
@@ -324,7 +324,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                   setOpenRoleEmail(null)
                   if (user && role !== user.role) changeRole(user, role)
                 }}
-                className={`w-full text-left px-3.5 py-2 text-sm transition-colors break-words ${
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors whitespace-nowrap ${
                   role === currentRole
                     ? 'bg-[rgba(122,82,48,.08)] text-[#7a5230] font-semibold border-l-[3px] border-[#7a5230] pl-[11px]'
                     : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230]'
