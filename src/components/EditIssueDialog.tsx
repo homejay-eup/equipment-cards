@@ -291,7 +291,7 @@ export default function EditIssueDialog({
                     setSelectedAssignees(prev =>
                       allSelected
                         ? prev.filter(e => !filteredEmails.includes(e))
-                        : [...new Set([...prev, ...filteredEmails])]
+                        : Array.from(new Set([...prev, ...filteredEmails]))
                     )
                   }}
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-[rgba(122,82,48,.04)] transition-colors"
