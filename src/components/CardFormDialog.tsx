@@ -614,7 +614,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           <div>
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">廠商</label>
             <input type="text" value={form.vendor}
-              onChange={e => set('vendor', e.target.value)} placeholder="例：格瑪車機"
+              onChange={e => set('vendor', e.target.value)} placeholder="例：格瑪"
               disabled={!canEdit('edit_card_vendor')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
@@ -626,7 +626,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               標籤 <span className="text-[#a08060] font-normal ml-1">（逗號分隔）</span>
             </label>
             <input type="text" value={form.tags}
-              onChange={e => set('tags', e.target.value)} placeholder="例：HS昇銳, RFID, 4G"
+              onChange={e => set('tags', e.target.value)} placeholder="例：回傳、純錄、台製"
               disabled={!canEdit('edit_card_tags')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
