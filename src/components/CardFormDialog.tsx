@@ -626,7 +626,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               標籤 <span className="text-[#a08060] font-normal ml-1">（逗號分隔）</span>
             </label>
             <input type="text" value={form.tags}
-              onChange={e => set('tags', e.target.value)} placeholder="例：回傳、純錄、台製"
+              onChange={e => set('tags', e.target.value)} placeholder="例：回傳, 純錄, 台製"
               disabled={!canEdit('edit_card_tags')}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             />
