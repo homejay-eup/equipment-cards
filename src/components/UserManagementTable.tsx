@@ -311,7 +311,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: dropdownPos.top, left: Math.min(dropdownPos.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280 - 8), zIndex: 9999 }}
-          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] w-max"
+          className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-y-auto max-h-[min(60vh,320px)] min-w-[9rem]"
         >
           {availableRoles.map(role => {
             const currentRole = users.find(u => u.email === openRoleEmail)?.role

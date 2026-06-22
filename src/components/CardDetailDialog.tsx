@@ -286,7 +286,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   {permissions.includes('read_created_at') && (
                     <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                   )}
-                  <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                  {permissions.includes('read_updated_at') && (
+                    <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                  )}
                   {permissions.includes('read_updated_by') && card.updated_by && (
                     <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                   )}
@@ -393,7 +395,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                       {permissions.includes('read_created_at') && (
                         <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
                       )}
-                      <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                      {permissions.includes('read_updated_at') && (
+                        <p className="text-xs text-[#b0967a]">最後更新：{fmtDate(card.updated_at)}</p>
+                      )}
                       {permissions.includes('read_updated_by') && card.updated_by && (
                         <p className="text-xs text-[#b0967a]">更新人員：{emailPrefix(card.updated_by)}</p>
                       )}
