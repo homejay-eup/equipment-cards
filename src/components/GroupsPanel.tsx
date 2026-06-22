@@ -5,7 +5,7 @@ import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, Lock, GripVertical } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, GripVertical } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -604,10 +604,6 @@ export default function GroupsPanel({
                   新增群組
                 </button>
               )}
-              <span className="flex items-center gap-1 text-xs text-[#c0a882] ml-4 flex-shrink-0">
-                <Lock className="h-3 w-3" />
-                僅你可見
-              </span>
             </div>
 
             {/* 群組列表 */}
