@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { format, parseISO, isValid } from 'date-fns'
 import { CalendarIcon, X } from 'lucide-react'
 import { Calendar } from '@/components/ui/calendar'
@@ -90,7 +91,7 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
         )}
       </button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
@@ -121,7 +122,8 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
               今天
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
