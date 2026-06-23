@@ -14,7 +14,7 @@ import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 
@@ -959,6 +959,12 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
                 <FileUp className="h-5 w-5" />
                 <span className="hidden sm:inline">批次匯入</span>
+              </button>
+              <button onClick={() => { window.location.href = '/api/cards/export' }}
+                title="匯出 CSV"
+                className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
+                <FileDown className="h-5 w-5" />
+                <span className="hidden sm:inline">匯出 CSV</span>
               </button>
               <button onClick={openCreate}
                 title="新增料卡"

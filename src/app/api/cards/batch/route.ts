@@ -18,6 +18,7 @@ interface BatchRow {
   tags?: string[]
   notes?: string
   net_weight?: number
+  is_new?: boolean
 }
 
 // ── POST /api/cards/batch ─────────────────────────────────────
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
         notes: row.notes?.trim() || null,
         detail_photos: [],
         net_weight: (typeof row.net_weight === 'number' && !isNaN(row.net_weight)) ? row.net_weight : null,
+        is_new: typeof row.is_new === 'boolean' ? row.is_new : true,
       })
 
     if (error) {
@@ -80,6 +82,7 @@ export async function POST(req: NextRequest) {
         if (typeof row.net_weight === 'number' && !isNaN(row.net_weight)) {
           updatePayload.net_weight = row.net_weight
         }
+        if (typeof row.is_new === 'boolean') updatePayload.is_new = row.is_new
 
         const { error: updateError } = await supabase
           .from('equipment_cards')

@@ -20,6 +20,7 @@ interface ParsedRow {
   tags: string[]
   notes: string
   net_weight?: number
+  is_new?: boolean
   error?: string
 }
 
@@ -78,9 +79,14 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
     const tagsRaw = col(cols, 'tags', '標籤')
     const notes = col(cols, 'notes', '備註')
     const netWeightRaw = col(cols, 'net_weight', '淨重', '淨重(kg)', '淨重（kg）')
+    const isNewRaw = col(cols, 'is_new', '新品')
 
     const tags = tagsRaw ? tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : []
     const net_weight = netWeightRaw ? parseFloat(netWeightRaw) : undefined
+    let is_new: boolean | undefined
+    if (isNewRaw !== '') {
+      is_new = ['true', '1', '是', '新品'].includes(isNewRaw.toLowerCase())
+    }
 
     let error: string | undefined
     if (!equipment_id) error = '料號為必填'
@@ -97,6 +103,7 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
       tags,
       notes,
       net_weight,
+      is_new,
       error,
     }
   })
@@ -215,6 +222,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                   <span className="text-[#8a6a4a]">標籤（選填，用 <code className="bg-[#ede5db] px-1 rounded text-xs">|</code> 分隔）</span>
                   <span className="text-[#8a6a4a]">備註（選填）</span>
                   <span className="text-[#8a6a4a]">淨重kg（選填）</span>
+                  <span className="text-[#8a6a4a]">is_new（選填，true/false）</span>
                 </div>
               </div>
 
@@ -275,6 +283,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                       <th className="px-3 py-2 text-left font-medium">標籤</th>
                       <th className="px-3 py-2 text-left font-medium w-32">備註</th>
                       <th className="px-3 py-2 text-left font-medium">淨重（kg）</th>
+                      <th className="px-3 py-2 text-left font-medium">新品</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f0e8e0]">
@@ -289,6 +298,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                         <td className="px-3 py-2 text-[#8a6a4a] text-xs">{row.tags.join('、')}</td>
                         <td className="px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem]" title={row.notes}>{row.notes}</td>
                         <td className="px-3 py-2 text-[#8a6a4a]">{row.net_weight ?? '—'}</td>
+                        <td className="px-3 py-2 text-[#8a6a4a]">{row.is_new === true ? '是' : row.is_new === false ? '否' : '—'}</td>
                         {row.error && (
                           <td className="px-3 py-2">
                             <span className="flex items-center gap-1 text-red-500 text-xs whitespace-nowrap">
