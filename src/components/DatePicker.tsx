@@ -12,6 +12,10 @@ interface Props {
   disabled?: boolean
 }
 
+// shadcn Calendar with [--cell-size:2.25rem]: conservative upper bounds
+const CAL_W = 310
+const CAL_H = 370
+
 export default function DatePicker({ value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
@@ -32,26 +36,23 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
 
-  // 底部/右側超出視窗時位移
-  useEffect(() => {
-    if (!open || !dropRef.current) return
-    const dd = dropRef.current.getBoundingClientRect()
-    const vh = window.innerHeight
-    const vw = window.innerWidth
-    if (dd.bottom > vh - 8) {
-      const triggerRect = triggerRef.current?.getBoundingClientRect()
-      if (triggerRect) setPos(prev => ({ ...prev, top: triggerRect.top - dd.height - 4 }))
-    }
-    if (dd.right > vw - 8) {
-      setPos(prev => ({ ...prev, left: vw - dd.width - 8 }))
-    }
-  }, [open])
-
   function handleTrigger() {
     if (disabled) return
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.left })
+      const vh = window.innerHeight
+      const vw = window.innerWidth
+
+      // 優先往下展開；空間不足時往上
+      let top = rect.bottom + 4
+      if (top + CAL_H > vh - 8) {
+        top = rect.top - CAL_H - 4
+      }
+      // 夾住確保不超出視窗上下左右
+      top = Math.max(8, Math.min(top, vh - CAL_H - 8))
+      const left = Math.max(8, Math.min(rect.left, vw - CAL_W - 8))
+
+      setPos({ top, left })
     }
     setOpen(v => !v)
   }
