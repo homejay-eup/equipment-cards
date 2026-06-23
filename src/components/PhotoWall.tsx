@@ -900,8 +900,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         />
       )}
 
-      {/* 管理員浮動按鈕區（任務板 tab 時隱藏，這些都是料卡操作） */}
-      {isAdmin && activeTab !== 'tracker' && (
+      {/* 管理員浮動按鈕區（僅全部料卡 tab 顯示，我的關注與任務板不適用） */}
+      {isAdmin && activeTab === 'all' && (
         <>
           {/* 批次選取 action bar：全寬固定底部 */}
           {selectMode && (
