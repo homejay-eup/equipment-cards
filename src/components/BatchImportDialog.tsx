@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Download, X, CheckCircle2, AlertCircle, Loader2, FileText } from 'lucide-react'
+import { Upload, Download, X, CheckCircle2, AlertCircle, Loader2, FileText, Trash2 } from 'lucide-react'
 import { AppSettings } from '@/types/equipment'
 
 interface Props {
@@ -14,12 +14,12 @@ interface Props {
 interface ParsedRow {
   equipment_id: string
   name: string
-  category: string
-  vendor: string
+  category: string | null | undefined
+  vendor: string | null | undefined
   status: string
-  tags: string[]
-  notes: string
-  net_weight?: number
+  tags: string[] | null | undefined
+  notes: string | null | undefined
+  net_weight: number | null | undefined
   is_new?: boolean
   error?: string
 }
@@ -60,46 +60,55 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
   const headers = raw[0].map(h => h.trim().toLowerCase().replace(/[（(][^）)]*[）)]/g, '').trim())
 
   // header 名稱對應（支援中英文）
-  function col(row: string[], ...names: string[]): string {
+  // 回傳三值：string = 有值，null = 欄位存在但空白（清空），undefined = 欄位不存在（保留）
+  function col(row: string[], ...names: string[]): string | null | undefined {
     for (const name of names) {
       const idx = headers.indexOf(name)
-      if (idx !== -1) return row[idx]?.trim() ?? ''
+      if (idx !== -1) {
+        const val = (row[idx] ?? '').trim()
+        return val === '' ? null : val
+      }
     }
-    return ''
+    return undefined
   }
 
   const validStatuses = settings.statuses
 
   return raw.slice(1).map(cols => {
-    const equipment_id = col(cols, 'equipment_id', '料號')
-    const name = col(cols, 'name', '品名')
+    const equipment_id = col(cols, 'equipment_id', '料號') ?? ''
+    const name = col(cols, 'name', '品名') ?? ''
     const category = col(cols, 'category', '分類')
     const vendor = col(cols, 'vendor', '廠商')
-    const status = col(cols, 'status', '狀態')
+    const statusRaw = col(cols, 'status', '狀態')
     const tagsRaw = col(cols, 'tags', '標籤')
     const notes = col(cols, 'notes', '備註')
     const netWeightRaw = col(cols, 'net_weight', '淨重', '淨重(kg)', '淨重（kg）')
     const isNewRaw = col(cols, 'is_new', '新品')
 
-    const tags = tagsRaw ? tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : []
-    const net_weight = netWeightRaw ? parseFloat(netWeightRaw) : undefined
+    const status = (statusRaw && statusRaw !== null) ? statusRaw : validStatuses[0]
+    const tags = tagsRaw === undefined ? undefined : tagsRaw === null ? null : tagsRaw.split('|').map(t => t.trim()).filter(Boolean)
+    const net_weight: number | null | undefined = netWeightRaw === undefined
+      ? undefined
+      : netWeightRaw === null
+        ? null
+        : parseFloat(netWeightRaw)
     let is_new: boolean | undefined
-    if (isNewRaw !== '') {
+    if (isNewRaw) {
       is_new = ['true', '1', '是', '新品'].includes(isNewRaw.toLowerCase())
     }
 
     let error: string | undefined
     if (!equipment_id) error = '料號為必填'
     else if (!name) error = '品名為必填'
-    else if (status && !validStatuses.includes(status)) error = `狀態「${status}」無效，請填 ${validStatuses.join(' 或 ')}`
-    else if (netWeightRaw && (isNaN(net_weight!) || net_weight! < 0)) error = `淨重「${netWeightRaw}」格式錯誤，請填數字`
+    else if (statusRaw && statusRaw !== null && !validStatuses.includes(statusRaw)) error = `狀態「${statusRaw}」無效，請填 ${validStatuses.join(' 或 ')}`
+    else if (typeof net_weight === 'number' && (isNaN(net_weight) || net_weight < 0)) error = `淨重「${netWeightRaw}」格式錯誤，請填數字`
 
     return {
       equipment_id,
       name,
       category,
       vendor,
-      status: status || validStatuses[0],
+      status,
       tags,
       notes,
       net_weight,
@@ -114,6 +123,7 @@ type Step = 'upload' | 'preview' | 'done'
 interface ImportResult {
   inserted: number
   updated: number
+  unchanged: number
   skipped: string[]
   errors: string[]
 }
@@ -130,6 +140,10 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
 
   const validRows = rows.filter(r => !r.error)
   const invalidRows = rows.filter(r => r.error)
+  const clearCount = validRows.filter(r =>
+    r.category === null || r.vendor === null || r.notes === null ||
+    r.tags === null || r.net_weight === null
+  ).length
 
   function handleClose() {
     setStep('upload')
@@ -257,7 +271,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
           {/* Step: preview */}
           {step === 'preview' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-3 text-sm flex-wrap">
                 <FileText className="h-4 w-4 text-[#a08060]" />
                 <span className="text-[#6b4c2e]">{fileName}</span>
                 <span className="text-[#c49a72]">·</span>
@@ -268,7 +282,19 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                     <span className="text-red-500 font-medium">{invalidRows.length} 筆有錯誤（將跳過）</span>
                   </>
                 )}
+                {clearCount > 0 && (
+                  <>
+                    <span className="text-[#c49a72]">·</span>
+                    <span className="text-amber-600 font-medium">{clearCount} 筆有欄位將被清空</span>
+                  </>
+                )}
               </div>
+              {clearCount > 0 && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+                  <span><span className="font-medium">橘色欄位</span>：CSV 中為空白，匯入後將清空該欄的現有資料。若非故意清空，請先返回 CSV 補填。</span>
+                </div>
+              )}
 
               <div className="overflow-x-auto rounded-lg border border-[#e8ddd4]">
                 <table className="w-full text-sm">
@@ -292,12 +318,22 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                         <td className="px-3 py-2 text-[#a08060]">{i + 1}</td>
                         <td className="px-3 py-2 font-mono text-[#3d2b1a]">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
                         <td className="px-3 py-2 text-[#3d2b1a]">{row.name || <span className="text-red-400">（空）</span>}</td>
-                        <td className="px-3 py-2 text-[#6b4c2e]">{row.category}</td>
-                        <td className="px-3 py-2 text-[#6b4c2e]">{row.vendor}</td>
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${row.category === null ? 'bg-amber-50' : ''}`}>
+                          {row.category === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.category ?? '—')}
+                        </td>
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${row.vendor === null ? 'bg-amber-50' : ''}`}>
+                          {row.vendor === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.vendor ?? '—')}
+                        </td>
                         <td className="px-3 py-2 text-[#6b4c2e]">{row.status}</td>
-                        <td className="px-3 py-2 text-[#8a6a4a] text-xs">{row.tags.join('、')}</td>
-                        <td className="px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem]" title={row.notes}>{row.notes}</td>
-                        <td className="px-3 py-2 text-[#8a6a4a]">{row.net_weight ?? '—'}</td>
+                        <td className={`px-3 py-2 text-[#8a6a4a] text-xs ${row.tags === null ? 'bg-amber-50' : ''}`}>
+                          {row.tags === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.tags?.join('、') ?? '—')}
+                        </td>
+                        <td className={`px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem] ${row.notes === null ? 'bg-amber-50' : ''}`} title={row.notes ?? undefined}>
+                          {row.notes === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.notes ?? '—')}
+                        </td>
+                        <td className={`px-3 py-2 text-[#8a6a4a] ${row.net_weight === null ? 'bg-amber-50' : ''}`}>
+                          {row.net_weight === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.net_weight ?? '—')}
+                        </td>
                         <td className="px-3 py-2 text-[#8a6a4a]">{row.is_new === true ? '是' : row.is_new === false ? '否' : '—'}</td>
                         {row.error && (
                           <td className="px-3 py-2">
@@ -325,6 +361,9 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                   <p className="text-sm text-emerald-700 mt-0.5">成功新增 {result.inserted} 筆料卡</p>
                   {result.updated > 0 && (
                     <p className="text-sm text-emerald-700 mt-0.5">更新 {result.updated} 筆料卡</p>
+                  )}
+                  {(result.unchanged ?? 0) > 0 && (
+                    <p className="text-sm text-emerald-700 mt-0.5">{result.unchanged} 筆無變動</p>
                   )}
                 </div>
               </div>
