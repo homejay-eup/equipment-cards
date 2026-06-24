@@ -86,6 +86,7 @@ export default function TrackerClient({
   const [currentIssueTypes,    setCurrentIssueTypes]    = useState<string[]>(issueTypes)
   const [myTasksOnly,          setMyTasksOnly]          = useState(() => searchParams.get('tab') === 'my')
   const [filterPriority,       setFilterPriority]       = useState<'' | 'high' | 'medium' | 'low'>('')
+  const [filterAssignee,       setFilterAssignee]       = useState('')
   const [selectedIssue,        setSelectedIssue]        = useState<Issue | null>(null)
   const [newIssueOpen,         setNewIssueOpen]         = useState(false)
   const [newIssueStatus,       setNewIssueStatus]       = useState('待處理')
@@ -147,9 +148,10 @@ export default function TrackerClient({
   const baseIssues = useMemo(() => {
     let list = issues
     if (myTasksOnly)    list = list.filter(i => i.assignee_emails.includes(userEmail))
+    if (filterAssignee) list = list.filter(i => i.assignee_emails.includes(filterAssignee))
     if (filterPriority) list = list.filter(i => i.priority === filterPriority)
     return list
-  }, [issues, myTasksOnly, filterPriority, userEmail])
+  }, [issues, myTasksOnly, filterPriority, filterAssignee, userEmail])
 
   // 分欄（依 sort_order 排序，null 排最後）
   const columnIssues = useMemo(() => {
@@ -161,6 +163,23 @@ export default function TrackerClient({
     }
     return map
   }, [baseIssues])
+
+  // 他人負責人計數（未完成、排除自己）
+  const assigneeCounts = useMemo(() => {
+    const pending = issues.filter(i => i.status !== '已完成')
+    const map = new Map<string, { email: string; prefix: string; count: number }>()
+    for (const issue of pending) {
+      for (let idx = 0; idx < issue.assignee_emails.length; idx++) {
+        const email = issue.assignee_emails[idx]
+        if (email === userEmail) continue
+        if (!map.has(email)) {
+          map.set(email, { email, prefix: issue.assignees[idx] ?? email.split('@')[0], count: 0 })
+        }
+        map.get(email)!.count++
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count)
+  }, [issues, userEmail])
 
   // 優先級計數（未完成、不受 priority filter 影響）
   const priCounts = useMemo(() => {
@@ -371,7 +390,7 @@ export default function TrackerClient({
           </button>
           {canViewMyTasks && (
             <button
-              onClick={() => setMyTasksOnly(true)}
+              onClick={() => { setMyTasksOnly(true); setFilterAssignee('') }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
                 myTasksOnly ? 'bg-[#7a5230] text-white font-medium' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
               }`}
@@ -435,6 +454,27 @@ export default function TrackerClient({
           </button>
         ))}
       </div>
+
+      {/* ── 負責人篩選 chips ── */}
+      {!myTasksOnly && assigneeCounts.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-xs text-[#a08060]">負責人：</span>
+          {assigneeCounts.map(person => (
+            <button
+              key={person.email}
+              onClick={() => setFilterAssignee(prev => prev === person.email ? '' : person.email)}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
+                filterAssignee === person.email
+                  ? 'bg-[#7a5230] border-[#7a5230] text-white font-medium'
+                  : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
+              }`}
+            >
+              {person.prefix}
+              <span className="opacity-70 ml-0.5">{person.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── 提醒橫幅 ── */}
       {hasReminders && (
