@@ -49,8 +49,9 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const router       = useRouter()
   const searchParams = useSearchParams()
 
-  const canManage   = permissions.includes('manage_users')
-  const canEditCard = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
+  const canManage        = permissions.includes('manage_users')
+  const canEditCard      = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
+  const canUseBookmarks  = permissions.includes('use_bookmarks')
 
   const [localSubfilterConfig, setLocalSubfilterConfig] = useState<Record<string, string[]>>(subfilterConfig ?? {})
 
@@ -843,8 +844,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                   onSelect={() => toggleSelect(card.equipment_id)}
                   isNew={card.is_new}
                   isBookmarked={bookmarkedIds.has(card.equipment_id)}
-                  onToggleBookmark={() => toggleDefaultGroup(card)}
-                  onAddToGroup={nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
+                  onToggleBookmark={canUseBookmarks ? () => toggleDefaultGroup(card) : undefined}
+                  onAddToGroup={canUseBookmarks && nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
                 />
               ))}
             </div>
