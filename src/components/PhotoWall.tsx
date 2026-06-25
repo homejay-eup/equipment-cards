@@ -82,7 +82,14 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const saved = localStorage.getItem('equipmentShowFilters')
+      if (saved !== null) return saved === 'true'
+      return window.innerWidth >= 768
+    } catch { return window.innerWidth >= 768 }
+  })
   const sortRef = useRef<HTMLDivElement>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -150,6 +157,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }
 
   useEffect(() => {
+    try { localStorage.setItem('equipmentShowFilters', String(showFilters)) } catch {}
+  }, [showFilters])
+
+  useEffect(() => {
     if (!sortOpen) return
     const close = (e: MouseEvent) => {
       if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false)
@@ -197,7 +208,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         c.name.includes(q)
       )
     } else {
-      result = fuse.search(q).map(r => r.item)
+      const fuseQ = q.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
+      result = fuseQ ? fuse.search(fuseQ).map(r => r.item) : [...initialCards]
     }
 
     if (selectedCats.size > 0)     result = result.filter(c => selectedCats.has(c.category ?? ''))
@@ -211,7 +223,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         if (/^\d+$/.test(t)) {
           result.forEach(c => { if (c.equipment_id.includes(t) || c.name.includes(t)) matchedIds.add(c.equipment_id) })
         } else {
-          fuse.search(t).forEach(r => matchedIds.add(r.item.equipment_id))
+          const fuseT = t.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
+          if (fuseT) fuse.search(fuseT).forEach(r => matchedIds.add(r.item.equipment_id))
         }
       }
       result = result.filter(c => matchedIds.has(c.equipment_id))
@@ -484,12 +497,10 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 單一凍結列：標題列 + 搜尋 + 篩選 */}
       <div className="sticky top-0 z-40 bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] shadow-sm">
         {/* 標題列 */}
-        <div className="max-w-7xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
-          <div>
+        <div className="max-w-7xl mx-auto px-4 pt-2 pb-2 flex items-center justify-between">
+          <div className="flex items-baseline gap-2">
             <h1 className="text-xl font-bold text-[#7a5230]">設備料卡管理系統</h1>
-            <p className="text-sm text-[#a08060] mt-0.5 leading-snug">
-              共 {mainPhotosCount} 張主圖<br />與 {detailPhotosCount} 張細節
-            </p>
+            <p className="text-xs text-[#a08060]">共 {mainPhotosCount} 張主圖、{detailPhotosCount} 張細節</p>
           </div>
           <div className="flex items-center gap-3">
             {canManage ? (
@@ -577,7 +588,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               {/* 手機篩選切換按鈕 */}
               <button
                 onClick={() => setShowFilters(v => !v)}
-                className={`md:hidden flex items-center gap-1.5 h-9 px-2.5 border rounded-md bg-white transition-colors focus:outline-none ${
+                className={`flex items-center gap-1.5 h-9 px-2.5 border rounded-md bg-white transition-colors focus:outline-none ${
                   showFilters || hasActiveFilters
                     ? 'border-[#c49a72] text-[#7a5230] glow-wood'
                     : 'border-[#e8ddd0] text-[#a08060] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
@@ -630,7 +641,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
 
           {/* 手機版：收合時顯示已選條件 chips */}
           {!showFilters && hasActiveFilters && (
-            <div className="md:hidden flex flex-wrap gap-1.5 pb-1">
+            <div className="flex flex-wrap gap-1.5 pb-1">
               {Array.from(selectedCats).map(cat => (
                 <button key={cat} onClick={() => toggleCat(cat)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
@@ -670,7 +681,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           )}
 
           {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
-          <div className={`${showFilters ? 'block' : 'hidden'} md:block pb-1`}>
+          <div className={`${showFilters ? 'block' : 'hidden'} pb-1`}>
             {/* 類別 */}
             <div className="flex flex-wrap gap-2 items-center mb-2">
               <span className="block md:hidden text-xs font-medium text-[#a08060] mr-1">類別</span>
