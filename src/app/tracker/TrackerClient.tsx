@@ -496,9 +496,6 @@ export default function TrackerClient({
                 className="text-left text-sm text-green-700 hover:text-green-900 hover:underline truncate"
               >
                 {i.title}
-                {i.assignees.length > 0 && (
-                  <span className="ml-1.5 text-xs text-green-500">@ {i.assignees.join('、')}</span>
-                )}
               </button>
             ))}
           </div>
