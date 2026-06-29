@@ -483,17 +483,17 @@ export default function TrackerClient({
 
       {/* ── 公佈欄 ── */}
       {announcements.length > 0 && (
-        <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+        <div className="mb-3 rounded-xl border border-green-300 bg-green-100 px-4 py-3">
           <div className="flex items-center gap-1.5 mb-1.5">
-            <Megaphone className="h-4 w-4 text-green-500 shrink-0" />
-            <span className="text-sm font-semibold text-green-700">公佈欄</span>
+            <Megaphone className="h-4 w-4 text-green-600 shrink-0" />
+            <span className="text-sm font-semibold text-green-800">公佈欄</span>
           </div>
           <div className="flex flex-col gap-1">
             {announcements.map(i => (
               <button
                 key={i.id}
                 onClick={() => setSelectedIssue(i)}
-                className="text-left text-sm text-green-700 hover:text-green-900 hover:underline truncate"
+                className="text-left text-sm text-green-800 hover:text-green-950 hover:underline truncate"
               >
                 {i.title}
               </button>
