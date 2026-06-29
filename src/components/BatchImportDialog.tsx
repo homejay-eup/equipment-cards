@@ -85,6 +85,25 @@ function isClear(
   return dbVal !== null && dbVal !== undefined && dbVal !== ''
 }
 
+// CSV 有值且與 DB 值不同 → 黃底標示（不含清空，清空走 isClear 橘色）
+function isValueChanged(
+  csvVal: string | string[] | number | boolean | null | undefined,
+  field: keyof Omit<ExistingCard, 'equipment_id'>,
+  equipmentId: string,
+  existing: Map<string, ExistingCard>,
+): boolean {
+  if (csvVal === undefined || csvVal === null) return false
+  const db = existing.get(equipmentId)
+  if (!db) return false
+  const dbVal = db[field]
+  if (Array.isArray(csvVal)) {
+    const csvT = [...csvVal].sort().join('|')
+    const dbT = [...((dbVal as string[] | null) ?? [])].sort().join('|')
+    return csvT !== dbT
+  }
+  return String(csvVal) !== String(dbVal ?? '')
+}
+
 // 任一欄位與 DB 值不同（含新料號）→ 需顯示在預覽清單
 function hasChanges(row: ParsedRow, existing: Map<string, ExistingCard>): boolean {
   const db = existing.get(row.equipment_id)
@@ -437,28 +456,34 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                       <tr key={i} className={row.error ? 'bg-red-50' : 'bg-white hover:bg-[#faf6f0]'}>
                         <td className="px-3 py-2 text-[#a08060]">{i + 1}</td>
                         <td className="px-3 py-2 font-mono text-[#3d2b1a]">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
-                        <td className="px-3 py-2 text-[#3d2b1a]">{row.name || <span className="text-red-400">（空）</span>}</td>
-                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.category, 'category', row.equipment_id, existingData) ? 'bg-amber-50' : row.categoryWarning ? 'bg-yellow-50' : ''}`}>
+                        <td className={`px-3 py-2 text-[#3d2b1a] ${isValueChanged(row.name, 'name', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
+                          {row.name || <span className="text-red-400">（空）</span>}
+                        </td>
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.category, 'category', row.equipment_id, existingData) ? 'bg-amber-50' : (row.categoryWarning || isValueChanged(row.category, 'category', row.equipment_id, existingData)) ? 'bg-yellow-50' : ''}`}>
                           {isClear(row.category, 'category', row.equipment_id, existingData)
                             ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span>
                             : row.categoryWarning
                               ? <span className="flex items-center gap-1 text-yellow-700 text-xs font-medium" title={row.categoryWarning}><AlertCircle className="h-3 w-3 shrink-0" />{row.category}</span>
                               : (row.category ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? 'bg-amber-50' : isValueChanged(row.vendor, 'vendor', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
                           {isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.vendor ?? '—')}
                         </td>
-                        <td className="px-3 py-2 text-[#6b4c2e]">{row.status}</td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] text-xs ${isClear(row.tags, 'tags', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isValueChanged(row.status, 'status', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
+                          {row.status}
+                        </td>
+                        <td className={`px-3 py-2 text-[#8a6a4a] text-xs ${isClear(row.tags, 'tags', row.equipment_id, existingData) ? 'bg-amber-50' : isValueChanged(row.tags, 'tags', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
                           {isClear(row.tags, 'tags', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.tags?.join('、') ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem] ${isClear(row.notes, 'notes', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`} title={row.notes ?? undefined}>
+                        <td className={`px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem] ${isClear(row.notes, 'notes', row.equipment_id, existingData) ? 'bg-amber-50' : isValueChanged(row.notes, 'notes', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`} title={row.notes ?? undefined}>
                           {isClear(row.notes, 'notes', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.notes ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] ${isClear(row.net_weight, 'net_weight', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                        <td className={`px-3 py-2 text-[#8a6a4a] ${isClear(row.net_weight, 'net_weight', row.equipment_id, existingData) ? 'bg-amber-50' : isValueChanged(row.net_weight, 'net_weight', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
                           {isClear(row.net_weight, 'net_weight', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.net_weight ?? '—')}
                         </td>
-                        <td className="px-3 py-2 text-[#8a6a4a]">{row.is_new === true ? '是' : row.is_new === false ? '否' : '—'}</td>
+                        <td className={`px-3 py-2 text-[#8a6a4a] ${isValueChanged(row.is_new, 'is_new', row.equipment_id, existingData) ? 'bg-yellow-50' : ''}`}>
+                          {row.is_new === true ? '是' : row.is_new === false ? '否' : '—'}
+                        </td>
                         {row.error && (
                           <td className="px-3 py-2">
                             <span className="flex items-center gap-1 text-red-500 text-xs whitespace-nowrap">
