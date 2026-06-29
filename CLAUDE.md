@@ -101,8 +101,12 @@
 npm install -g codegraph
 cd 設備料卡
 codegraph init        # 建立索引（約 2–3 秒）
-codegraph install     # 選 Claude Code，設定 MCP server，重啟 Claude Code
+# ⚠️ 用 CCD（Claude Desktop App）時必須用 claude mcp add，不能用 codegraph install
+claude mcp add --scope user codegraph -- codegraph serve --mcp
+# 重新開啟 session 讓 MCP tools 生效
 ```
+
+> **背景**：`codegraph install` 把設定寫入 `~/.claude/settings.json`（舊格式），但 CCD 只讀 `~/.claude.json`（新格式）。`claude mcp add --scope user` 才是正確路徑。
 
 **每次修改 code 前的強制流程**：
 1. 用「功能描述」呼叫 `codegraph_explore` → 找出要改的 symbol 名稱

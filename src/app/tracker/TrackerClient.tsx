@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, AlertTriangle, ArrowUpDown, Trash2 } from 'lucide-react'
+import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
@@ -193,6 +193,11 @@ export default function TrackerClient({
       low:    base.filter(i => i.priority === 'low').length,
     }
   }, [issues, myTasksOnly, userEmail])
+
+  // 公佈欄：被 pin 且未完成的議題（不受 myTasksOnly 篩選影響）
+  const announcements = useMemo(() =>
+    issues.filter(i => i.is_pinned && i.status !== '已完成'),
+  [issues])
 
   // 提醒：逾期 + 今日（未完成）
   const today = todayStr()
@@ -473,6 +478,30 @@ export default function TrackerClient({
               <span className="opacity-70 ml-0.5">{person.count}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── 公佈欄 ── */}
+      {announcements.length > 0 && (
+        <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Megaphone className="h-4 w-4 text-blue-500 shrink-0" />
+            <span className="text-sm font-semibold text-blue-700">公佈欄</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {announcements.map(i => (
+              <button
+                key={i.id}
+                onClick={() => setSelectedIssue(i)}
+                className="text-left text-sm text-blue-700 hover:text-blue-900 hover:underline truncate"
+              >
+                {i.title}
+                {i.assignees.length > 0 && (
+                  <span className="ml-1.5 text-xs text-blue-500">@ {i.assignees.join('、')}</span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { X, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { X, Loader2, Pencil, Trash2, Pin } from 'lucide-react'
 import type { Issue, IssueUpdate } from '@/app/tracker/page'
 import EditIssueDialog from '@/components/EditIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -180,6 +180,26 @@ export default function IssueDetailDialog({
     onUpdated(updated)
   }, [onUpdated])
 
+  const handleTogglePin = useCallback(async () => {
+    const nextPinned = !localIssue.is_pinned
+    setLocalIssue(prev => ({ ...prev, is_pinned: nextPinned }))
+    try {
+      const res = await fetch(`/api/issues/${localIssue.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pinned: nextPinned }),
+      })
+      if (!res.ok) {
+        setLocalIssue(prev => ({ ...prev, is_pinned: !nextPinned }))
+        return
+      }
+      const updated = await res.json()
+      onUpdated({ ...updated, issue_updates: updates })
+    } catch {
+      setLocalIssue(prev => ({ ...prev, is_pinned: !nextPinned }))
+    }
+  }, [localIssue.id, localIssue.is_pinned, updates, onUpdated])
+
   const handleDeleteUpdate = useCallback(async (updateId: string) => {
     setDeletingUpdateId(updateId)
     try {
@@ -223,6 +243,17 @@ export default function IssueDetailDialog({
               <span className={`text-xs px-2 py-1 rounded-full border font-medium ${STATUS_BADGE[localIssue.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}`}>
                 {localIssue.status}
               </span>
+              <button
+                onClick={handleTogglePin}
+                title={localIssue.is_pinned ? '取消公告' : '設為公告'}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  localIssue.is_pinned
+                    ? 'text-blue-500 hover:text-blue-700 hover:bg-blue-50'
+                    : 'text-[#a08060] hover:text-[#6b4f38] hover:bg-[rgba(122,82,48,.08)]'
+                }`}
+              >
+                <Pin className={`h-4 w-4 ${localIssue.is_pinned ? 'fill-current' : ''}`} />
+              </button>
               <button
                 onClick={onClose}
                 className="p-1.5 rounded-lg text-[#a08060] hover:text-[#6b4f38] hover:bg-[rgba(122,82,48,.08)] transition-colors"

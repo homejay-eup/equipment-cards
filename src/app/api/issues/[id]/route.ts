@@ -41,7 +41,7 @@ export async function GET(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, updated_by, sort_order,
+        created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
@@ -102,17 +102,18 @@ export async function PATCH(
     const isAuthor = issue.created_by === user.email
 
     const body = await req.json()
-    const { title, type, priority, status, due_date, description, tags, assignees } = body
+    const { title, type, priority, status, due_date, description, tags, assignees, is_pinned } = body
 
     // 狀態更新（拖曳換欄）：有 view_tracker 即可，部門成員都能操作
     // 其他欄位更新：本人 或 有 create_issues
     const hasFullEdit = isAuthor || canCreateIssues
-    const onlyStatusUpdate = status !== undefined &&
+    const onlyStatusOrPinUpdate =
+      (status !== undefined || is_pinned !== undefined) &&
       title === undefined && type === undefined && priority === undefined &&
       due_date === undefined && description === undefined && tags === undefined &&
       assignees === undefined
 
-    if (!onlyStatusUpdate && !hasFullEdit) {
+    if (!onlyStatusOrPinUpdate && !hasFullEdit) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -128,6 +129,7 @@ export async function PATCH(
     if (status !== undefined) {
       updateFields.status = status
     }
+    if (is_pinned !== undefined) updateFields.is_pinned = Boolean(is_pinned)
 
     if (Object.keys(updateFields).length > 0) {
       updateFields.updated_by = user.email
@@ -178,7 +180,7 @@ export async function PATCH(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, updated_by, sort_order,
+        created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
