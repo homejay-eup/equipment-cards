@@ -221,8 +221,8 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
   ).length
 
   // 比對完成才過濾；loading 期間顯示全部讓使用者知道資料已上傳
-  const displayRows = loadingExisting ? rows : rows.filter(r => r.error || hasChanges(r, existingData))
-  const unchangedCount = loadingExisting ? 0 : rows.filter(r => !r.error && !hasChanges(r, existingData)).length
+  const displayRows = loadingExisting ? rows : rows.filter(r => r.error || r.categoryWarning || hasChanges(r, existingData))
+  const unchangedCount = loadingExisting ? 0 : rows.filter(r => !r.error && !r.categoryWarning && !hasChanges(r, existingData)).length
   const categoryWarningCount = displayRows.filter(r => !r.error && r.categoryWarning).length
 
   function handleClose() {
