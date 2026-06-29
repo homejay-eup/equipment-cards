@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('equipment_cards')
-      .select('equipment_id, category, vendor, notes, tags, net_weight')
+      .select('equipment_id, name, category, vendor, status, notes, tags, net_weight, is_new')
       .in('equipment_id', ids)
 
     if (error) throw error

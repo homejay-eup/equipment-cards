@@ -22,6 +22,7 @@ interface ParsedRow {
   net_weight: number | null | undefined
   is_new?: boolean
   error?: string
+  categoryWarning?: string
 }
 
 // CSV 解析（支援雙引號跳脫、引號內換行的多行欄位）
@@ -57,17 +58,22 @@ function parseCSV(text: string): string[][] {
 
 interface ExistingCard {
   equipment_id: string
+  name: string
   category: string | null
   vendor: string | null
+  status: string
   notes: string | null
   tags: string[] | null
   net_weight: number | null
+  is_new: boolean
 }
+
+type ClearableField = 'category' | 'vendor' | 'notes' | 'tags' | 'net_weight'
 
 // CSV 欄位為 null（空白）且 DB 有現有值 → 真正的清空警告
 function isClear(
   csvVal: string | string[] | number | null | undefined,
-  field: keyof Omit<ExistingCard, 'equipment_id'>,
+  field: ClearableField,
   equipmentId: string,
   existing: Map<string, ExistingCard>,
 ): boolean {
@@ -77,6 +83,36 @@ function isClear(
   const dbVal = dbRow[field]
   if (Array.isArray(dbVal)) return dbVal.length > 0
   return dbVal !== null && dbVal !== undefined && dbVal !== ''
+}
+
+// 任一欄位與 DB 值不同（含新料號）→ 需顯示在預覽清單
+function hasChanges(row: ParsedRow, existing: Map<string, ExistingCard>): boolean {
+  const db = existing.get(row.equipment_id)
+  if (!db) return true // 新料號
+
+  if (row.name !== db.name) return true
+  if (row.status !== db.status) return true
+
+  const strFields: ClearableField[] = ['category', 'vendor', 'notes']
+  for (const f of strFields) {
+    const csv = row[f]
+    if (csv === undefined) continue
+    if ((csv ?? '') !== (db[f] ?? '')) return true
+  }
+
+  if (row.net_weight !== undefined) {
+    if ((row.net_weight ?? null) !== (db.net_weight ?? null)) return true
+  }
+
+  if (row.tags !== undefined) {
+    const csvT = [...(row.tags ?? [])].sort().join('|')
+    const dbT = [...(db.tags ?? [])].sort().join('|')
+    if (csvT !== dbT) return true
+  }
+
+  if (row.is_new !== undefined && row.is_new !== db.is_new) return true
+
+  return false
 }
 
 function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
@@ -131,6 +167,11 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
     else if (statusRaw && statusRaw !== null && !validStatuses.includes(statusRaw)) error = `狀態「${statusRaw}」無效，請填 ${validStatuses.join(' 或 ')}`
     else if (typeof net_weight === 'number' && (isNaN(net_weight) || net_weight < 0)) error = `淨重「${netWeightRaw}」格式錯誤，請填數字`
 
+    const categoryWarning =
+      category && !settings.categories.includes(category)
+        ? `分類「${category}」不在系統清單內`
+        : undefined
+
     return {
       equipment_id,
       name,
@@ -142,6 +183,7 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
       net_weight,
       is_new,
       error,
+      categoryWarning,
     }
   })
 }
@@ -177,6 +219,11 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
     isClear(r.tags, 'tags', r.equipment_id, existingData) ||
     isClear(r.net_weight, 'net_weight', r.equipment_id, existingData)
   ).length
+
+  // 比對完成才過濾；loading 期間顯示全部讓使用者知道資料已上傳
+  const displayRows = loadingExisting ? rows : rows.filter(r => r.error || hasChanges(r, existingData))
+  const unchangedCount = loadingExisting ? 0 : rows.filter(r => !r.error && !hasChanges(r, existingData)).length
+  const categoryWarningCount = displayRows.filter(r => !r.error && r.categoryWarning).length
 
   function handleClose() {
     setStep('upload')
@@ -343,10 +390,22 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                     </span>
                   </>
                 )}
+                {!loadingExisting && unchangedCount > 0 && (
+                  <>
+                    <span className="text-[#c49a72]">·</span>
+                    <span className="text-[#a08060] font-medium">{unchangedCount} 筆無差異（略過）</span>
+                  </>
+                )}
                 {!loadingExisting && clearCount > 0 && (
                   <>
                     <span className="text-[#c49a72]">·</span>
                     <span className="text-amber-600 font-medium">{clearCount} 筆有欄位將被清空</span>
+                  </>
+                )}
+                {!loadingExisting && categoryWarningCount > 0 && (
+                  <>
+                    <span className="text-[#c49a72]">·</span>
+                    <span className="text-yellow-600 font-medium">{categoryWarningCount} 筆分類不在清單內</span>
                   </>
                 )}
               </div>
@@ -358,7 +417,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
               )}
 
               <div className="overflow-x-auto rounded-lg border border-[#e8ddd4]">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-max text-sm">
                   <thead className="bg-[#faf6f0] text-[#7a5230]">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium w-8">#</th>
@@ -374,13 +433,17 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f0e8e0]">
-                    {rows.map((row, i) => (
+                    {displayRows.map((row, i) => (
                       <tr key={i} className={row.error ? 'bg-red-50' : 'bg-white hover:bg-[#faf6f0]'}>
                         <td className="px-3 py-2 text-[#a08060]">{i + 1}</td>
                         <td className="px-3 py-2 font-mono text-[#3d2b1a]">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
                         <td className="px-3 py-2 text-[#3d2b1a]">{row.name || <span className="text-red-400">（空）</span>}</td>
-                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.category, 'category', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
-                          {isClear(row.category, 'category', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.category ?? '—')}
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.category, 'category', row.equipment_id, existingData) ? 'bg-amber-50' : row.categoryWarning ? 'bg-yellow-50' : ''}`}>
+                          {isClear(row.category, 'category', row.equipment_id, existingData)
+                            ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span>
+                            : row.categoryWarning
+                              ? <span className="flex items-center gap-1 text-yellow-700 text-xs font-medium" title={row.categoryWarning}><AlertCircle className="h-3 w-3 shrink-0" />{row.category}</span>
+                              : (row.category ?? '—')}
                         </td>
                         <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
                           {isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.vendor ?? '—')}
