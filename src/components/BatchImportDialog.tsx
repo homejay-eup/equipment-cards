@@ -24,31 +24,59 @@ interface ParsedRow {
   error?: string
 }
 
-// 簡易 CSV 解析（支援雙引號跳脫）
+// CSV 解析（支援雙引號跳脫、引號內換行的多行欄位）
 function parseCSV(text: string): string[][] {
   const rows: string[][] = []
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  for (const line of lines) {
-    if (!line.trim()) continue
-    const cells: string[] = []
-    let current = ''
-    let inQuotes = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-        else { inQuotes = !inQuotes }
-      } else if (ch === ',' && !inQuotes) {
-        cells.push(current.trim())
-        current = ''
-      } else {
-        current += ch
-      }
+  let cells: string[] = []
+  let current = ''
+  let inQuotes = false
+  // 先統一換行符，再逐字元掃描（不預先 split，才能正確處理引號內換行）
+  const src = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]
+    if (ch === '"') {
+      if (inQuotes && src[i + 1] === '"') { current += '"'; i++ }
+      else { inQuotes = !inQuotes }
+    } else if (ch === ',' && !inQuotes) {
+      cells.push(current.trim())
+      current = ''
+    } else if (ch === '\n' && !inQuotes) {
+      cells.push(current.trim())
+      current = ''
+      if (cells.some(c => c !== '')) rows.push(cells)
+      cells = []
+    } else {
+      current += ch
     }
-    cells.push(current.trim())
-    rows.push(cells)
   }
+  cells.push(current.trim())
+  if (cells.some(c => c !== '')) rows.push(cells)
   return rows
+}
+
+interface ExistingCard {
+  equipment_id: string
+  category: string | null
+  vendor: string | null
+  notes: string | null
+  tags: string[] | null
+  net_weight: number | null
+}
+
+// CSV 欄位為 null（空白）且 DB 有現有值 → 真正的清空警告
+function isClear(
+  csvVal: string | string[] | number | null | undefined,
+  field: keyof Omit<ExistingCard, 'equipment_id'>,
+  equipmentId: string,
+  existing: Map<string, ExistingCard>,
+): boolean {
+  if (csvVal !== null) return false
+  const dbRow = existing.get(equipmentId)
+  if (!dbRow) return false
+  const dbVal = dbRow[field]
+  if (Array.isArray(dbVal)) return dbVal.length > 0
+  return dbVal !== null && dbVal !== undefined && dbVal !== ''
 }
 
 function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
@@ -137,12 +165,17 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [fileName, setFileName] = useState('')
+  const [existingData, setExistingData] = useState<Map<string, ExistingCard>>(new Map())
+  const [loadingExisting, setLoadingExisting] = useState(false)
 
   const validRows = rows.filter(r => !r.error)
   const invalidRows = rows.filter(r => r.error)
   const clearCount = validRows.filter(r =>
-    r.category === null || r.vendor === null || r.notes === null ||
-    r.tags === null || r.net_weight === null
+    isClear(r.category, 'category', r.equipment_id, existingData) ||
+    isClear(r.vendor, 'vendor', r.equipment_id, existingData) ||
+    isClear(r.notes, 'notes', r.equipment_id, existingData) ||
+    isClear(r.tags, 'tags', r.equipment_id, existingData) ||
+    isClear(r.net_weight, 'net_weight', r.equipment_id, existingData)
   ).length
 
   function handleClose() {
@@ -150,6 +183,8 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
     setRows([])
     setResult(null)
     setFileName('')
+    setExistingData(new Map())
+    setLoadingExisting(false)
     onClose()
   }
 
@@ -157,12 +192,30 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
     if (!file.name.endsWith('.csv')) { alert('請上傳 .csv 檔案'); return }
     setFileName(file.name)
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string
       const parsed = csvToRows(text, settings)
       if (parsed.length === 0) { alert('CSV 無有效資料，請確認格式'); return }
       setRows(parsed)
       setStep('preview')
+      setExistingData(new Map())
+      const ids = parsed.filter(r => r.equipment_id).map(r => r.equipment_id)
+      if (ids.length > 0) {
+        setLoadingExisting(true)
+        try {
+          const res = await fetch('/api/cards/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+          })
+          if (res.ok) {
+            const data: ExistingCard[] = await res.json()
+            setExistingData(new Map(data.map(c => [c.equipment_id, c])))
+          }
+        } finally {
+          setLoadingExisting(false)
+        }
+      }
     }
     reader.readAsText(file, 'UTF-8')
   }, [settings])
@@ -282,7 +335,15 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                     <span className="text-red-500 font-medium">{invalidRows.length} 筆有錯誤（將跳過）</span>
                   </>
                 )}
-                {clearCount > 0 && (
+                {loadingExisting && (
+                  <>
+                    <span className="text-[#c49a72]">·</span>
+                    <span className="flex items-center gap-1 text-[#a08060]">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />比對現有資料中…
+                    </span>
+                  </>
+                )}
+                {!loadingExisting && clearCount > 0 && (
                   <>
                     <span className="text-[#c49a72]">·</span>
                     <span className="text-amber-600 font-medium">{clearCount} 筆有欄位將被清空</span>
@@ -318,21 +379,21 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                         <td className="px-3 py-2 text-[#a08060]">{i + 1}</td>
                         <td className="px-3 py-2 font-mono text-[#3d2b1a]">{row.equipment_id || <span className="text-red-400">（空）</span>}</td>
                         <td className="px-3 py-2 text-[#3d2b1a]">{row.name || <span className="text-red-400">（空）</span>}</td>
-                        <td className={`px-3 py-2 text-[#6b4c2e] ${row.category === null ? 'bg-amber-50' : ''}`}>
-                          {row.category === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.category ?? '—')}
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.category, 'category', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                          {isClear(row.category, 'category', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.category ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#6b4c2e] ${row.vendor === null ? 'bg-amber-50' : ''}`}>
-                          {row.vendor === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.vendor ?? '—')}
+                        <td className={`px-3 py-2 text-[#6b4c2e] ${isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                          {isClear(row.vendor, 'vendor', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.vendor ?? '—')}
                         </td>
                         <td className="px-3 py-2 text-[#6b4c2e]">{row.status}</td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] text-xs ${row.tags === null ? 'bg-amber-50' : ''}`}>
-                          {row.tags === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.tags?.join('、') ?? '—')}
+                        <td className={`px-3 py-2 text-[#8a6a4a] text-xs ${isClear(row.tags, 'tags', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                          {isClear(row.tags, 'tags', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.tags?.join('、') ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem] ${row.notes === null ? 'bg-amber-50' : ''}`} title={row.notes ?? undefined}>
-                          {row.notes === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.notes ?? '—')}
+                        <td className={`px-3 py-2 text-[#8a6a4a] truncate max-w-[8rem] ${isClear(row.notes, 'notes', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`} title={row.notes ?? undefined}>
+                          {isClear(row.notes, 'notes', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.notes ?? '—')}
                         </td>
-                        <td className={`px-3 py-2 text-[#8a6a4a] ${row.net_weight === null ? 'bg-amber-50' : ''}`}>
-                          {row.net_weight === null ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.net_weight ?? '—')}
+                        <td className={`px-3 py-2 text-[#8a6a4a] ${isClear(row.net_weight, 'net_weight', row.equipment_id, existingData) ? 'bg-amber-50' : ''}`}>
+                          {isClear(row.net_weight, 'net_weight', row.equipment_id, existingData) ? <span className="flex items-center gap-1 text-amber-700 text-xs font-medium"><Trash2 className="h-3 w-3" />清空</span> : (row.net_weight ?? '—')}
                         </td>
                         <td className="px-3 py-2 text-[#8a6a4a]">{row.is_new === true ? '是' : row.is_new === false ? '否' : '—'}</td>
                         {row.error && (
