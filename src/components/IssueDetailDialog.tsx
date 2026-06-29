@@ -99,7 +99,7 @@ export default function IssueDetailDialog({
             assignee_emails: emails,
             assignees: emails.map((e: string) => e.split('@')[0]),
           }
-          setLocalIssue({ ...updatedIssue, issue_updates: undefined })
+          setLocalIssue(prev => ({ ...updatedIssue, is_pinned: prev.is_pinned, issue_updates: undefined }))
           onUpdated(updatedIssue)
         }
       } catch {

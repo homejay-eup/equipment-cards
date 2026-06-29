@@ -115,8 +115,16 @@ export default function TrackerClient({
 
   // router.refresh() 完成後 initialIssues prop 更新，同步至 state
   // hasMutatedRef 防止在使用者操作期間被 server 資料覆蓋
+  // is_pinned 以現有 state 為準（Router Cache 可能帶舊值），只允許升級（false→true），不允許降級
   useEffect(() => {
-    if (!hasMutatedRef.current) setIssues(initialIssues)
+    if (hasMutatedRef.current) return
+    setIssues(prev => {
+      const prevPinMap = new Map(prev.map(i => [i.id, i.is_pinned]))
+      return initialIssues.map(i => ({
+        ...i,
+        is_pinned: prevPinMap.get(i.id) || i.is_pinned,
+      }))
+    })
   }, [initialIssues])
 
   useIssueRealtime({
