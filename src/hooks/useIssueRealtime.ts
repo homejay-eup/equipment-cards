@@ -9,6 +9,8 @@ interface Options {
   onInsert: (issue: Issue) => void
   onUpdate: (issue: Issue) => void
   onDelete: (id: string) => void
+  // 用 payload.new 立即更新 scalar 欄位（不等 API 回應），解決 Vercel cold-start 造成的延遲
+  onFastUpdate?: (id: string, partial: Partial<Issue>) => void
 }
 
 export function useIssueRealtime({
@@ -16,15 +18,18 @@ export function useIssueRealtime({
   onInsert,
   onUpdate,
   onDelete,
+  onFastUpdate,
 }: Options) {
-  const onInsertRef = useRef(onInsert)
-  const onUpdateRef = useRef(onUpdate)
-  const onDeleteRef = useRef(onDelete)
+  const onInsertRef     = useRef(onInsert)
+  const onUpdateRef     = useRef(onUpdate)
+  const onDeleteRef     = useRef(onDelete)
+  const onFastUpdateRef = useRef(onFastUpdate)
 
   useEffect(() => {
-    onInsertRef.current = onInsert
-    onUpdateRef.current = onUpdate
-    onDeleteRef.current = onDelete
+    onInsertRef.current     = onInsert
+    onUpdateRef.current     = onUpdate
+    onDeleteRef.current     = onDelete
+    onFastUpdateRef.current = onFastUpdate
   })
 
   useEffect(() => {
@@ -74,6 +79,12 @@ export function useIssueRealtime({
             if (payload.eventType === 'DELETE') {
               onDeleteRef.current(issueId)
               return
+            }
+
+            // Fast path for UPDATE: immediately apply payload.new scalar fields
+            // (no joined tables in payload.new, so assignees/issue_updates are preserved)
+            if (payload.eventType === 'UPDATE' && onFastUpdateRef.current) {
+              onFastUpdateRef.current(issueId, payload.new as Partial<Issue>)
             }
 
             try {

@@ -142,6 +142,24 @@ export default function TrackerClient({
       setSelectedIssue(prev => prev?.id === id ? null : prev)
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
+    // 立即套用 payload.new 的 scalar 欄位（banner 即時更新，不等 Vercel cold-start）
+    onFastUpdate: useCallback((id: string, partial: Partial<Issue>) => {
+      if (recentMutationIdsRef.current.has(id)) return
+      setIssues(prev => prev.map(i => {
+        if (i.id !== id) return i
+        // payload.new 沒有 joined tables（assignees/issue_updates），保留現有值
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { issue_updates: _u, assignees: _a, assignee_emails: _e, ...rest } = partial as Issue
+        return { ...i, ...rest }
+      }))
+      setSelectedIssue(prev => {
+        if (prev?.id !== id) return prev
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { issue_updates: _u, assignees: _a, assignee_emails: _e, ...rest } = partial as Issue
+        return { ...prev, ...rest }
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
   })
 
   // 依篩選後的 base list
