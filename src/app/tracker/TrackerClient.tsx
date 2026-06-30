@@ -247,8 +247,15 @@ export default function TrackerClient({
   const handleIssueUpdated = useCallback((updated: Issue) => {
     hasMutatedRef.current = true
     markMutation(updated.id)
-    setIssues(prev => prev.map(i => i.id === updated.id ? updated : i))
-    setSelectedIssue(prev => prev?.id === updated.id ? updated : prev)
+    // is_pinned === undefined 表示呼叫端（如 fetchUpdates）不想覆蓋 pin 狀態，保留現有值
+    setIssues(prev => prev.map(i => {
+      if (i.id !== updated.id) return i
+      return { ...updated, is_pinned: updated.is_pinned !== undefined ? updated.is_pinned : i.is_pinned }
+    }))
+    setSelectedIssue(prev => {
+      if (prev?.id !== updated.id) return prev
+      return { ...updated, is_pinned: updated.is_pinned !== undefined ? updated.is_pinned : prev.is_pinned }
+    })
   }, [])
 
   // 樂觀刪除：立即移除 issues（Banner 即時消失），dialog 保持開著等 API
