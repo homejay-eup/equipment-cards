@@ -58,6 +58,7 @@ export default function IssueDetailDialog({
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingPinRef = useRef<boolean | null>(null)
 
   const canCreateIssues = permissions.includes('create_issues')
   const canEditIssue = permissions.includes('tracker_edit_issue')
@@ -100,7 +101,7 @@ export default function IssueDetailDialog({
             assignees: emails.map((e: string) => e.split('@')[0]),
           }
           setLocalIssue(prev => ({ ...updatedIssue, is_pinned: prev.is_pinned, issue_updates: undefined }))
-          onUpdated(updatedIssue)
+          onUpdated({ ...updatedIssue, is_pinned: pendingPinRef.current !== null ? pendingPinRef.current : updatedIssue.is_pinned })
         }
       } catch {
         // silent
@@ -182,6 +183,7 @@ export default function IssueDetailDialog({
 
   const handleTogglePin = useCallback(async () => {
     const nextPinned = !localIssue.is_pinned
+    pendingPinRef.current = nextPinned
     // 樂觀更新：立即同步 dialog 與 TrackerClient 的 issues state（Banner 即時出現/消失）
     setLocalIssue(prev => ({ ...prev, is_pinned: nextPinned }))
     onUpdated({ ...localIssue, is_pinned: nextPinned, issue_updates: updates })
@@ -192,14 +194,17 @@ export default function IssueDetailDialog({
         body: JSON.stringify({ is_pinned: nextPinned }),
       })
       if (!res.ok) {
+        pendingPinRef.current = null
         // 回滾
         setLocalIssue(prev => ({ ...prev, is_pinned: !nextPinned }))
         onUpdated({ ...localIssue, is_pinned: !nextPinned, issue_updates: updates })
         return
       }
       const updated = await res.json()
+      pendingPinRef.current = null
       onUpdated({ ...updated, issue_updates: updates })
     } catch {
+      pendingPinRef.current = null
       // 回滾
       setLocalIssue(prev => ({ ...prev, is_pinned: !nextPinned }))
       onUpdated({ ...localIssue, is_pinned: !nextPinned, issue_updates: updates })
