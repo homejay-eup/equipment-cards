@@ -255,7 +255,7 @@ export default function IssueDetailDialog({
                 title={localIssue.is_pinned ? '取消公告' : '設為公告'}
                 className={`p-1.5 rounded-lg transition-colors ${
                   localIssue.is_pinned
-                    ? 'text-green-600 hover:text-green-800 hover:bg-green-100'
+                    ? 'text-[#7a5230] hover:text-[#6b4f38] hover:bg-[rgba(122,82,48,.08)]'
                     : 'text-[#a08060] hover:text-[#6b4f38] hover:bg-[rgba(122,82,48,.08)]'
                 }`}
               >
