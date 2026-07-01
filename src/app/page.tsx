@@ -152,7 +152,7 @@ async function getTrackerData(userEmail: string): Promise<{
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, sort_order,
+        created_by, created_at, updated_at, sort_order, is_pinned,
         issue_assignees(user_email),
         issue_updates(id, content, created_by, created_at)
       `)
@@ -174,6 +174,8 @@ async function getTrackerData(userEmail: string): Promise<{
       assignee_emails: emails,
       assignees: emails.map((e) => e.split('@')[0]),
       sort_order: issue.sort_order ?? undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      is_pinned: (issue as any).is_pinned ?? false,
       issue_updates: (issue.issue_updates ?? []) as Issue['issue_updates'],
     }
   })
