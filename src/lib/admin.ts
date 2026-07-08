@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from './supabase-server'
 
 function getServiceClient() {
@@ -38,6 +39,18 @@ export async function isEmailAllowedToLogin(email: string): Promise<boolean> {
     .eq('email', normalized)
     .single()
   return !!data
+}
+
+// 持續性白名單檢查：非公司網域帳號若已被移出 allowed_emails，即使 session 仍有效也強制登出
+// 只在渲染完整頁面內容的入口 Server Component 呼叫（非公司網域才需要檢查，公司網域一律放行）
+export async function assertStillAuthorized(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  email: string | null | undefined,
+): Promise<void> {
+  if (!email) return
+  if (await isEmailAllowedToLogin(email)) return
+  await supabase.auth.signOut()
+  redirect('/login?error=unauthorized')
 }
 
 // 透過 roles + role_permissions 查權限

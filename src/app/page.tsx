@@ -7,7 +7,7 @@ import { EquipmentCard } from '@/types/equipment'
 import type { UserGroup } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getUserRoleWithPermissions } from '@/lib/admin'
+import { assertStillAuthorized, getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
 import type { Issue } from '@/app/tracker/page'
 
@@ -203,6 +203,7 @@ export default async function HomePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+  await assertStillAuthorized(supabase, user.email)
 
   const [cards, roleData, settings, initialGroups, initialBookmarkNotes, subfilterConfig] = await Promise.all([
     getEquipmentCards(),
