@@ -55,3 +55,7 @@ next-env.d.ts
 # Google Drive OAuth 憑證（敏感，勿 commit）
 /_開發檔案/drive-credentials.json
 /_開發檔案/drive-token.json
+
+# Google Drive Service Account 金鑰（敏感，勿 commit）
+/_開發檔案/service-account.json
+.env*
