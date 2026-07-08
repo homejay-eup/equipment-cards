@@ -86,10 +86,10 @@
 
 ### 目前進度
 
-- **已完成**：Step 1–29、31（2026-04-27 至 2026-07-08，詳細清單見 `_管理/01_equipment-cards/00_專案概覽.md`）
-- **待執行**：Step 30（設備文件查詢與維護／Google Drive，Phase 1 腳本已跑完，Phase 2 命名規範待排）；Step 16 Phase 2（批次淨重照片上傳，等照片提供後）
-- **目前 git HEAD**：`696f670`（已 push main，含 Step 31 + RLS 補強 + 白名單持續驗證修復，Vercel 應已自動部署）
-- **Step 31 後續待辦**：見下方「此次任務」區塊（功能實測，尚未完成）
+- **已完成**：Step 1–29、31（2026-04-27 至 2026-07-08，含 Step 31 後續兩項高風險修復＋功能實測皆已驗證通過，詳細清單見 `_管理/01_equipment-cards/00_專案概覽.md`）
+- **待執行**：Step 30（設備文件查詢與維護／Google Drive，Phase 1 腳本已跑完，Phase 2 命名規範待排）
+- **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
+- **目前 git HEAD**：`696f670`（已 push main，含 Step 31 + RLS 補強 + 白名單持續驗證修復，已 Vercel 部署並實測通過）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
@@ -203,27 +203,7 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 
 ## 此次任務（每次新對話時更新，執行完後清空）
 
-**背景**：Step 31（帳號管理：外部信箱登入白名單 + 公司帳號同步）已完成並 push。後續兩項高風險確認都已處理完畢：
-
-- ✅ **RLS 確認與修復**（已完成）：實測發現 `allowed_emails`／`roles`／`role_permissions` 三張表原本完全沒開 RLS，anon key 可匿名讀寫（會外洩全公司 email 清單，且能自行寫入白名單繞過登入闸门）。已用 `_開發檔案/sql/step31-lock-allowed-emails-rls.sql` 鎖上三張表 RLS（僅 `service_role` 可存取），並用 REST API 重新驗證匿名讀寫皆被擋、`service_role` 正常。
-- ✅ **白名單持續驗證漏洞修復**（已完成）：使用者實測發現「把外部 Gmail 從 `allowed_emails` 移除後，該帳號的瀏覽器 session 沒被強制登出，重新整理後仍可繼續看料卡」。根因：`middleware.ts` 只檢查 session cookie 是否存在，`isEmailAllowedToLogin` 只在 OAuth callback 那一刻跑一次，之後不會再重新驗證。已在 `src/lib/admin.ts` 新增 `assertStillAuthorized()`，並在 `src/app/page.tsx` 首頁入口呼叫，讓非公司網域帳號每次進首頁都重新驗證白名單，不在清單上就立即 `signOut()` + 導回 `/login?error=unauthorized`。已用 CodeGraph + Grep 交叉驗證 blast radius（`getUserRoleWithPermissions` 有 13+ 個呼叫點，但 tracker/admin 系列頁面都已被 `requirePermission`/`requireAdmin` 天然擋住，只有 `page.tsx` 真的需要補這個檢查）。`npm run build` 已通過，已 commit + push（`696f670`）。
-
-詳細改動內容見 `_管理/00_執行紀錄.md` 的「[2026-07-08] equipment-cards | Step 31」與「Step 31 後續」條目。
-
-**待辦（接續執行，非新功能討論——Vercel 部署完成後才能測）**：
-
-1. **驗證白名單持續驗證修復是否生效**：
-   - 用一個私人 Gmail 帳號登入 https://equipment-cards.vercel.app （需先被加入帳號管理清單）。
-   - 登入成功、看得到料卡後，用 super_admin 帳號把這個 Gmail 從帳號管理清單移除。
-   - 回到該 Gmail 帳號的瀏覽器分頁，重新整理首頁，**應該被強制登出並導回 `/login?error=unauthorized`**（這是這次修的漏洞，之前會繼續停留在首頁看得到料卡）。
-
-2. **同步公司帳號功能測試**：已用 service_role key 唯讀比對 `allowed_emails` 清單與 Supabase Auth 使用者清單，找到以下公司網域帳號**已登入過但還不在清單上**，可直接拿來測試，不需要刪除任何既有資料：
-   `king@eup.com.tw`、`louis-li@eup.com.tw`、`caleb@eup.com.tw`、`jenny-lin@eup.com.tw`、`kenny@eup.com.tw`、`jason@eup.com.tw`、`jenny@eup.com.tw`、`queenie@eup.com.tw`、`natasha@eup.com.tw`、`penny@eup.com.tw`、`daisy@eup.com.tw`、`sherry@eup.com.tw`、`allison@eup.com.tw`、`aarlex@eup.com.tw`、`ian-tuan@eup.com.tw`、`henry@eup.net.vn`
-   - 用 super_admin 帳號進帳號管理頁，點擊「同步公司帳號」按鈕，確認上述帳號被正確抓進清單，角色顯示「一般使用者」。
-   - 確認外部 Gmail（`homejay1228@gmail.com`、`vietnamese177@gmail.com`、`aarlex@gmail.com`、`jay10001228@gmail.com`，這些也登入過但是外部網域）**沒有**被誤抓進來。
-   - 用非 super_admin 帳號登入帳號管理頁，確認看不到「同步公司帳號」按鈕。
-
-3. 兩項都確認 OK 後，回報使用者，並清空本區塊。
+（無進行中任務）
 
 ---
 
