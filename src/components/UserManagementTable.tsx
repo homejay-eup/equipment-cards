@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck } from 'lucide-react'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck, RefreshCw } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
@@ -16,6 +16,7 @@ interface Props {
   currentUserEmail: string
   availableRoles: string[]
   permissions?: string[]
+  canSyncUsers?: boolean
 }
 
 function formatDate(iso: string) {
@@ -25,12 +26,15 @@ function formatDate(iso: string) {
   })
 }
 
-export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles, permissions = [] }: Props) {
+export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles, permissions = [], canSyncUsers = false }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingRemove, setPendingRemove] = useState<UserRow | null>(null)
+
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null)
 
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<string>(availableRoles[0] ?? 'viewer')
@@ -126,6 +130,30 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
     setConfirmOpen(true)
   }
 
+  async function syncUsers() {
+    setSyncing(true)
+    setSyncMessage(null)
+    try {
+      const res = await fetch('/api/admin/sync-users', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) { setSyncMessage({ text: d.error ?? '同步失敗', isError: true }); return }
+      const added = (d.added ?? []) as UserRow[]
+      if (added.length > 0) {
+        setUsers(prev => [
+          ...prev,
+          ...added.filter(newUser => !prev.some(u => u.email === newUser.email)),
+        ])
+        setSyncMessage({ text: `已同步，新增 ${added.length} 位使用者`, isError: false })
+      } else {
+        setSyncMessage({ text: '已是最新，沒有新帳號', isError: false })
+      }
+    } catch {
+      setSyncMessage({ text: '同步失敗，請重試', isError: true })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   async function doRemove(user: UserRow) {
     setLoadingEmail(user.email)
     setError(null)
@@ -149,10 +177,23 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
 
       {/* 新增 Email 表單 */}
       <div className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-[#6b4f38] mb-1 flex items-center gap-2">
-          <UserPlus className="h-4 w-4 text-[#7a5230]" />
-          指派角色
-        </h2>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h2 className="text-sm font-semibold text-[#6b4f38] flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-[#7a5230]" />
+            指派角色
+          </h2>
+          {canSyncUsers && (
+            <button
+              type="button"
+              onClick={syncUsers}
+              disabled={syncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-[#e8ddd0] rounded-lg text-xs font-medium text-[#6b4f38] bg-[#faf6f0] hover:border-[rgba(122,82,48,.35)] hover:shadow-[0_0_6px_rgba(122,82,48,.18)] disabled:opacity-50 transition-all whitespace-nowrap"
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              同步公司帳號
+            </button>
+          )}
+        </div>
         <p className="text-xs text-[#a08060] mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員。角色變更將於對方重新整理頁面後生效。</p>
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
           <input
@@ -208,6 +249,9 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         </form>
         {addError && (
           <p className="mt-2 text-sm text-[#b5451b]">{addError}</p>
+        )}
+        {syncMessage && (
+          <p className={`mt-2 text-sm ${syncMessage.isError ? 'text-[#b5451b]' : 'text-[#7a5230]'}`}>{syncMessage.text}</p>
         )}
       </div>
 

@@ -107,6 +107,7 @@ export default async function AdminUsersPage() {
           currentUserEmail={user!.email!}
           availableRoles={roleNames}
           permissions={roleData.permissions}
+          canSyncUsers={callerLevel === 'super_admin'}
         />
       </div>
     </main>

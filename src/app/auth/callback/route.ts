@@ -1,8 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-
-const ALLOWED_DOMAINS = ['eup.com.tw', 'eup.com.vn']
+import { isEmailAllowedToLogin } from '@/lib/admin'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -33,9 +32,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/login`)
     }
 
-    // 非公司信箱：登出並顯示錯誤（嚴格比對 domain，防範 @fake-eup.com.tw 偽造）
-    const emailDomain = data.user.email?.split('@')[1]
-    if (!emailDomain || !ALLOWED_DOMAINS.includes(emailDomain)) {
+    // 非公司信箱且未被管理員加入 allowed_emails：登出並顯示錯誤
+    const email = data.user.email
+    if (!email || !(await isEmailAllowedToLogin(email))) {
       await supabase.auth.signOut()
       return NextResponse.redirect(`${origin}/login?error=unauthorized`)
     }

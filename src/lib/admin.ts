@@ -28,6 +28,18 @@ export function isAllowedDomain(email: string): boolean {
   return !!domain && ALLOWED_DOMAINS.includes(domain)
 }
 
+// 登入闸门：公司網域 email 一律放行；非公司網域則需已被管理員明確加入 allowed_emails
+export async function isEmailAllowedToLogin(email: string): Promise<boolean> {
+  const normalized = email.toLowerCase()
+  if (isAllowedDomain(normalized)) return true
+  const { data } = await getServiceClient()
+    .from('allowed_emails')
+    .select('email')
+    .eq('email', normalized)
+    .single()
+  return !!data
+}
+
 // 透過 roles + role_permissions 查權限
 // 若 roles 表不存在或找不到角色 → 依舊 role 名稱做 fallback
 export async function getUserRoleWithPermissions(): Promise<{ roleName: string; permissions: string[] }> {
