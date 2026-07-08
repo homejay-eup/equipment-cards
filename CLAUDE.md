@@ -86,10 +86,10 @@
 
 ### 目前進度
 
-- **已完成**：Step 1–23（2026-04-27 至 2026-06-08）
-- **待執行**：待需求討論
-- **目前 git HEAD**：`dd50788`（Steps 1–23 均已包含）
-- **Step 16 Phase 2 待執行**：批次淨重照片上傳腳本（等照片提供後）
+- **已完成**：Step 1–29、31（2026-04-27 至 2026-07-08，詳細清單見 `_管理/01_equipment-cards/00_專案概覽.md`）
+- **待執行**：Step 30（設備文件查詢與維護／Google Drive，Phase 1 腳本已跑完，Phase 2 命名規範待排）；Step 16 Phase 2（批次淨重照片上傳，等照片提供後）
+- **目前 git HEAD**：`e86470c`（已 push main，含 Step 31：帳號管理外部信箱登入白名單 + 公司帳號同步）
+- **Step 31 後續待辦**：見上方「此次任務」區塊（Supabase RLS 確認 + 功能實測，尚未完成）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
@@ -203,7 +203,23 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 
 ## 此次任務（每次新對話時更新，執行完後清空）
 
-（空白）
+**背景**：Step 31（帳號管理：外部信箱登入白名單 + 公司帳號同步）程式碼已完成、build 通過、已 commit（`e86470c`）並 push 到 main，Vercel 應已自動部署。詳細改動內容見 `_管理/00_執行紀錄.md` 的「[2026-07-08] equipment-cards | Step 31」條目。
+
+**待辦（接續執行，非新功能討論）**：
+
+1. **RLS 確認（優先，Reviewer 標記的高風險項）**：到 Supabase Dashboard（專案 `ntapfguwmuufnlafroxs`）確認 `allowed_emails`、`roles`、`role_permissions` 三張表：
+   - 是否都已 `Enable RLS`
+   - 是否**沒有**任何允許 `anon`/`authenticated` role 寫入（INSERT/UPDATE/DELETE）的 policy（理想狀態：這三張表只能被 `service_role` 存取）
+   - 若發現沒鎖好，需要補 RLS policy（可比照 `_開發檔案/sql/` 裡其他表如 `issues`、`equipment_cards` 的既有 RLS 寫法），並補一份 SQL 腳本進 `_開發檔案/sql/` 供版控追蹤。
+   - 檢查完後，把結果（鎖好了 / 有洞需要修）記錄回 `_管理/00_執行紀錄.md`（追加，不要改舊條目）。
+
+2. **功能實測**（Vercel 部署完成後）：
+   - 用一個目前**沒有**在帳號管理清單裡的外部 Gmail 帳號登入 https://equipment-cards.vercel.app ，確認會被擋在登入頁（`?error=unauthorized`）。
+   - 用 super_admin 帳號把這個 Gmail 加進帳號管理清單、指派角色，再用該 Gmail 帳號重新登入一次，確認這次能成功登入並看到料卡。
+   - 用 super_admin 帳號進帳號管理頁，點擊「同步公司帳號」按鈕，確認公司網域（`@eup.com.tw` / `@eup.net.vn`）裡已登入過但還沒在清單上的帳號被正確抓進來，角色顯示「一般使用者」。
+   - 確認非 super_admin 登入時看不到「同步公司帳號」按鈕。
+
+3. 兩項都確認 OK 後，回報使用者，並清空本區塊。
 
 ---
 
