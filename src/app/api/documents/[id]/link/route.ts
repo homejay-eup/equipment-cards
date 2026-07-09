@@ -58,7 +58,12 @@ export async function POST(
       throw linkError
     }
 
-    await recomputeCardDocumentsCache(equipment_id)
+    // 核心關聯已建立成功，快取重算失敗不應讓整個掛載回報失敗
+    try {
+      await recomputeCardDocumentsCache(equipment_id)
+    } catch (cacheErr) {
+      console.error('[documents/link] recomputeCardDocumentsCache error (POST)', cacheErr)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
@@ -104,7 +109,12 @@ export async function DELETE(
       return NextResponse.json({ error: '此文件未掛載於該料號' }, { status: 404 })
     }
 
-    await recomputeCardDocumentsCache(equipment_id)
+    // 核心關聯已解除成功，快取重算失敗不應讓整個解除掛載回報失敗
+    try {
+      await recomputeCardDocumentsCache(equipment_id)
+    } catch (cacheErr) {
+      console.error('[documents/link] recomputeCardDocumentsCache error (DELETE)', cacheErr)
+    }
 
     // 檢查文件是否還有其他關聯
     const { count, error: countError } = await supabase
@@ -114,13 +124,20 @@ export async function DELETE(
     if (countError) throw countError
 
     if ((count ?? 0) === 0) {
-      // 最後一個關聯：連同刪除文件本體
+      // 最後一個關聯：嘗試連同刪除文件本體，但 Drive 刪除失敗時保留 documents 列
+      // （避免 drive_file_id 這條線索遺失，造成無法追蹤的孤兒 Drive 檔案）
       const drive = await getDriveClient()
+      let driveDeleteFailed = false
       await drive.files
         .delete({ fileId: doc.drive_file_id, supportsAllDrives: true })
         .catch((driveErr) => {
           console.error('[documents/link] Drive delete failed', driveErr)
+          driveDeleteFailed = true
         })
+
+      if (driveDeleteFailed) {
+        return NextResponse.json({ ok: true, document_deleted: false, drive_delete_pending: true })
+      }
 
       const { error: deleteDocError } = await supabase
         .from('documents')

@@ -147,8 +147,12 @@ export async function POST(req: NextRequest) {
       throw linkError
     }
 
-    // 4. 重算受影響卡片的快取
-    await Promise.all(ids.map((id) => recomputeCardDocumentsCache(id)))
+    // 4. 重算受影響卡片的快取（核心資料已寫入成功，快取失敗不應讓整個上傳回報失敗）
+    try {
+      await Promise.all(ids.map((id) => recomputeCardDocumentsCache(id)))
+    } catch (cacheErr) {
+      console.error('[documents/upload] recomputeCardDocumentsCache error', cacheErr)
+    }
 
     return NextResponse.json({ document: docRow, linked_equipment_ids: ids }, { status: 201 })
   } catch (err) {

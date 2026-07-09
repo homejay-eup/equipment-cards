@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown, Link2 } from 'lucide-react'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown, FileText, Search, RefreshCw } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings, Document as EquipmentDocument } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { useDocumentUpload, DocumentSearchResult } from '@/hooks/useDocumentUpload'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -30,6 +32,33 @@ interface FormState {
 interface PendingDetail {
   file: File
   preview: string
+}
+
+// documents 現在的角色是「純顯示快取」，id/drive_file_id/equipment_ids 是掛載後才有的
+// 管理用資訊：card.documents（equipment_cards.documents 唯讀快取）不含這些欄位，
+// 編輯模式開啟時另外用 /api/documents/search 依名稱解析回補
+interface ManagedDocument extends EquipmentDocument {
+  id?: string
+  drive_file_id?: string
+  equipment_ids?: string[]
+}
+
+// 新增模式：卡片尚未建立，equipment_id 還不存在，文件上傳/掛載都要暫存到卡片建立成功後才能呼叫
+interface PendingDocUpload {
+  localId: string
+  file: File
+  type: string
+  name: string
+}
+
+interface PendingDocLink {
+  localId: string
+  documentId: string
+  name: string
+  type: string
+  url: string
+  drive_file_id: string
+  equipment_ids: string[]
 }
 
 // 自訂下拉元件（供分類、狀態共用）
@@ -147,7 +176,24 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   const [selectedWeightIds, setSelectedWeightIds]                 = useState<Set<string>>(new Set())
   const [selectedPendingWeightIdxs, setSelectedPendingWeightIdxs] = useState<Set<number>>(new Set())
 
-  const [documents, setDocuments] = useState<EquipmentDocument[]>(card?.documents ?? [])
+  const docApi = useDocumentUpload()
+  const docFileRef       = useRef<HTMLInputElement>(null)
+  const docUpdateFileRef = useRef<HTMLInputElement>(null)
+
+  const [documents, setDocuments]           = useState<ManagedDocument[]>(card?.documents ?? [])
+  const [docsResolving, setDocsResolving]   = useState(false)
+  const [docsBusy, setDocsBusy]             = useState(false)
+  const [docActionError, setDocActionError] = useState<string | null>(null)
+  const [pendingDocUploads, setPendingDocUploads] = useState<PendingDocUpload[]>([])
+  const [pendingDocLinks, setPendingDocLinks]     = useState<PendingDocLink[]>([])
+  const [docUploadType, setDocUploadType]   = useState<string>(settings.documentTypes[0] ?? '規格書')
+  const [docUploadName, setDocUploadName]   = useState('')
+  const [showDocSearch, setShowDocSearch]   = useState(false)
+  const [docSearchQuery, setDocSearchQuery] = useState('')
+  const [docSearchResults, setDocSearchResults] = useState<DocumentSearchResult[]>([])
+  const [docSearching, setDocSearching]     = useState(false)
+  const [docUpdateTargetId, setDocUpdateTargetId] = useState<string | null>(null)
+  const [confirmRemoveDoc, setConfirmRemoveDoc]   = useState<ManagedDocument | null>(null)
 
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
@@ -193,7 +239,52 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     card?.detail_photos.forEach(p => { if (p.caption) captionInit[p.public_id] = p.caption })
     setDetailCaptions(captionInit)
     setDocuments(card?.documents ?? [])
+    setDocsResolving(false)
+    setDocsBusy(false)
+    setDocActionError(null)
+    setPendingDocUploads([])
+    setPendingDocLinks([])
+    setDocUploadType(settings.documentTypes[0] ?? '規格書')
+    setDocUploadName('')
+    setShowDocSearch(false)
+    setDocSearchQuery('')
+    setDocSearchResults([])
+    setDocSearching(false)
+    setDocUpdateTargetId(null)
+    setConfirmRemoveDoc(null)
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 編輯模式開啟時，直接反查 card_documents 表拿到這張卡片實際掛載的文件
+  // （含 id/drive_file_id/equipment_ids），才能做「移除」「更新版本」「顯示也用於幾個品號」。
+  // 改用 GET /api/documents?equipment_id= 直接查，取代原本「用名稱反查 /api/documents/search」
+  // 的作法——若舊資料曾有同名文件，用名稱比對會把不同文件的 id 混在一起，直接查 equipment_id 沒有這個風險
+  useEffect(() => {
+    if (!open || mode !== 'edit' || !card) return
+    if (!canEdit('edit_card_documents')) return
+
+    let cancelled = false
+    setDocsResolving(true)
+    ;(async () => {
+      try {
+        const results = await docApi.listByEquipment(card.equipment_id)
+        if (cancelled) return
+        setDocuments(results.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          url: r.url,
+          drive_file_id: r.drive_file_id,
+          equipment_ids: r.equipment_ids,
+        })))
+      } catch {
+        // 查詢失敗：保留 card.documents 唯讀快取的顯示，動作按鈕因缺少 id 會維持停用
+      } finally {
+        if (!cancelled) setDocsResolving(false)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, card])
 
   if (!open) return null
 
@@ -261,7 +352,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           ...form,
           tags: parseTags(form.tags),
           is_new: isNew,
-          documents,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
         }),
       })
@@ -299,6 +389,19 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         finally { setUploading(false) }
       }
 
+      if (pendingDocUploads.length > 0 || pendingDocLinks.length > 0) {
+        setUploading(true)
+        try {
+          for (const p of pendingDocUploads) {
+            await docApi.upload(p.file, p.type, [equipId], p.name.trim() || undefined)
+          }
+          for (const p of pendingDocLinks) {
+            await docApi.link(p.documentId, equipId)
+          }
+        } catch (e) { setError(`料卡已建立，但文件處理失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
       router.refresh()
       onClose()
     } catch {
@@ -326,7 +429,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       if (form.status !== orig.status) changedFields.push('狀態')
       if (JSON.stringify([...newTags].sort()) !== JSON.stringify([...orig.tags].sort())) changedFields.push('標籤')
       if ((form.notes?.trim() || null) !== orig.notes) changedFields.push('備註')
-      if (JSON.stringify(documents) !== JSON.stringify(orig.documents ?? [])) changedFields.push('文件')
+      // 文件已改為透過 /api/documents/* 即時生效（不再等按「儲存」），此處不再需要比對變更
       if (newNetWeight !== orig.net_weight) changedFields.push('淨重')
       if (isNew !== !!orig.is_new) changedFields.push('新品標記')
       if (deleteMainPending || mainPhotoFile) changedFields.push('主圖')
@@ -339,7 +442,6 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         body: JSON.stringify({
           ...form, tags: parseTags(form.tags), is_new: isNew,
           detail_photo_captions: detailCaptions,
-          documents,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
           updated_fields: changedFields,
         }),
@@ -409,6 +511,144 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       setError('更新失敗，請重試')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // ── 文件連結：新增模式暫存，編輯模式即時呼叫 API ────────────────
+  async function handleDocFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const type = docUploadType || localSettings.documentTypes[0] || '規格書'
+    const name = docUploadName.trim()
+
+    if (mode === 'create') {
+      setPendingDocUploads(prev => [...prev, { localId: `${Date.now()}_${prev.length}`, file, type, name }])
+      setDocUploadName('')
+      return
+    }
+
+    setDocsBusy(true)
+    setDocActionError(null)
+    try {
+      const result = await docApi.upload(file, type, [card!.equipment_id], name || undefined)
+      setDocuments(prev => [...prev, {
+        name: result.document.name,
+        type: result.document.type,
+        url:  result.document.url,
+        id:   result.document.id,
+        drive_file_id: result.document.drive_file_id,
+        equipment_ids:  result.linked_equipment_ids,
+      }])
+      setDocUploadName('')
+      router.refresh()
+    } catch (err) {
+      setDocActionError(err instanceof Error ? err.message : '文件上傳失敗')
+    } finally {
+      setDocsBusy(false)
+    }
+  }
+
+  function updatePendingDocUploadType(localId: string, type: string) {
+    setPendingDocUploads(prev => prev.map(p => p.localId === localId ? { ...p, type } : p))
+  }
+
+  function updatePendingDocUploadName(localId: string, name: string) {
+    setPendingDocUploads(prev => prev.map(p => p.localId === localId ? { ...p, name } : p))
+  }
+
+  function handleRemovePendingDocUpload(localId: string) {
+    setPendingDocUploads(prev => prev.filter(p => p.localId !== localId))
+  }
+
+  function handleRemovePendingDocLink(localId: string) {
+    setPendingDocLinks(prev => prev.filter(p => p.localId !== localId))
+  }
+
+  async function handleSearchDocs() {
+    const q = docSearchQuery.trim()
+    if (!q) { setDocSearchResults([]); return }
+    setDocSearching(true)
+    setDocActionError(null)
+    try {
+      const results = await docApi.search(q)
+      setDocSearchResults(results)
+    } catch (err) {
+      setDocActionError(err instanceof Error ? err.message : '查詢失敗')
+    } finally {
+      setDocSearching(false)
+    }
+  }
+
+  async function handlePickExistingDoc(result: DocumentSearchResult) {
+    if (mode === 'create') {
+      setPendingDocLinks(prev => [...prev, {
+        localId: `${Date.now()}_${prev.length}`,
+        documentId: result.id, name: result.name, type: result.type,
+        url: result.url, drive_file_id: result.drive_file_id, equipment_ids: result.equipment_ids,
+      }])
+      setDocSearchResults(prev => prev.filter(d => d.id !== result.id))
+      return
+    }
+
+    setDocsBusy(true)
+    setDocActionError(null)
+    try {
+      await docApi.link(result.id, card!.equipment_id)
+      setDocuments(prev => [...prev, {
+        name: result.name, type: result.type, url: result.url,
+        id: result.id, drive_file_id: result.drive_file_id,
+        equipment_ids: [...result.equipment_ids, card!.equipment_id],
+      }])
+      setDocSearchResults(prev => prev.filter(d => d.id !== result.id))
+      router.refresh()
+    } catch (err) {
+      setDocActionError(err instanceof Error ? err.message : '掛載失敗')
+    } finally {
+      setDocsBusy(false)
+    }
+  }
+
+  async function doRemoveDoc(doc: ManagedDocument) {
+    if (!doc.id || !card) return
+    setDocsBusy(true)
+    setDocActionError(null)
+    try {
+      await docApi.unlink(doc.id, card.equipment_id)
+      setDocuments(prev => prev.filter(d => d.id !== doc.id))
+      router.refresh()
+    } catch (err) {
+      setDocActionError(err instanceof Error ? err.message : '移除失敗')
+    } finally {
+      setDocsBusy(false)
+      setConfirmRemoveDoc(null)
+    }
+  }
+
+  function handleRemoveDoc(doc: ManagedDocument) {
+    if (!doc.id) return
+    setConfirmRemoveDoc(doc)
+  }
+
+  function handleDocUpdateVersionClick(docId: string) {
+    setDocUpdateTargetId(docId)
+    docUpdateFileRef.current?.click()
+  }
+
+  async function handleDocUpdateVersionFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !docUpdateTargetId) return
+    setDocsBusy(true)
+    setDocActionError(null)
+    try {
+      await docApi.updateVersion(docUpdateTargetId, file)
+      router.refresh()
+    } catch (err) {
+      setDocActionError(err instanceof Error ? err.message : '更新版本失敗')
+    } finally {
+      setDocsBusy(false)
+      setDocUpdateTargetId(null)
     }
   }
 
@@ -516,11 +756,16 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   }
 
   const totalSelected = selectedDetailIds.size + selectedPendingIdxs.size
-  const isBusy = saving || uploading
+  const isBusy = saving || uploading || docsBusy
   const currentMainPhoto = mainPhotoPreview ?? (deleteMainPending ? null : mainPhoto)
   const visibleDetails = detailPhotos.filter(p => !deleteDetailIds.has(p.public_id))
   const visibleWeightPhotos = existingWeightPhotos.filter(p => !deleteWeightPhotoIds.has(p.public_id))
   const totalSelectedWeight = selectedWeightIds.size + selectedPendingWeightIdxs.size
+  const linkedDocIds = new Set([
+    ...documents.map(d => d.id).filter((id): id is string => Boolean(id)),
+    ...pendingDocLinks.map(p => p.documentId),
+  ])
+  const filteredDocSearchResults = docSearchResults.filter(r => !linkedDocIds.has(r.id))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -668,61 +913,174 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                   disabled={isBusy}
                 />
               </label>
-              <button type="button"
-                onClick={() => setDocuments(prev => [...prev, { name: '', url: '', type: localSettings.documentTypes[0] ?? '規格書' }])}
-                disabled={isBusy || !canEdit('edit_card_documents')}
-                className="flex items-center gap-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
-                <Plus className="h-3.5 w-3.5" />
-                新增
-              </button>
             </div>
-            {documents.length === 0 ? (
-              <p className="text-xs text-[#b0967a]">尚無文件連結</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {documents.map((doc, i) => (
-                  <div key={i} className="flex flex-col gap-1.5 p-2.5 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg">
+
+            {canEdit('edit_card_documents') && (
+              <div className="flex flex-col gap-2 mb-3 p-2.5 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg">
+                <div className="flex gap-2">
+                  <select
+                    value={docUploadType}
+                    onChange={e => setDocUploadType(e.target.value)}
+                    disabled={isBusy}
+                    className="border border-[#e8ddd0] rounded-lg px-2 py-1.5 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
+                  >
+                    {localSettings.documentTypes.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={docUploadName}
+                    onChange={e => setDocUploadName(e.target.value)}
+                    placeholder="顯示名稱（選填，預設用檔名）"
+                    disabled={isBusy}
+                    className={`${inputCls} flex-1 text-xs py-1.5 disabled:opacity-50`}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => docFileRef.current?.click()} disabled={isBusy}
+                    className="flex-1 flex items-center justify-center gap-1.5 border-2 border-dashed border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] transition-all disabled:opacity-40">
+                    <Upload className="h-3.5 w-3.5" />
+                    上傳新文件
+                  </button>
+                  <button type="button" onClick={() => setShowDocSearch(v => !v)} disabled={isBusy}
+                    className="flex-1 flex items-center justify-center gap-1.5 border-2 border-dashed border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] transition-all disabled:opacity-40">
+                    <Search className="h-3.5 w-3.5" />
+                    挑選既有文件
+                  </button>
+                </div>
+                <input ref={docFileRef} type="file" className="hidden" onChange={handleDocFileChosen} />
+
+                {showDocSearch && (
+                  <div className="flex flex-col gap-1.5 pt-1">
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        value={doc.name}
-                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, name: e.target.value } : d))}
-                        placeholder="文件名稱"
-                        disabled={isBusy || !canEdit('edit_card_documents')}
-                        className={`${inputCls} flex-1 text-xs py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
+                        value={docSearchQuery}
+                        onChange={e => setDocSearchQuery(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchDocs() } }}
+                        placeholder="輸入文件名稱關鍵字…"
+                        disabled={isBusy}
+                        className={`${inputCls} flex-1 text-xs py-1.5 disabled:opacity-50`}
                       />
-                      <select
-                        value={doc.type}
-                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, type: e.target.value } : d))}
-                        disabled={isBusy || !canEdit('edit_card_documents')}
-                        className="border border-[#e8ddd0] rounded-lg px-2 py-1.5 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
+                      <button type="button" onClick={handleSearchDocs} disabled={isBusy || docSearching}
+                        className="px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors">
+                        {docSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '搜尋'}
+                      </button>
+                    </div>
+                    {filteredDocSearchResults.length > 0 && (
+                      <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                        {filteredDocSearchResults.map(r => (
+                          <button key={r.id} type="button" onClick={() => handlePickExistingDoc(r)} disabled={isBusy}
+                            className="flex items-center justify-between gap-2 text-left px-2.5 py-1.5 text-xs bg-[#fff9f4] border border-[rgba(122,82,48,.15)] rounded-lg hover:border-[#c49a72] disabled:opacity-40 transition-colors">
+                            <span className="flex items-center gap-1.5 truncate">
+                              <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                              <span className="truncate">{r.name}</span>
+                              <span className="text-[#a08060] flex-shrink-0">（{r.type}）</span>
+                            </span>
+                            <span className="text-[#a08060] flex-shrink-0">用於 {r.equipment_ids.length} 個品號</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {docActionError && (
+              <div className="flex items-start gap-2 text-xs text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2 mb-2">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>{docActionError}</span>
+              </div>
+            )}
+
+            {documents.length === 0 && pendingDocUploads.length === 0 && pendingDocLinks.length === 0 ? (
+              <p className="text-xs text-[#b0967a]">尚無文件連結</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {documents.map((doc, i) => {
+                  const otherCount = (doc.equipment_ids?.length ?? 1) - 1
+                  return (
+                    <div key={doc.id ?? `${doc.name}-${i}`} className="flex items-center justify-between gap-2 p-2.5 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg">
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs text-[#4a3422] hover:text-[#7a5230] truncate min-w-0">
+                        <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                        <span className="truncate">{doc.name}</span>
+                        <span className="text-[#a08060] flex-shrink-0">（{doc.type}）</span>
+                      </a>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {doc.id && otherCount > 0 && (
+                          <span className="text-[10px] text-[#a08060] whitespace-nowrap">也用於 {otherCount} 個品號</span>
+                        )}
+                        {!doc.id && docsResolving && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#a08060]" />}
+                        {canEdit('edit_card_documents') && doc.id && (
+                          <>
+                            <button type="button" onClick={() => handleDocUpdateVersionClick(doc.id as string)} disabled={isBusy}
+                              title="更新版本"
+                              className="text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" onClick={() => handleRemoveDoc(doc)} disabled={isBusy}
+                              title="移除"
+                              className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {pendingDocUploads.map(p => (
+                  <div key={p.localId} className="flex flex-col gap-1.5 p-2.5 bg-[#f2ebe0] border border-[#c49a72] rounded-lg">
+                    <div className="flex gap-2">
+                      <span className="flex-1 flex items-center gap-1.5 text-xs text-[#4a3422] truncate">
+                        <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                        <span className="truncate">{p.file.name}</span>
+                      </span>
+                      <button type="button" onClick={() => handleRemovePendingDocUpload(p.localId)} disabled={isBusy}
+                        className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors flex-shrink-0">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <select value={p.type} onChange={e => updatePendingDocUploadType(p.localId, e.target.value)}
+                        disabled={isBusy}
+                        className="border border-[#e8ddd0] rounded-lg px-2 py-1 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50">
                         {localSettings.documentTypes.map(t => (
                           <option key={t} value={t}>{t}</option>
                         ))}
                       </select>
-                      <button type="button"
-                        onClick={() => setDocuments(prev => prev.filter((_, idx) => idx !== i))}
-                        disabled={isBusy || !canEdit('edit_card_documents')}
-                        className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors flex-shrink-0">
-                        <X className="h-4 w-4" />
-                      </button>
+                      <input type="text" value={p.name} onChange={e => updatePendingDocUploadName(p.localId, e.target.value)}
+                        placeholder="顯示名稱（選填）" disabled={isBusy}
+                        className={`${inputCls} flex-1 text-xs py-1 disabled:opacity-50`} />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Link2 className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                      <input
-                        type="url"
-                        value={doc.url}
-                        onChange={e => setDocuments(prev => prev.map((d, idx) => idx === i ? { ...d, url: e.target.value } : d))}
-                        placeholder="https://drive.google.com/..."
-                        disabled={isBusy || !canEdit('edit_card_documents')}
-                        className={`${inputCls} text-xs py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
-                      />
+                    <span className="text-[10px] text-[#a08060]">待建立料卡後上傳</span>
+                  </div>
+                ))}
+
+                {pendingDocLinks.map(p => (
+                  <div key={p.localId} className="flex items-center justify-between gap-2 p-2.5 bg-[#f2ebe0] border border-[#c49a72] rounded-lg">
+                    <span className="flex items-center gap-1.5 text-xs text-[#4a3422] truncate">
+                      <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                      <span className="text-[#a08060] flex-shrink-0">（{p.type}）</span>
+                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-[#a08060] whitespace-nowrap">待建立料卡後掛載</span>
+                      <button type="button" onClick={() => handleRemovePendingDocLink(p.localId)} disabled={isBusy}
+                        className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+
+            <input ref={docUpdateFileRef} type="file" className="hidden" onChange={handleDocUpdateVersionFile} />
           </div>
 
           {/* NEW 標記 */}
@@ -1025,10 +1383,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               onChange={handleAddWeightPhoto} />
           </div>
 
-          {uploading && (
+          {(uploading || docsBusy) && (
             <div className="flex items-center gap-2 text-sm text-[#7a5230]">
               <Loader2 className="h-4 w-4 animate-spin" />
-              照片處理中…
+              檔案處理中…
             </div>
           )}
         </div>
@@ -1046,6 +1404,20 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmRemoveDoc}
+        title="移除文件"
+        message={
+          confirmRemoveDoc && (confirmRemoveDoc.equipment_ids?.length ?? 1) - 1 > 0
+            ? `這份文件還用於其他 ${(confirmRemoveDoc.equipment_ids?.length ?? 1) - 1} 個品號，移除後只會解除本卡片的關聯，不影響其他品號。`
+            : '這是此文件最後一個關聯的品號，移除後文件本體也會一併從 Google Drive 刪除，且無法復原。'
+        }
+        confirmLabel="移除"
+        danger
+        onConfirm={() => { if (confirmRemoveDoc) void doRemoveDoc(confirmRemoveDoc) }}
+        onCancel={() => setConfirmRemoveDoc(null)}
+      />
     </div>
   )
 }
