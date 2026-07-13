@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
-import type { UserGroup } from '@/types/equipment'
+import type { UserGroup, QuoteItem } from '@/types/equipment'
 import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { assertStillAuthorized, getUserRoleWithPermissions } from '@/lib/admin'
@@ -91,6 +91,23 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
   }
 
   return (groups ?? []) as UserGroup[]
+}
+
+async function getQuoteItems(): Promise<QuoteItem[]> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+  const { data, error } = await supabase
+    .from('quote_items')
+    .select('*')
+    .order('category')
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('name')
+
+  if (error) return []
+  return data ?? []
 }
 
 async function getSubfilterConfig(): Promise<Record<string, string[]>> {
@@ -226,6 +243,13 @@ export default async function HomePage() {
   const hasTrackerPermission = permissions.includes('view_tracker')
   const trackerData = hasTrackerPermission ? await getTrackerData(user.email ?? '') : undefined
 
+  const hasQuotesPermission = permissions.includes('view_quotes') || permissions.includes('edit_quotes')
+  const canViewManagerPrice = permissions.includes('view_quotes_manager_price')
+  const rawQuoteItems = hasQuotesPermission ? await getQuoteItems() : []
+  const quoteItems = canViewManagerPrice
+    ? rawQuoteItems
+    : rawQuoteItems.map(item => ({ ...item, manager_price: null }))
+
   return (
     <main className="min-h-screen bg-[#faf6f0]">
       <Suspense fallback={
@@ -244,6 +268,7 @@ export default async function HomePage() {
           userRole={roleName}
           trackerData={trackerData ?? undefined}
           subfilterConfig={subfilterConfig}
+          quoteItems={quoteItems}
         />
       </Suspense>
     </main>

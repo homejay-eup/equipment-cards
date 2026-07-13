@@ -96,8 +96,9 @@
   - ✅ 使用者實測回饋修正（2026-07-13）：正式站實測發現 3 點問題（Drive 看不出料號歸屬、刪除警示但實際未刪除、文件異動不受取消/儲存控制），已對焦決策並修正：上傳同名文件跳提示、誠實回報 Drive 刪除結果、文件異動全面改為暫存到按儲存才生效（詳見 `_管理/00_執行紀錄.md` 「Step 30 使用者實測回饋修正」條目）
   - ✅ Drive 刪除永久失敗根因診斷 + 修正（2026-07-13）：查證確認 Service Account 只有「內容管理員」權限（`canTrash:true`／`canDelete:false`），`files.delete()` 一律失敗（回 404 非 403）。改為搬移到新建的「_待清除文件」資料夾（ID `1u38kmLRsM0fD2KHZXQgfJ7vMc1jvcR0C`，已加入 `.env.local`/Vercel Production 環境變數 `GOOGLE_DRIVE_PENDING_DELETE_FOLDER_ID`），交由人工定期判斷是否真的清除（詳見 `_管理/00_執行紀錄.md` 「Drive 刪除永久失敗根因診斷」條目）
   - ⏳ **待辦**：使用者再次實測移除文件，確認能顯示「文件已完全刪除」不再跳 Drive 清除失敗警告（已 commit/push）
+- **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，正式 Supabase 已執行 `_開發檔案/sql/step32-quote-items.sql`、`step32b-quote-items-sort-order.sql`（建表、預設分類、管理員權限授予、拖拉排序欄位），並匯入 88 筆初始報價資料（來源：配件報價2023-08.pdf），功能已由使用者本機實測確認（含一般人員視角、拖拉排序、分類管理）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
-- **目前 git HEAD**：`421271c`（已 push main，含文件功能三項使用者實測回饋修正：上傳同名提示、Drive 刪除誠實回報、文件異動改暫存到儲存生效，Vercel 應已自動部署，待瀏覽器實測）
+- **目前 git HEAD**：合併 Step 30（文件功能三項使用者實測回饋修正）與 Step 32（報價查詢）後即將 push main，Vercel 將自動部署
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）

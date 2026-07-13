@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { key, value } = await req.json()
-  if (!['categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags'].includes(key) || !Array.isArray(value)) {
+  if (!['categories', 'statuses', 'documentTypes', 'issueTypes', 'issueTags', 'quoteCategories'].includes(key) || !Array.isArray(value)) {
     return NextResponse.json({ error: '參數錯誤' }, { status: 400 })
   }
 
@@ -75,13 +75,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true })
   }
 
-  // 其餘 key (categories / statuses / documentTypes) → 欄位層級隔離寫 app_settings
+  // 其餘 key (categories / statuses / documentTypes / quoteCategories) → 欄位層級隔離寫 app_settings
   const allowedKeys: string[] = []
   if (permissions.includes('manage_roles')) {
-    allowedKeys.push('categories', 'statuses', 'documentTypes')
+    allowedKeys.push('categories', 'statuses', 'documentTypes', 'quoteCategories')
   } else {
     if (permissions.includes('edit_card_category')) allowedKeys.push('categories', 'documentTypes')
     if (permissions.includes('edit_card_status')) allowedKeys.push('statuses')
+    if (permissions.includes('edit_quotes')) allowedKeys.push('quoteCategories')
   }
   if (!allowedKeys.includes(key)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

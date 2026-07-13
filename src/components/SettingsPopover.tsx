@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Settings, X, Plus, Loader2 } from 'lucide-react'
+import { Settings, X, Plus, Loader2, GripVertical } from 'lucide-react'
 
 interface Props {
-  settingKey: 'categories' | 'statuses' | 'documentTypes' | 'issueTypes'
+  settingKey: 'categories' | 'statuses' | 'documentTypes' | 'issueTypes' | 'quoteCategories'
   items: string[]
   /** 按「確認」後回傳最新清單。deferred=false（預設）時已寫入 DB；deferred=true 時由父層決定何時寫入 DB */
   onConfirm: (newItems: string[]) => void
@@ -19,6 +19,8 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
   const [input, setInput]   = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   const btnRef   = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -58,6 +60,21 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
 
   function handleDelete(item: string) {
     setDraft(prev => prev.filter(i => i !== item))
+  }
+
+  // statuses 第一筆為「現役」預設值，全站多處以 statuses[0] 判斷現役狀態，順序不可調動
+  function isPositionLocked(idx: number) {
+    return settingKey === 'statuses' && idx === 0
+  }
+
+  function handleReorder(fromIdx: number, toIdx: number) {
+    if (fromIdx === toIdx || isPositionLocked(fromIdx) || isPositionLocked(toIdx)) return
+    setDraft(prev => {
+      const reordered = [...prev]
+      const [dragged] = reordered.splice(fromIdx, 1)
+      reordered.splice(toIdx, 0, dragged)
+      return reordered
+    })
   }
 
   async function handleConfirm() {
@@ -106,12 +123,25 @@ export default function SettingsPopover({ settingKey, items, onConfirm, disabled
           className="w-52 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_8px_30px_rgba(122,82,48,.18)] p-3 flex flex-col gap-2"
         >
           <p className="text-xs font-semibold text-[#7a5230]">
-            {settingKey === 'categories' ? '分類選項' : settingKey === 'statuses' ? '狀態選項' : settingKey === 'issueTypes' ? '類型選項' : '文件類型'}
+            {settingKey === 'categories' ? '分類選項' : settingKey === 'statuses' ? '狀態選項' : settingKey === 'issueTypes' ? '類型選項' : settingKey === 'quoteCategories' ? '報價分類' : '文件類型'}
           </p>
 
           <ul className="space-y-1 max-h-48 overflow-y-auto">
             {draft.map((item, idx) => (
-              <li key={item} className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-[rgba(122,82,48,.04)] transition-colors">
+              <li
+                key={item}
+                draggable={!isPositionLocked(idx)}
+                onDragStart={() => { if (!isPositionLocked(idx)) setDraggingIdx(idx) }}
+                onDragOver={(e) => { if (!isPositionLocked(idx)) { e.preventDefault(); setDragOverIdx(idx) } }}
+                onDrop={() => { if (!isPositionLocked(idx) && draggingIdx !== null) handleReorder(draggingIdx, idx) }}
+                onDragEnd={() => { setDraggingIdx(null); setDragOverIdx(null) }}
+                className={`group flex items-center gap-1 px-1 py-0.5 rounded hover:bg-[rgba(122,82,48,.04)] transition-colors ${
+                  draggingIdx !== null && dragOverIdx === idx ? 'ring-1 ring-[#c49a72]' : ''
+                }`}
+              >
+                {!isPositionLocked(idx) && (
+                  <GripVertical className="h-3.5 w-3.5 text-[#d4bda0] cursor-grab flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
                 <span className="text-sm text-[#2c1e12] truncate flex-1">{item}</span>
                 {!(settingKey === 'statuses' && idx === 0) && (
                   <button

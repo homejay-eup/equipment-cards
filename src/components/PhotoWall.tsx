@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Fuse from 'fuse.js'
-import { EquipmentCard, AppSettings, UserGroup } from '@/types/equipment'
+import { EquipmentCard, AppSettings, UserGroup, QuoteItem } from '@/types/equipment'
 import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
@@ -14,7 +14,8 @@ import BatchImportDialog from '@/components/BatchImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList } from 'lucide-react'
+import QuotesClient from '@/components/QuotesClient'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 
@@ -37,6 +38,7 @@ interface Props {
   userRole?: string
   trackerData?: TrackerData
   subfilterConfig?: Record<string, string[]>
+  quoteItems?: QuoteItem[]
 }
 
 const SORT_OPTIONS = [
@@ -45,7 +47,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [] }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -99,7 +101,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -109,6 +111,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [trackerMounted, setTrackerMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'tracker') setTrackerMounted(true)
+  }, [activeTab])
+  // 首次切到「報價查詢」才 mount QuotesClient，之後保持常駐（CSS hide/show）保留 state
+  const [quotesMounted, setQuotesMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'quotes') setQuotesMounted(true)
   }, [activeTab])
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
@@ -536,6 +543,19 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             >
               全部料卡
             </button>
+            {(permissions.includes('view_quotes') || permissions.includes('edit_quotes')) && (
+              <button
+                onClick={() => setActiveTab('quotes')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'quotes'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                報價查詢
+              </button>
+            )}
             {permissions.includes('use_bookmarks') && (
               <button
                 onClick={() => setActiveTab('bookmarks')}
@@ -571,7 +591,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -893,6 +913,17 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             issueTags={trackerData.issueTags}
             onMyTasksCountChange={setTrackerPendingCount}
             userDepartmentId={trackerData.userDepartmentId ?? null}
+          />
+        </div>
+      )}
+
+      {/* 報價查詢：首次進入後保持常駐（CSS hide/show） */}
+      {quotesMounted && (
+        <div className={activeTab !== 'quotes' ? 'hidden' : ''}>
+          <QuotesClient
+            initialItems={quoteItems}
+            categories={settings.quoteCategories}
+            permissions={permissions}
           />
         </div>
       )}
