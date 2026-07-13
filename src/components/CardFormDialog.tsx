@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { X, Upload, Trash2, Plus, Loader2, AlertCircle, CheckSquare, Square, ChevronDown, FileText, Search, RefreshCw } from 'lucide-react'
+import { X, Upload, Trash2, Plus, Loader2, AlertCircle, AlertTriangle, CheckSquare, Square, ChevronDown, FileText, Search, RefreshCw } from 'lucide-react'
 import { EquipmentCard, DetailPhoto, AppSettings, Document as EquipmentDocument } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -194,6 +194,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   const [docSearching, setDocSearching]     = useState(false)
   const [docUpdateTargetId, setDocUpdateTargetId] = useState<string | null>(null)
   const [confirmRemoveDoc, setConfirmRemoveDoc]   = useState<ManagedDocument | null>(null)
+  // 編輯模式：文件動作全面改為「暫存到按儲存才生效」，跟 pendingDetails/deleteDetailIds 同一套模式
+  const [pendingRemoveDocIds, setPendingRemoveDocIds]     = useState<Set<string>>(new Set())
+  const [pendingVersionUpdates, setPendingVersionUpdates] = useState<Map<string, File>>(new Map())
+  // 上傳新文件時偵測到精確同名既有文件，暫停詢問使用者要不要改用「挑選既有文件」
+  const [duplicateDocPrompt, setDuplicateDocPrompt] = useState<{ file: File; type: string; name: string; match: DocumentSearchResult } | null>(null)
+  // 儲存成功但 Google Drive 檔案清除失敗時的警示（跟一般 error 視覺區分，不是紅色錯誤）
+  const [driveWarning, setDriveWarning] = useState<string | null>(null)
 
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
@@ -252,6 +259,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setDocSearching(false)
     setDocUpdateTargetId(null)
     setConfirmRemoveDoc(null)
+    setPendingRemoveDocIds(new Set())
+    setPendingVersionUpdates(new Map())
+    setDuplicateDocPrompt(null)
+    setDriveWarning(null)
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 編輯模式開啟時，直接反查 card_documents 表拿到這張卡片實際掛載的文件
@@ -505,6 +516,49 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         finally { setUploading(false) }
       }
 
+      // 文件：移除、更新版本、上傳新文件、掛載既有文件，全部暫存到現在（PATCH 成功後）才依序真正呼叫 API
+      let driveDeletePendingCount = 0
+
+      if (pendingRemoveDocIds.size > 0) {
+        setUploading(true)
+        try {
+          for (const docId of Array.from(pendingRemoveDocIds)) {
+            const result = await docApi.unlink(docId, equipId)
+            if (result.drive_delete_pending) driveDeletePendingCount++
+          }
+        } catch (e) { setError(`文件移除失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
+      if (pendingVersionUpdates.size > 0) {
+        setUploading(true)
+        try {
+          for (const [docId, file] of Array.from(pendingVersionUpdates.entries())) {
+            await docApi.updateVersion(docId, file)
+          }
+        } catch (e) { setError(`文件版本更新失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
+      if (pendingDocUploads.length > 0 || pendingDocLinks.length > 0) {
+        setUploading(true)
+        try {
+          for (const p of pendingDocUploads) {
+            await docApi.upload(p.file, p.type, [equipId], p.name.trim() || undefined)
+          }
+          for (const p of pendingDocLinks) {
+            await docApi.link(p.documentId, equipId)
+          }
+        } catch (e) { setError(`文件處理失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
+      if (driveDeletePendingCount > 0) {
+        setDriveWarning(`已儲存，但其中 ${driveDeletePendingCount} 份文件的關聯已解除、Google Drive 檔案清除失敗，文件記錄暫時保留，請聯絡管理員人工確認`)
+        router.refresh()
+        return
+      }
+
       router.refresh()
       onClose()
     } catch {
@@ -514,39 +568,41 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     }
   }
 
-  // ── 文件連結：新增模式暫存，編輯模式即時呼叫 API ────────────────
+  // ── 文件連結：新增/編輯模式都暫存到按「建立」/「儲存」才真正呼叫 API ──
+  function stageDocUpload(file: File, type: string, name: string) {
+    setPendingDocUploads(prev => [...prev, { localId: `${Date.now()}_${prev.length}`, file, type, name }])
+    setDocUploadName('')
+  }
+
   async function handleDocFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
     const type = docUploadType || localSettings.documentTypes[0] || '規格書'
     const name = docUploadName.trim()
+    const displayName = name || file.name.replace(/\.[^/.]+$/, '')
 
-    if (mode === 'create') {
-      setPendingDocUploads(prev => [...prev, { localId: `${Date.now()}_${prev.length}`, file, type, name }])
-      setDocUploadName('')
-      return
-    }
-
+    // 精確同名（不拘大小寫）既有文件偵測：search 本身是模糊查詢，這裡自己做精確過濾，
+    // 避免「S168」這種短字串隨便命中一堆不相關文件就跳提示
     setDocsBusy(true)
     setDocActionError(null)
+    let duplicate: DocumentSearchResult | null = null
     try {
-      const result = await docApi.upload(file, type, [card!.equipment_id], name || undefined)
-      setDocuments(prev => [...prev, {
-        name: result.document.name,
-        type: result.document.type,
-        url:  result.document.url,
-        id:   result.document.id,
-        drive_file_id: result.document.drive_file_id,
-        equipment_ids:  result.linked_equipment_ids,
-      }])
-      setDocUploadName('')
-      router.refresh()
-    } catch (err) {
-      setDocActionError(err instanceof Error ? err.message : '文件上傳失敗')
+      const results = await docApi.search(displayName)
+      duplicate = results.find(r => r.name.trim().toLowerCase() === displayName.trim().toLowerCase()) ?? null
+    } catch {
+      // 查重查詢本身失敗不擋原本上傳流程，當作沒查到
+      duplicate = null
     } finally {
       setDocsBusy(false)
     }
+
+    if (duplicate) {
+      setDuplicateDocPrompt({ file, type, name, match: duplicate })
+      return
+    }
+
+    stageDocUpload(file, type, name)
   }
 
   function updatePendingDocUploadType(localId: string, type: string) {
@@ -580,49 +636,22 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     }
   }
 
-  async function handlePickExistingDoc(result: DocumentSearchResult) {
-    if (mode === 'create') {
-      setPendingDocLinks(prev => [...prev, {
-        localId: `${Date.now()}_${prev.length}`,
-        documentId: result.id, name: result.name, type: result.type,
-        url: result.url, drive_file_id: result.drive_file_id, equipment_ids: result.equipment_ids,
-      }])
-      setDocSearchResults(prev => prev.filter(d => d.id !== result.id))
-      return
-    }
-
-    setDocsBusy(true)
-    setDocActionError(null)
-    try {
-      await docApi.link(result.id, card!.equipment_id)
-      setDocuments(prev => [...prev, {
-        name: result.name, type: result.type, url: result.url,
-        id: result.id, drive_file_id: result.drive_file_id,
-        equipment_ids: [...result.equipment_ids, card!.equipment_id],
-      }])
-      setDocSearchResults(prev => prev.filter(d => d.id !== result.id))
-      router.refresh()
-    } catch (err) {
-      setDocActionError(err instanceof Error ? err.message : '掛載失敗')
-    } finally {
-      setDocsBusy(false)
-    }
+  function handlePickExistingDoc(result: DocumentSearchResult) {
+    setPendingDocLinks(prev => [...prev, {
+      localId: `${Date.now()}_${prev.length}`,
+      documentId: result.id, name: result.name, type: result.type,
+      url: result.url, drive_file_id: result.drive_file_id, equipment_ids: result.equipment_ids,
+    }])
+    setDocSearchResults(prev => prev.filter(d => d.id !== result.id))
   }
 
-  async function doRemoveDoc(doc: ManagedDocument) {
-    if (!doc.id || !card) return
-    setDocsBusy(true)
-    setDocActionError(null)
-    try {
-      await docApi.unlink(doc.id, card.equipment_id)
-      setDocuments(prev => prev.filter(d => d.id !== doc.id))
-      router.refresh()
-    } catch (err) {
-      setDocActionError(err instanceof Error ? err.message : '移除失敗')
-    } finally {
-      setDocsBusy(false)
-      setConfirmRemoveDoc(null)
-    }
+  // 移除文件：仍立即跳 ConfirmDialog 讓使用者當下確認意圖，但確認後只標記待移除，
+  // 實際呼叫 unlink API 要等 handleUpdate 的 PATCH 成功後才執行
+  function doRemoveDoc(doc: ManagedDocument) {
+    const docId = doc.id
+    if (!docId) return
+    setPendingRemoveDocIds(prev => new Set([...Array.from(prev), docId]))
+    setConfirmRemoveDoc(null)
   }
 
   function handleRemoveDoc(doc: ManagedDocument) {
@@ -630,26 +659,30 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setConfirmRemoveDoc(doc)
   }
 
+  function handleUndoRemoveDoc(docId: string) {
+    setPendingRemoveDocIds(prev => {
+      const n = new Set(prev)
+      n.delete(docId)
+      return n
+    })
+  }
+
   function handleDocUpdateVersionClick(docId: string) {
     setDocUpdateTargetId(docId)
     docUpdateFileRef.current?.click()
   }
 
-  async function handleDocUpdateVersionFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // 更新版本：選檔後暫存，等 handleUpdate 的 PATCH 成功後才真正呼叫 API
+  function handleDocUpdateVersionFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !docUpdateTargetId) return
-    setDocsBusy(true)
-    setDocActionError(null)
-    try {
-      await docApi.updateVersion(docUpdateTargetId, file)
-      router.refresh()
-    } catch (err) {
-      setDocActionError(err instanceof Error ? err.message : '更新版本失敗')
-    } finally {
-      setDocsBusy(false)
-      setDocUpdateTargetId(null)
-    }
+    setPendingVersionUpdates(prev => {
+      const n = new Map(prev)
+      n.set(docUpdateTargetId, file)
+      return n
+    })
+    setDocUpdateTargetId(null)
   }
 
   function handleMainPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -788,6 +821,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           {error && (
             <div className="text-sm text-[#b5451b] bg-[rgba(181,69,27,.06)] border border-[rgba(181,69,27,.2)] rounded-lg px-3 py-2">
               {error}
+            </div>
+          )}
+
+          {driveWarning && (
+            <div className="flex items-start gap-2 text-sm text-[#8a5a12] bg-[rgba(196,154,114,.18)] border border-[rgba(196,154,114,.5)] rounded-lg px-3 py-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>{driveWarning}</span>
             </div>
           )}
 
@@ -1001,20 +1041,37 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
               <div className="flex flex-col gap-2">
                 {documents.map((doc, i) => {
                   const otherCount = (doc.equipment_ids?.length ?? 1) - 1
+                  const isPendingRemove = !!doc.id && pendingRemoveDocIds.has(doc.id)
+                  const hasPendingVersion = !!doc.id && pendingVersionUpdates.has(doc.id)
                   return (
-                    <div key={doc.id ?? `${doc.name}-${i}`} className="flex items-center justify-between gap-2 p-2.5 bg-[rgba(122,82,48,.04)] border border-[rgba(122,82,48,.12)] rounded-lg">
+                    <div key={doc.id ?? `${doc.name}-${i}`}
+                      className={`flex items-center justify-between gap-2 p-2.5 border rounded-lg ${
+                        isPendingRemove
+                          ? 'bg-[rgba(181,69,27,.05)] border-[rgba(181,69,27,.25)]'
+                          : 'bg-[rgba(122,82,48,.04)] border-[rgba(122,82,48,.12)]'
+                      }`}>
                       <a href={doc.url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs text-[#4a3422] hover:text-[#7a5230] truncate min-w-0">
+                        className={`flex items-center gap-1.5 text-xs truncate min-w-0 ${
+                          isPendingRemove ? 'text-[#a08060] line-through' : 'text-[#4a3422] hover:text-[#7a5230]'
+                        }`}>
                         <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
                         <span className="truncate">{doc.name}</span>
                         <span className="text-[#a08060] flex-shrink-0">（{doc.type}）</span>
                       </a>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {doc.id && otherCount > 0 && (
+                        {!isPendingRemove && doc.id && otherCount > 0 && (
                           <span className="text-[10px] text-[#a08060] whitespace-nowrap">也用於 {otherCount} 個品號</span>
                         )}
+                        {!isPendingRemove && hasPendingVersion && (
+                          <span className="text-[10px] text-[#7a5230] whitespace-nowrap">已選擇新版本待上傳</span>
+                        )}
                         {!doc.id && docsResolving && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#a08060]" />}
-                        {canEdit('edit_card_documents') && doc.id && (
+                        {isPendingRemove ? (
+                          <button type="button" onClick={() => handleUndoRemoveDoc(doc.id as string)} disabled={isBusy}
+                            className="text-xs font-medium text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors whitespace-nowrap">
+                            復原
+                          </button>
+                        ) : canEdit('edit_card_documents') && doc.id && (
                           <>
                             <button type="button" onClick={() => handleDocUpdateVersionClick(doc.id as string)} disabled={isBusy}
                               title="更新版本"
@@ -1057,7 +1114,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                         placeholder="顯示名稱（選填）" disabled={isBusy}
                         className={`${inputCls} flex-1 text-xs py-1 disabled:opacity-50`} />
                     </div>
-                    <span className="text-[10px] text-[#a08060]">待建立料卡後上傳</span>
+                    <span className="text-[10px] text-[#a08060]">{mode === 'create' ? '待建立料卡後上傳' : '待儲存後上傳'}</span>
                   </div>
                 ))}
 
@@ -1069,7 +1126,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                       <span className="text-[#a08060] flex-shrink-0">（{p.type}）</span>
                     </span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[10px] text-[#a08060] whitespace-nowrap">待建立料卡後掛載</span>
+                      <span className="text-[10px] text-[#a08060] whitespace-nowrap">{mode === 'create' ? '待建立料卡後掛載' : '待儲存後掛載'}</span>
                       <button type="button" onClick={() => handleRemovePendingDocLink(p.localId)} disabled={isBusy}
                         className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                         <X className="h-3.5 w-3.5" />
@@ -1415,8 +1472,32 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         }
         confirmLabel="移除"
         danger
-        onConfirm={() => { if (confirmRemoveDoc) void doRemoveDoc(confirmRemoveDoc) }}
+        onConfirm={() => { if (confirmRemoveDoc) doRemoveDoc(confirmRemoveDoc) }}
         onCancel={() => setConfirmRemoveDoc(null)}
+      />
+
+      <ConfirmDialog
+        open={!!duplicateDocPrompt}
+        title="發現同名文件"
+        message={
+          duplicateDocPrompt
+            ? `已有相同名稱的文件「${duplicateDocPrompt.match.name}」，是否要改用「挑選既有文件」掛載，避免建立重複檔案？`
+            : undefined
+        }
+        confirmLabel="改用挑選既有文件"
+        cancelLabel="仍要上傳新文件"
+        onConfirm={() => {
+          if (!duplicateDocPrompt) return
+          const { match } = duplicateDocPrompt
+          setDuplicateDocPrompt(null)
+          handlePickExistingDoc(match)
+        }}
+        onCancel={() => {
+          if (!duplicateDocPrompt) return
+          const { file, type, name } = duplicateDocPrompt
+          setDuplicateDocPrompt(null)
+          stageDocUpload(file, type, name)
+        }}
       />
     </div>
   )

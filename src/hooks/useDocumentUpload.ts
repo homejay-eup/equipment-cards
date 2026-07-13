@@ -30,6 +30,7 @@ export interface DocumentUploadResult {
 export interface DocumentUnlinkResult {
   ok: true
   document_deleted: boolean
+  drive_delete_pending?: boolean
 }
 
 // 封裝 /api/documents/* 呼叫，風格比照 usePhotoUpload：
