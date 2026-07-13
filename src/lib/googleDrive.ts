@@ -14,6 +14,12 @@ const KEY_FILE = path.resolve(process.cwd(), '_開發檔案', 'service-account.j
 // 否則 /api/documents/upload 會回傳 500 並提示未設定
 export const DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID ?? ''
 
+// 「_待清除文件」資料夾 ID：Service Account 在共用雲端硬碟的角色是「內容管理員」，
+// 只有 canTrash，沒有 canDelete（files.delete() 一律回 404，不是權限不足的 403，
+// 已用 Service Account 直接測試確認）。因此刪除文件本體時改為搬移到這個資料夾，
+// 不呼叫 files.delete()，交由人工定期判斷是否真的清除。
+export const DRIVE_PENDING_DELETE_FOLDER_ID = process.env.GOOGLE_DRIVE_PENDING_DELETE_FOLDER_ID ?? ''
+
 let cachedClient: drive_v3.Drive | null = null
 
 // 取得已認證的 Drive client（cache 住，同一個 serverless instance 內重用）

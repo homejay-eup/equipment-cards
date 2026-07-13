@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
-import { getDriveClient } from '@/lib/googleDrive'
+import { getDriveClient, DRIVE_PENDING_DELETE_FOLDER_ID } from '@/lib/googleDrive'
 import { recomputeCardDocumentsCache } from '@/lib/documents'
 
 function getSupabase() {
@@ -124,18 +124,40 @@ export async function DELETE(
     if (countError) throw countError
 
     if ((count ?? 0) === 0) {
-      // 最後一個關聯：嘗試連同刪除文件本體，但 Drive 刪除失敗時保留 documents 列
-      // （避免 drive_file_id 這條線索遺失，造成無法追蹤的孤兒 Drive 檔案）
+      // 最後一個關聯：嘗試連同清除文件本體。
+      // ⚠️ Service Account 在共用雲端硬碟只有「內容管理員」權限，只有 canTrash、
+      // 沒有 canDelete（files.delete() 一律回 404，非 403，已實測確認），無法永久刪除。
+      // 因此改為搬移到「_待清除文件」資料夾，交由人工定期判斷是否真的清除；
+      // 搬移失敗時才保留 documents 列（避免 drive_file_id 這條線索遺失）。
       const drive = await getDriveClient()
-      let driveDeleteFailed = false
-      await drive.files
-        .delete({ fileId: doc.drive_file_id, supportsAllDrives: true })
-        .catch((driveErr) => {
-          console.error('[documents/link] Drive delete failed', driveErr)
-          driveDeleteFailed = true
-        })
+      let driveMoveFailed = false
+      if (!DRIVE_PENDING_DELETE_FOLDER_ID) {
+        console.error('[documents/link] GOOGLE_DRIVE_PENDING_DELETE_FOLDER_ID 未設定')
+        driveMoveFailed = true
+      } else {
+        try {
+          // 需要先查目前實際的 parent（不能假設一定是 DRIVE_FOLDER_ID——
+          // 早期透過個人 OAuth 遷移的舊資料可能在不同資料夾），removeParents
+          // 才能正確指定，否則檔案會同時留在原資料夾與待清除資料夾
+          const current = await drive.files.get({
+            fileId: doc.drive_file_id,
+            supportsAllDrives: true,
+            fields: 'parents',
+          })
+          const currentParents = (current.data.parents ?? []).join(',')
+          await drive.files.update({
+            fileId: doc.drive_file_id,
+            addParents: DRIVE_PENDING_DELETE_FOLDER_ID,
+            ...(currentParents ? { removeParents: currentParents } : {}),
+            supportsAllDrives: true,
+          })
+        } catch (driveErr) {
+          console.error('[documents/link] Drive move-to-pending-delete failed', driveErr)
+          driveMoveFailed = true
+        }
+      }
 
-      if (driveDeleteFailed) {
+      if (driveMoveFailed) {
         return NextResponse.json({ ok: true, document_deleted: false, drive_delete_pending: true })
       }
 
