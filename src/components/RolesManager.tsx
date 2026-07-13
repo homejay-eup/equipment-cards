@@ -74,8 +74,8 @@ const PERM_LABELS: Record<string, string> = {
   tracker_edit_issue:         '可編輯議題',
   // 功能設定
   manage_subfilter_tags:      '管理次級篩選標籤',
-  // 報價查詢
-  view_quotes:                '可看報價查詢',
+  // 人為配件報價
+  view_quotes:                '可看人為配件報價',
   view_quotes_manager_price:  '可看主管權限價',
   edit_quotes:                '新增/編輯報價品項與價格',
 }
@@ -586,7 +586,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                 { label: '料卡細節', keys: DETAIL_PERMS, radio: false },
                 { label: '帳號管理', keys: ACCOUNT_PERMS, radio: false },
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
-                { label: '報價查詢', keys: QUOTE_PERMS, radio: false },
+                { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
               ].map(section => (
                 <div key={section.label}>
                   <p className="text-[11px] font-semibold text-[#a08060] mb-1">{section.label}</p>
@@ -1004,9 +1004,9 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </div>
                 </div>
 
-                {/* 報價查詢 */}
+                {/* 人為配件報價 */}
                 <div>
-                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">報價查詢</p>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">人為配件報價</p>
                   <div className="space-y-1.5">
                     {QUOTE_PERMS.map(key => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
