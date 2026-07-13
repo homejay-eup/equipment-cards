@@ -94,6 +94,7 @@
   - ⏳ 階段 3：`frontend` agent 改 `CardFormDialog.tsx` 文件區塊
   - ⏳ 階段 4：`npm run build`、`tester`、`reviewer`
   - ⚠️ 正式 Supabase 尚未執行 `_開發檔案/sql/step30-documents-normalize.sql`，階段 2 開始前需先執行（含檔案內的一次性遷移邏輯，執行前讀檔案開頭的注意事項）
+- **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，**尚未 commit/push**，且正式 Supabase 尚未執行 `_開發檔案/sql/step32-quote-items.sql`（新建 `quote_items` 表 + 預設分類 + 管理員權限授予），執行前需先讀檔案開頭注意事項。上線後需實測權限分層（`view_quotes`/`view_quotes_manager_price`/`edit_quotes`）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
 - **目前 git HEAD**：`d199a1b`（已 push main，含 Step 30 階段1 文件正規化 + API，已 Vercel 部署，尚未實測）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動

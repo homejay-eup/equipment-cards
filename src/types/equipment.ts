@@ -46,6 +46,7 @@ export interface AppSettings {
   documentTypes: string[]   // 文件連結類型清單
   issueTypes: string[]      // 追蹤板議題類型
   issueTags: string[]       // 追蹤板議題標籤
+  quoteCategories: string[] // 報價查詢分類清單
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -54,6 +55,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
   documentTypes: ['規格書', '合約書', '其他'],
   issueTypes: ['設備異常', '維修需求', '庫存問題', '其他'],
   issueTags: [],
+  quoteCategories: ['影像配件', '溫控配件', '純定位配件', '數位大餅配件', '環保車機配件', '整新費用', '其他配件'],
+}
+
+export interface QuoteItem {
+  id: string
+  category: string
+  name: string
+  standard_price: number
+  manager_price: number | null
+  sort_order: number | null
+  created_at: string
+  updated_at: string
+  updated_by: string | null
 }
 
 export interface GroupItem {
