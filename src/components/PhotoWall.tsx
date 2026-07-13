@@ -112,7 +112,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'tracker') setTrackerMounted(true)
   }, [activeTab])
-  // 首次切到「報價查詢」才 mount QuotesClient，之後保持常駐（CSS hide/show）保留 state
+  // 首次切到「人為配件報價」才 mount QuotesClient，之後保持常駐（CSS hide/show）保留 state
   const [quotesMounted, setQuotesMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'quotes') setQuotesMounted(true)
@@ -553,7 +553,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 }`}
               >
                 <Receipt className="h-3.5 w-3.5" />
-                報價查詢
+                人為配件報價
               </button>
             )}
             {permissions.includes('use_bookmarks') && (
@@ -917,7 +917,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
       )}
 
-      {/* 報價查詢：首次進入後保持常駐（CSS hide/show） */}
+      {/* 人為配件報價：首次進入後保持常駐（CSS hide/show） */}
       {quotesMounted && (
         <div className={activeTab !== 'quotes' ? 'hidden' : ''}>
           <QuotesClient
