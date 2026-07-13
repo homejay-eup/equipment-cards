@@ -90,13 +90,14 @@
 - **進行中**：Step 30（文件（規格書）管理架構重整：資料正規化 + Google Drive Service Account，完整規格見 plan 檔案 `C:\Users\EupUser\.claude\plans\merry-imagining-pumpkin.md`）
   - ✅ 階段 0：Google 端手動設定（共用雲端硬碟、Service Account、Vercel 環境變數 `GOOGLE_SERVICE_ACCOUNT_JSON`/`GOOGLE_DRIVE_FOLDER_ID`）
   - ✅ 階段 1：`documents`/`card_documents` 正規化資料表 + API routes（`src/app/api/documents/`）
-  - ⏳ 階段 2（下一步）：改寫 `_開發檔案/scripts/upload-spec-books.py` 直接寫入新表，含 `--dry-run`
-  - ⏳ 階段 3：`frontend` agent 改 `CardFormDialog.tsx` 文件區塊
-  - ⏳ 階段 4：`npm run build`、`tester`、`reviewer`
-  - ⚠️ 正式 Supabase 尚未執行 `_開發檔案/sql/step30-documents-normalize.sql`，階段 2 開始前需先執行（含檔案內的一次性遷移邏輯，執行前讀檔案開頭的注意事項）
-- **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，**尚未 commit/push**，且正式 Supabase 尚未執行 `_開發檔案/sql/step32-quote-items.sql`（新建 `quote_items` 表 + 預設分類 + 管理員權限授予），執行前需先讀檔案開頭注意事項。上線後需實測權限分層（`view_quotes`/`view_quotes_manager_price`/`edit_quotes`）。
+  - ✅ 階段 2：`step30-documents-normalize.sql` 已執行（正式 172 筆）；`upload-spec-books.py` 已改寫為直接寫入新表；`--dry-run` 驗證乾淨（87 個有效條目、0 筆待上傳）；過程中發現並修正 `A++規格書料號對照表.csv` 5 筆過時/錯誤料號對應（詳見 `_管理/00_執行紀錄.md` 「Step 30 階段2」條目）
+  - ✅ 階段 3：`frontend` agent 改寫 `CardFormDialog.tsx` 文件區塊完成（新增 `useDocumentUpload.ts`、`GET /api/documents?equipment_id=`）
+  - ✅ 階段 4：`npm run build` 通過；`tester` 因登入牆改用程式碼追蹤驗證通過；`reviewer` 抓到 2 High + 2 Medium 皆已修正（詳見 `_管理/00_執行紀錄.md` 「Step 30 階段3+4」條目）
+  - ✅ 使用者實測回饋修正（2026-07-13）：正式站實測發現 3 點問題（Drive 看不出料號歸屬、刪除警示但實際未刪除、文件異動不受取消/儲存控制），已對焦決策並修正：上傳同名文件跳提示、誠實回報 Drive 刪除結果、文件異動全面改為暫存到按儲存才生效（詳見 `_管理/00_執行紀錄.md` 「Step 30 使用者實測回饋修正」條目）
+  - ⏳ **待辦**：使用者再次瀏覽器實測這三項調整（已 commit/push）
+- **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，正式 Supabase 已執行 `_開發檔案/sql/step32-quote-items.sql`、`step32b-quote-items-sort-order.sql`（建表、預設分類、管理員權限授予、拖拉排序欄位），並匯入 88 筆初始報價資料（來源：配件報價2023-08.pdf），功能已由使用者本機實測確認（含一般人員視角、拖拉排序、分類管理）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
-- **目前 git HEAD**：`d199a1b`（已 push main，含 Step 30 階段1 文件正規化 + API，已 Vercel 部署，尚未實測）
+- **目前 git HEAD**：合併 Step 30（文件功能三項使用者實測回饋修正）與 Step 32（報價查詢）後即將 push main，Vercel 將自動部署
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
@@ -210,15 +211,7 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 
 ## 此次任務（每次新對話時更新，執行完後清空）
 
-**Step 30 文件正規化——接續執行階段 2**
-
-階段 1（資料庫 + API + Vercel 環境變數）已完成並 push（`d199a1b`），完整脈絡見 plan 檔案 `C:\Users\EupUser\.claude\plans\merry-imagining-pumpkin.md`（已同步更新狀態）與 `_管理/00_執行紀錄.md` 最新一筆「Step 30 階段1」條目。新 session 開場請直接讀這兩份，不需要重問階段 0/1 的決策。
-
-**下一步（階段 2，委派 `data` agent）**：
-1. 先在正式 Supabase 執行 `_開發檔案/sql/step30-documents-normalize.sql`（尚未執行過，含建表 + 一次性遷移邏輯，執行前讀檔案開頭注意事項）
-2. 改寫 `_開發檔案/scripts/upload-spec-books.py`：把輸出從 `spec-book-links.json` 改成直接寫入 `documents`/`card_documents` 兩表，同一檔案對應多個料號時只上傳一次、建多筆關聯，沿用 `--dry-run` 慣例
-
-完成後接階段 3（`frontend` agent 改 `CardFormDialog.tsx` 文件區塊）→ 階段 4（`npm run build`、`tester`、`reviewer`）。
+（空白，待下次任務指派）
 
 ---
 

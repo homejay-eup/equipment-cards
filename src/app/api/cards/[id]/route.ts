@@ -42,7 +42,7 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, documents, net_weight, updated_fields } = body
+    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, net_weight, updated_fields } = body
 
     const supabase = getSupabase()
 
@@ -73,9 +73,6 @@ export async function PATCH(
     }
     if (isFullAdmin || permissions.includes('edit_card_weight')) {
       if (net_weight !== undefined) allowedUpdates.net_weight = (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null
-    }
-    if (isFullAdmin || permissions.includes('edit_card_documents')) {
-      if (documents !== undefined && Array.isArray(documents)) allowedUpdates.documents = documents
     }
     if (isFullAdmin || permissions.includes('edit_card_is_new')) {
       if (typeof is_new === 'boolean') allowedUpdates.is_new = is_new
