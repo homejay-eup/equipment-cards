@@ -94,9 +94,9 @@
   - ✅ 階段 3：`frontend` agent 改寫 `CardFormDialog.tsx` 文件區塊完成（新增 `useDocumentUpload.ts`、`GET /api/documents?equipment_id=`）
   - ✅ 階段 4：`npm run build` 通過；`tester` 因登入牆改用程式碼追蹤驗證通過；`reviewer` 抓到 2 High + 2 Medium 皆已修正（詳見 `_管理/00_執行紀錄.md` 「Step 30 階段3+4」條目）
   - ✅ 使用者實測回饋修正（2026-07-13）：正式站實測發現 3 點問題（Drive 看不出料號歸屬、刪除警示但實際未刪除、文件異動不受取消/儲存控制），已對焦決策並修正：上傳同名文件跳提示、誠實回報 Drive 刪除結果、文件異動全面改為暫存到按儲存才生效（詳見 `_管理/00_執行紀錄.md` 「Step 30 使用者實測回饋修正」條目）
-  - ⏳ **待辦**：commit/push 後使用者再次瀏覽器實測這三項調整
+  - ⏳ **待辦**：使用者再次瀏覽器實測這三項調整（已 commit/push）
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
-- **目前 git HEAD**：`d2c86a8`（已 push main，含 Step 30 階段3-4 文件連結改走正規化 API + 4 項 review 修正，Vercel 應已自動部署，待瀏覽器實測）
+- **目前 git HEAD**：`421271c`（已 push main，含文件功能三項使用者實測回饋修正：上傳同名提示、Drive 刪除誠實回報、文件異動改暫存到儲存生效，Vercel 應已自動部署，待瀏覽器實測）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
