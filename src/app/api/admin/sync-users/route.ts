@@ -48,8 +48,8 @@ export async function POST() {
 
   const service = getSupabase()
 
-  // 分頁抓出所有 Auth 使用者
-  const allUsers: { email?: string | null }[] = []
+  // 分頁抓出所有 Auth 使用者，順便建立 email → 登入時間戳 map（回傳新增名單時要用）
+  const allUsers: { email?: string | null; created_at?: string; last_sign_in_at?: string | null }[] = []
   let page = 1
   const perPage = 1000
   while (true) {
@@ -62,6 +62,15 @@ export async function POST() {
     allUsers.push(...users)
     if (users.length < perPage) break
     page += 1
+  }
+
+  const authTimestamps = new Map<string, { auth_created_at: string | null; last_sign_in_at: string | null }>()
+  for (const u of allUsers) {
+    if (!u.email) continue
+    authTimestamps.set(u.email.toLowerCase(), {
+      auth_created_at: u.created_at ?? null,
+      last_sign_in_at: u.last_sign_in_at ?? null,
+    })
   }
 
   // 篩出公司網域 email
@@ -101,5 +110,10 @@ export async function POST() {
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ added: inserted ?? [] })
+  const added = (inserted ?? []).map((row) => ({
+    ...row,
+    ...(authTimestamps.get(row.email.toLowerCase()) ?? { auth_created_at: null, last_sign_in_at: null }),
+  }))
+
+  return NextResponse.json({ added })
 }

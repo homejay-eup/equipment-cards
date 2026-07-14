@@ -105,7 +105,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  // 新增的 email 若已有 Auth 登入紀錄（例如原本就是公司網域帳號，只是現在才被指派角色），
+  // 一併查出來回傳，避免畫面先顯示「尚未登入」等重新整理才更新
+  const authInfo = await findAuthTimestamps(normalizedEmail)
+
+  return NextResponse.json({ success: true, ...authInfo })
+}
+
+// 分頁掃描 Auth 使用者清單，找出單一 email 的登入時間戳（Admin API 沒有直接依 email 查詢的方法）
+async function findAuthTimestamps(email: string) {
+  const service = getSupabase()
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage })
+    if (error) break
+    const users = data?.users ?? []
+    const match = users.find((u) => u.email?.toLowerCase() === email)
+    if (match) {
+      return { auth_created_at: match.created_at ?? null, last_sign_in_at: match.last_sign_in_at ?? null }
+    }
+    if (users.length < perPage) break
+    page += 1
+  }
+  return { auth_created_at: null, last_sign_in_at: null }
 }
 
 // PATCH /api/admin/users — 更新角色

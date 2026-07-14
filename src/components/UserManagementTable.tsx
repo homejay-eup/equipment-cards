@@ -100,6 +100,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         email: newEmail.trim().toLowerCase(),
         role: newRole,
         created_at: new Date().toISOString(),
+        auth_created_at: d.auth_created_at ?? null,
+        last_sign_in_at: d.last_sign_in_at ?? null,
       }])
       setNewEmail('')
       setNewRole(availableRoles[0] ?? 'viewer')
