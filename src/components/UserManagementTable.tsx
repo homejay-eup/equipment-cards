@@ -278,19 +278,19 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
               <thead>
                 <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">
                     <span className="flex items-center gap-2">
                       角色
                       {permissions.includes('manage_roles') && (
-                        <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)]">
-                          <ShieldCheck className="h-2.5 w-2.5" />
+                        <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)] whitespace-nowrap">
+                          <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
                           角色管理
                         </Link>
                       )}
                     </span>
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">初始登入</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">最後登入</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">初始登入</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">最後登入</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -316,7 +316,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                             setDropdownPos({ top: rect.bottom + 4, left: rect.left, triggerTop: rect.top })
                             setOpenRoleEmail(user.email)
                           }}
-                          className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed ${
+                          className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-all disabled:cursor-not-allowed whitespace-nowrap ${
                             isSelf
                               ? 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)] opacity-60'
                               : 'bg-[rgba(122,82,48,.07)] text-[#6b4f38] border-[rgba(122,82,48,.2)] hover:bg-[rgba(122,82,48,.14)] hover:text-[#7a5230]'
@@ -330,10 +330,10 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                           {!isSelf && <ChevronDown className={`h-3 w-3 transition-transform duration-150 ${isRowRoleOpen ? 'rotate-180' : ''}`} />}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
+                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell whitespace-nowrap">
                         {formatDate(user.auth_created_at)}
                       </td>
-                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
+                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell whitespace-nowrap">
                         {formatDate(user.last_sign_in_at)}
                       </td>
                       <td className="px-4 py-3">

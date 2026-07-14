@@ -122,7 +122,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="min-h-screen bg-[#faf6f0]">
       <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link href="/" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
@@ -133,7 +133,7 @@ export default async function AdminUsersPage() {
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <UserManagementTable
           initialUsers={users}
           currentUserEmail={user!.email!}
