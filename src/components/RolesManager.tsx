@@ -332,6 +332,26 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     setDraftPerms(d => ({ ...d, [role.id]: result }))
   }
 
+  // 「可看主管權限價」依附於「可看人為配件報價」：勾主管權限價時自動一併勾可看報價；
+  // 取消可看報價時，主管權限價也一併取消（避免存到「主管權限價開了但看不到報價頁」的無效狀態）
+  function handleQuoteViewToggle(role: RoleData) {
+    const cur = getDraft(role)
+    const isChecked = cur.includes('view_quotes')
+    const result = isChecked
+      ? cur.filter(p => p !== 'view_quotes' && p !== 'view_quotes_manager_price')
+      : [...cur, 'view_quotes']
+    setDraftPerms(d => ({ ...d, [role.id]: result }))
+  }
+
+  function handleQuoteManagerPriceToggle(role: RoleData) {
+    const cur = getDraft(role)
+    const isChecked = cur.includes('view_quotes_manager_price')
+    const result = isChecked
+      ? cur.filter(p => p !== 'view_quotes_manager_price')
+      : [...cur.filter(p => p !== 'view_quotes'), 'view_quotes', 'view_quotes_manager_price']
+    setDraftPerms(d => ({ ...d, [role.id]: result }))
+  }
+
   // 「編輯料卡」父選項連動：indeterminate / checked / unchecked
   function getEditCardParentState(draft: string[]): 'all' | 'some' | 'none' {
     const checkedCount = EDIT_CARD_CHILD_PERMS.filter(k => draft.includes(k)).length
@@ -1013,7 +1033,11 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                         <input
                           type="checkbox"
                           checked={draft.includes(key)}
-                          onChange={() => handleDetailToggle(role, key)}
+                          onChange={() => {
+                            if (key === 'view_quotes') return handleQuoteViewToggle(role)
+                            if (key === 'view_quotes_manager_price') return handleQuoteManagerPriceToggle(role)
+                            return handleDetailToggle(role, key)
+                          }}
                           disabled={isSavingPerm}
                           className="accent-[#7a5230]"
                         />
