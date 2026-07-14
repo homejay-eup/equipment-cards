@@ -51,6 +51,32 @@ async function fetchAllowedEmails(
   return []
 }
 
+// 撈 Supabase Auth 使用者清單，取初始登入/最後登入時間，用 email 建 map
+async function fetchAuthTimestamps() {
+  const service = getServiceClient()
+  const map = new Map<string, { auth_created_at: string | null; last_sign_in_at: string | null }>()
+
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage })
+    if (error) break
+    const users = data?.users ?? []
+    if (users.length === 0) break
+    for (const u of users) {
+      if (!u.email) continue
+      map.set(u.email.toLowerCase(), {
+        auth_created_at: u.created_at ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      })
+    }
+    if (users.length < perPage) break
+    page += 1
+  }
+
+  return map
+}
+
 
 export default async function AdminUsersPage() {
   const supabase = createSupabaseServerClient()
@@ -79,11 +105,17 @@ export default async function AdminUsersPage() {
     }
   }
 
-  // Step 3：平行取使用者清單 + 可指派角色
-  const [users, assignableRoles] = await Promise.all([
+  // Step 3：平行取使用者清單 + 可指派角色 + Auth 登入時間
+  const [allowedEmails, assignableRoles, authTimestamps] = await Promise.all([
     fetchAllowedEmails(callerLevel, callerDepartmentId),
     user?.email ? getAssignableRolesData(user.email) : Promise.resolve([]),
+    fetchAuthTimestamps(),
   ])
+
+  const users = allowedEmails.map(u => ({
+    ...u,
+    ...(authTimestamps.get(u.email.toLowerCase()) ?? { auth_created_at: null, last_sign_in_at: null }),
+  }))
 
   const roleNames = assignableRoles.map(r => r.name)
 

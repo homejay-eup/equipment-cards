@@ -9,6 +9,8 @@ interface UserRow {
   email: string
   role: string
   created_at: string
+  auth_created_at?: string | null
+  last_sign_in_at?: string | null
 }
 
 interface Props {
@@ -19,7 +21,8 @@ interface Props {
   canSyncUsers?: boolean
 }
 
-function formatDate(iso: string) {
+function formatDate(iso?: string | null) {
+  if (!iso) return '尚未登入'
   return new Date(iso).toLocaleString('zh-TW', {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
@@ -286,7 +289,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                       )}
                     </span>
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">加入日期</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">初始登入</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell">最後登入</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -327,7 +331,10 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
                         </button>
                       </td>
                       <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
-                        {formatDate(user.created_at)}
+                        {formatDate(user.auth_created_at)}
+                      </td>
+                      <td className="px-4 py-3 text-[#a08060] hidden sm:table-cell">
+                        {formatDate(user.last_sign_in_at)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
