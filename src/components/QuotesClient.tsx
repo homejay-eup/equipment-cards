@@ -262,7 +262,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pb-16">
+    <div className="max-w-5xl mx-auto px-4 pt-4 pb-16">
       {/* 搜尋列 */}
       <div className="flex gap-2 mb-3">
         <div className="relative flex-1">
