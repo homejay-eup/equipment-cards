@@ -1706,7 +1706,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         title="發現同名文件"
         message={
           duplicateDocPrompt
-            ? `已有相同名稱的文件「${duplicateDocPrompt.match.name}」，請選擇處理方式：`
+            ? `已有相同名稱的文件「${duplicateDocPrompt.match.name}」，請選擇處理方式：選擇「取代（更新版本）」會連同其他掛載此文件的料號一起更新內容，不是只更新目前這張卡片。`
             : undefined
         }
         confirmLabel="取代（更新版本）"
@@ -1718,11 +1718,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       <ConfirmDialog
         open={!!deleteReuploadConfirm}
         title="這份文件也掛載在其他料卡"
-        message={
+        message="這份文件也掛載在以下料卡，確定要一併移除嗎？"
+        detail={
           deleteReuploadConfirm
             ? deleteReuploadConfirm.affectedCards
-              ? `這份文件也掛載在以下料卡：${deleteReuploadConfirm.affectedCards.map(c => `${c.equipment_id} ${c.name}`).join('、')}，確定要一併移除嗎？`
-              : `這份文件目前還掛載在其他 ${deleteReuploadConfirm.otherIds.length} 個品號，確定要一併移除嗎？`
+              ? deleteReuploadConfirm.affectedCards.map(c => `${c.equipment_id} ${c.name}`).join('\n')
+              : `共 ${deleteReuploadConfirm.otherIds.length} 個品號（詳細清單載入失敗）`
             : undefined
         }
         confirmLabel="確定一併移除"

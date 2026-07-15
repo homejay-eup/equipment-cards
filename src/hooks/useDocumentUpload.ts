@@ -46,11 +46,6 @@ export interface DocumentAllRecord {
   linked_cards: { equipment_id: string; name: string }[]
 }
 
-export interface RegenerateIndexResult {
-  generated_at: string
-  sheet_url: string
-}
-
 // GET /api/documents?document_id= 的回傳形狀（單筆反查，供 CardFormDialog
 // 「先刪除舊的再上傳」二次確認用；只需要 edit_card_documents 權限，一般編輯者也看得到）
 export interface DocumentWithLinkedCards {
@@ -167,13 +162,5 @@ export function useDocumentUpload() {
     return (data.documents ?? []) as DocumentAllRecord[]
   }
 
-  // ── 重新產生「文件目錄表」Google Sheet（需 manage_documents 權限） ──
-  async function regenerateIndex(): Promise<RegenerateIndexResult> {
-    const res = await fetch('/api/documents/regenerate-index', { method: 'POST' })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error ?? '重新產生目錄檔失敗')
-    return data as RegenerateIndexResult
-  }
-
-  return { upload, search, listByEquipment, link, unlink, updateVersion, getLinkedCards, listAll, regenerateIndex, uploading }
+  return { upload, search, listByEquipment, link, unlink, updateVersion, getLinkedCards, listAll, uploading }
 }

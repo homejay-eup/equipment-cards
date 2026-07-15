@@ -96,12 +96,14 @@
   - ✅ 使用者實測回饋修正（2026-07-13）：正式站實測發現 3 點問題（Drive 看不出料號歸屬、刪除警示但實際未刪除、文件異動不受取消/儲存控制），已對焦決策並修正：上傳同名文件跳提示、誠實回報 Drive 刪除結果、文件異動全面改為暫存到按儲存才生效（詳見 `_管理/00_執行紀錄.md` 「Step 30 使用者實測回饋修正」條目）
   - ✅ Drive 刪除永久失敗根因診斷 + 修正（2026-07-13）：查證確認 Service Account 只有「內容管理員」權限（`canTrash:true`／`canDelete:false`），`files.delete()` 一律失敗（回 404 非 403）。改為搬移到新建的「_待清除文件」資料夾（ID `1u38kmLRsM0fD2KHZXQgfJ7vMc1jvcR0C`，已加入 `.env.local`/Vercel Production 環境變數 `GOOGLE_DRIVE_PENDING_DELETE_FOLDER_ID`），交由人工定期判斷是否真的清除（詳見 `_管理/00_執行紀錄.md` 「Drive 刪除永久失敗根因診斷」條目）
   - ⏳ **待辦**：使用者再次實測移除文件，確認能顯示「文件已完全刪除」不再跳 Drive 清除失敗警告（已 commit/push）
-  - ✅ **2026-07-14 Step 30b 文件管理功能——已執行完成（build 通過，待 SQL + 瀏覽器實測）**：規格 `_管理/01_equipment-cards/specs/step30b-document-management.md`，依序委派 `data` → `frontend` → `tester` → `reviewer`，過程中回頭修正 3 輪（權限降級反查、批次內查重 closure bug、pending 移除/版本更新互斥），完整過程見 `_管理/00_執行紀錄.md` 對應條目。重點成果：
-    1. `CardFormDialog` 支援多選上傳（比照細節照片）；新增「文件管理」頁籤（比照「任務板」「人為配件報價」掛在 `PhotoWall.tsx`）支援跨卡片批次上傳/批次刪除/重新產生目錄檔，新增獨立 permission key `manage_documents`
-    2. 精確同名比對統一改為「取代／先刪除再上傳」二選一，兩個上傳入口一致
-    3. Google Sheet「文件目錄表」（依文件/依料號兩分頁）按需重新產生，Drive 維持平面結構
-    - **⚠️ 待辦（阻塞 commit）**：工作目錄裡混有另一個未提交的獨立功能（Step 33 使用統計），跟本次改動交錯在 `PhotoWall.tsx`／`RolesManager.tsx` 等同一批檔案裡，無法乾淨分開 commit，需使用者決定處理方式
-    - **待辦（非阻塞）**：執行 `_開發檔案/sql/step30b-manage-documents-permission.sql`；確認 Vercel Production 已同步 `GOOGLE_DRIVE_ROOT_FOLDER_ID`（本機已加）；部署後瀏覽器實測
+  - ✅ **2026-07-14 Step 30b 文件管理功能——第一版執行完成**：規格 `_管理/01_equipment-cards/specs/step30b-document-management.md`，依序委派 `data` → `frontend` → `tester` → `reviewer`，過程中回頭修正 3 輪（權限降級反查、批次內查重 closure bug、pending 移除/版本更新互斥）。`CardFormDialog` 支援多選上傳、同名二選一（取代／先刪除再上傳）；新增「文件管理」頁籤（比照「任務板」「人為配件報價」掛在 `PhotoWall.tsx`），新增獨立 permission key `manage_documents`（已在正式 Supabase 授予管理員角色）。完整過程見 `_管理/00_執行紀錄.md` 對應條目。
+  - ✅ **2026-07-15 Step 30b 第二輪優化（使用者實測回饋）——已執行完成**：6 項回饋逐一討論收斂後委派執行，過程中 1 輪回頭修正，`reviewer` 直接修正 2 項（CSV 公式注入防護、過時權限說明文字）。重點變動：
+    1. **拿掉「文件目錄表」Google Sheet 自動同步機制**（使用者確認業務可直接登入網站查看文件，不再需要「不登入網站看 Drive 歸屬」這個情境）——刪除 `regenerate-index` route、`googleDrive.ts` 的 Sheets 相關程式碼，改為純前端「匯出 CSV」按鈕（`GOOGLE_DRIVE_ROOT_FOLDER_ID` 環境變數保留但不再被讀取，無需移除）
+    2. 文件清單改為**依文件／依料號雙視圖**（純前端反向分組現有資料，無新 API），支援排序、展開/摺疊、新增掛載（料卡或文件）、取消掛載（沿用「最後一個關聯即整個刪除」保護），批次選取/刪除維持不變
+    3. `DocumentsClient.tsx` 從 623 行拆成 `src/components/documents/` 底下 6 個子元件
+    4. 同名/受影響料卡確認框補上警語、改用可捲動的 `detail` prop、逐行顯示；批次上傳補齊料卡清單數量提示與文件類型設定入口
+    - **非阻塞待辦**：手機版 `EquipmentQuickPick` 下拉選單是否會跟 `overflow-x-auto` 產生巢狀捲動，待部署後實機驗證；`manage_documents`／`edit_card_documents` 是兩個獨立權限彼此不隱含，角色設定時建議兩者一起給
+    - **⚠️ 待辦（阻塞 commit）**：工作目錄裡混有另一個未提交的獨立功能（Step 33 使用統計），跟本次改動交錯在 `PhotoWall.tsx`／`RolesManager.tsx` 等同一批檔案裡，無法乾淨分開 commit（Step 33 那邊的 session 也已確認同樣的阻塞），需使用者決定處理方式
 - **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，正式 Supabase 已執行 `_開發檔案/sql/step32-quote-items.sql`、`step32b-quote-items-sort-order.sql`（建表、預設分類、管理員權限授予、拖拉排序欄位），並匯入 88 筆初始報價資料（來源：配件報價2023-08.pdf），功能已由使用者本機實測確認（含一般人員視角、拖拉排序、分類管理）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
 - **目前 git HEAD**：`a919074`（合併 Step 30 Drive 刪除修正與 Step 32 報價查詢的 merge commit，已 push main，Vercel 應已自動部署，Step 30 待使用者再次實測移除文件確認）

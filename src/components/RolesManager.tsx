@@ -68,7 +68,7 @@ const PERM_LABELS: Record<string, string> = {
   manage_users:               '帳號管理/指派角色',
   manage_roles:               '角色與權限設定',
   // 文件管理
-  manage_documents:           '文件管理（批次上傳/批次刪除/重新產生目錄檔）',
+  manage_documents:           '文件管理（批次上傳/批次刪除/依文件/依料號檢視/CSV 匯出）',
   // 追蹤板
   view_tracker:               '可看任務板 (只有同一部門能看到彼此任務)',
   view_my_tasks:              '我的任務',
@@ -110,7 +110,7 @@ const EDIT_CARD_CHILD_PERMS = [
 // 料卡管理分組（不含子 edit_card_* 欄位）
 const CARD_MGMT_PERMS = ['create_delete_cards'] as const
 
-// 文件管理分組（單一總開關，批次上傳/批次刪除/重新產生目錄檔不分層級）
+// 文件管理分組（單一總開關，批次上傳/批次刪除/雙視圖檢視/CSV 匯出不分層級）
 const DOCUMENT_MGMT_PERMS = ['manage_documents'] as const
 
 const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
