@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink } from 'lucide-react'
+import { logUsageEvent } from '@/lib/analyticsClient'
 
 interface Props {
   card: EquipmentCard
@@ -47,6 +48,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
+
+  // 使用統計埋點：Dialog 開啟時記錄一次料卡瀏覽
+  useEffect(() => {
+    if (open) {
+      logUsageEvent('card_detail_view', { equipment_id: card.equipment_id })
+    }
+  }, [open, card.equipment_id])
 
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)

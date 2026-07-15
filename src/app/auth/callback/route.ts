@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { isEmailAllowedToLogin } from '@/lib/admin'
@@ -37,6 +38,18 @@ export async function GET(request: NextRequest) {
     if (!email || !(await isEmailAllowedToLogin(email))) {
       await supabase.auth.signOut()
       return NextResponse.redirect(`${origin}/login?error=unauthorized`)
+    }
+
+    // 使用統計：記錄一次成功登入事件，失敗不擋登入流程
+    try {
+      const service = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      )
+      await service.from('login_events').insert({ email })
+    } catch {
+      // 記錄失敗不影響登入
     }
   }
 
