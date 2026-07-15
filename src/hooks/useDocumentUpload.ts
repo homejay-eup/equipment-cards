@@ -33,6 +33,37 @@ export interface DocumentUnlinkResult {
   drive_delete_pending?: boolean
 }
 
+// 文件管理頁面用：GET /api/documents（不帶 equipment_id）回傳的形狀跟 DocumentSearchResult
+// 不同（linked_cards 帶名稱，不是只有 equipment_ids），另外宣告型別避免混用
+export interface DocumentAllRecord {
+  id: string
+  name: string
+  type: string
+  url: string
+  drive_file_id: string
+  created_at: string
+  updated_at: string
+  linked_cards: { equipment_id: string; name: string }[]
+}
+
+export interface RegenerateIndexResult {
+  generated_at: string
+  sheet_url: string
+}
+
+// GET /api/documents?document_id= 的回傳形狀（單筆反查，供 CardFormDialog
+// 「先刪除舊的再上傳」二次確認用；只需要 edit_card_documents 權限，一般編輯者也看得到）
+export interface DocumentWithLinkedCards {
+  id: string
+  name: string
+  type: string
+  url: string
+  drive_file_id: string
+  created_at: string
+  updated_at: string
+  linked_cards: { equipment_id: string; name: string }[]
+}
+
 // 封裝 /api/documents/* 呼叫，風格比照 usePhotoUpload：
 // 失敗時 throw Error（訊息取自 API 回應的 error 欄位），由呼叫端 try/catch 處理，
 // 不在 hook 內部吞掉錯誤，避免 React state 更新時序造成呼叫端讀到舊的 error 值。
@@ -120,5 +151,29 @@ export function useDocumentUpload() {
     }
   }
 
-  return { upload, search, listByEquipment, link, unlink, updateVersion, uploading }
+  // ── 反查單一文件目前掛載的所有料卡（只需 edit_card_documents 權限） ──
+  async function getLinkedCards(documentId: string): Promise<DocumentWithLinkedCards> {
+    const res = await fetch(`/api/documents?document_id=${encodeURIComponent(documentId)}`)
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? '查詢失敗')
+    return data.document as DocumentWithLinkedCards
+  }
+
+  // ── 查詢全部文件（文件管理頁面用，需 manage_documents 權限） ──────
+  async function listAll(): Promise<DocumentAllRecord[]> {
+    const res = await fetch('/api/documents')
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? '查詢失敗')
+    return (data.documents ?? []) as DocumentAllRecord[]
+  }
+
+  // ── 重新產生「文件目錄表」Google Sheet（需 manage_documents 權限） ──
+  async function regenerateIndex(): Promise<RegenerateIndexResult> {
+    const res = await fetch('/api/documents/regenerate-index', { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? '重新產生目錄檔失敗')
+    return data as RegenerateIndexResult
+  }
+
+  return { upload, search, listByEquipment, link, unlink, updateVersion, getLinkedCards, listAll, regenerateIndex, uploading }
 }

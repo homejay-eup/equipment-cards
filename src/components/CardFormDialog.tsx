@@ -61,6 +61,42 @@ interface PendingDocLink {
   equipment_ids: string[]
 }
 
+// 「先刪除舊的再上傳」：整份舊文件要從其他掛載的料卡也一併解除關聯（不只當前卡片）。
+// 記錄 documentId -> 要額外呼叫 unlink 的其他 equipment_id 清單，儲存時才真正呼叫 API
+interface PendingFullRemoveDoc {
+  documentId: string
+  otherEquipmentIds: string[]
+}
+
+// 上傳新文件時偵測到精確同名既有文件，暫停詢問使用者要「取代（更新版本）」還是「先刪除舊的再上傳」。
+// resolve() 讓多選批次上傳的處理佇列，在使用者做完選擇後才繼續處理下一個檔案
+interface DuplicateDocPromptState {
+  file: File
+  type: string
+  displayName: string
+  match: DocumentSearchResult
+  resolve: () => void
+}
+
+// 「先刪除舊的再上傳」且舊文件還掛載在其他料卡時，二次確認要不要一併移除
+interface DeleteReuploadConfirmState {
+  file: File
+  type: string
+  displayName: string
+  match: DocumentSearchResult
+  affectedCards: { equipment_id: string; name: string }[] | null
+  otherIds: string[]
+  resolve: () => void
+}
+
+// 本次多選清單內查重：新選的檔案跟 pending 清單裡尚未送出的項目同名
+interface PendingDocDuplicatePromptState {
+  file: File
+  displayName: string
+  pendingLocalId: string
+  resolve: () => void
+}
+
 // 自訂下拉元件（供分類、狀態共用）
 function FieldSelect({
   value, options, placeholder = '— 未選 —', onChange, disabled,
@@ -185,9 +221,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   const [docsBusy, setDocsBusy]             = useState(false)
   const [docActionError, setDocActionError] = useState<string | null>(null)
   const [pendingDocUploads, setPendingDocUploads] = useState<PendingDocUpload[]>([])
+  // pendingDocUploads 的同步鏡像：多選上傳逐檔處理時，同一次選取內連續兩個檔案之間
+  // 沒有機會等 React state 提交/重新渲染，用 state 讀「目前 pending 清單」會讀到還沒
+  // 加入前一個檔案的舊值。這個 ref 在每次 setPendingDocUploads 的當下同步更新，
+  // 讓本批次內查重可以讀到最新結果。
+  const pendingDocUploadsRef = useRef<PendingDocUpload[]>([])
   const [pendingDocLinks, setPendingDocLinks]     = useState<PendingDocLink[]>([])
   const [docUploadType, setDocUploadType]   = useState<string>(settings.documentTypes[0] ?? '規格書')
-  const [docUploadName, setDocUploadName]   = useState('')
   const [showDocSearch, setShowDocSearch]   = useState(false)
   const [docSearchQuery, setDocSearchQuery] = useState('')
   const [docSearchResults, setDocSearchResults] = useState<DocumentSearchResult[]>([])
@@ -197,8 +237,15 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   // 編輯模式：文件動作全面改為「暫存到按儲存才生效」，跟 pendingDetails/deleteDetailIds 同一套模式
   const [pendingRemoveDocIds, setPendingRemoveDocIds]     = useState<Set<string>>(new Set())
   const [pendingVersionUpdates, setPendingVersionUpdates] = useState<Map<string, File>>(new Map())
-  // 上傳新文件時偵測到精確同名既有文件，暫停詢問使用者要不要改用「挑選既有文件」
-  const [duplicateDocPrompt, setDuplicateDocPrompt] = useState<{ file: File; type: string; name: string; match: DocumentSearchResult } | null>(null)
+  // 「先刪除舊的再上傳」：要從其他料卡一併解除關聯的待處理清單
+  const [pendingFullRemoveDocs, setPendingFullRemoveDocs] = useState<PendingFullRemoveDoc[]>([])
+  // 上傳新文件時偵測到精確同名既有文件，暫停詢問使用者要「取代（更新版本）」還是「先刪除舊的再上傳」
+  const [duplicateDocPrompt, setDuplicateDocPrompt] = useState<DuplicateDocPromptState | null>(null)
+  // 「先刪除舊的再上傳」且舊文件還掛載在其他料卡時，二次確認要不要一併移除
+  const [deleteReuploadConfirm, setDeleteReuploadConfirm] = useState<DeleteReuploadConfirmState | null>(null)
+  // 本次多選清單內查重：跟 pending 清單裡尚未送出的項目同名時，二選一（取代該 pending 項目的
+  // 檔案內容／取消這次選取），不用資料庫版「先刪除再上傳」那套（都還沒真的上傳，無需確認掛載料卡）
+  const [pendingDocDuplicatePrompt, setPendingDocDuplicatePrompt] = useState<PendingDocDuplicatePromptState | null>(null)
   // 儲存成功但 Google Drive 檔案清除失敗時的警示（跟一般 error 視覺區分，不是紅色錯誤）
   const [driveWarning, setDriveWarning] = useState<string | null>(null)
 
@@ -250,9 +297,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setDocsBusy(false)
     setDocActionError(null)
     setPendingDocUploads([])
+    pendingDocUploadsRef.current = []
     setPendingDocLinks([])
     setDocUploadType(settings.documentTypes[0] ?? '規格書')
-    setDocUploadName('')
     setShowDocSearch(false)
     setDocSearchQuery('')
     setDocSearchResults([])
@@ -261,7 +308,10 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setConfirmRemoveDoc(null)
     setPendingRemoveDocIds(new Set())
     setPendingVersionUpdates(new Map())
+    setPendingFullRemoveDocs([])
     setDuplicateDocPrompt(null)
+    setDeleteReuploadConfirm(null)
+    setPendingDocDuplicatePrompt(null)
     setDriveWarning(null)
   }, [card, open]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -400,6 +450,22 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         finally { setUploading(false) }
       }
 
+      // 「先刪除舊的再上傳」：先解除舊文件跟其他料卡的關聯（新卡片本身還沒有這份舊文件的關聯，
+      // 不需要對 equipId 呼叫 unlink）
+      let driveDeletePendingCount = 0
+      if (pendingFullRemoveDocs.length > 0) {
+        setUploading(true)
+        try {
+          for (const { documentId, otherEquipmentIds } of pendingFullRemoveDocs) {
+            for (const otherId of otherEquipmentIds) {
+              const result = await docApi.unlink(documentId, otherId)
+              if (result.drive_delete_pending) driveDeletePendingCount++
+            }
+          }
+        } catch (e) { setError(`料卡已建立，但文件移除失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
       if (pendingDocUploads.length > 0 || pendingDocLinks.length > 0) {
         setUploading(true)
         try {
@@ -411,6 +477,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           }
         } catch (e) { setError(`料卡已建立，但文件處理失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
         finally { setUploading(false) }
+      }
+
+      if (driveDeletePendingCount > 0) {
+        setDriveWarning(`已建立，但其中 ${driveDeletePendingCount} 份文件的關聯已解除、Google Drive 檔案清除失敗，文件記錄暫時保留，請聯絡管理員人工確認`)
+        router.refresh()
+        return
       }
 
       router.refresh()
@@ -530,6 +602,21 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
         finally { setUploading(false) }
       }
 
+      // 「先刪除舊的再上傳」：舊文件也掛載在其他料卡時，一併解除那些料卡的關聯
+      // （當前卡片若也掛載了這份舊文件，已包含在上面的 pendingRemoveDocIds 處理中）
+      if (pendingFullRemoveDocs.length > 0) {
+        setUploading(true)
+        try {
+          for (const { documentId, otherEquipmentIds } of pendingFullRemoveDocs) {
+            for (const otherId of otherEquipmentIds) {
+              const result = await docApi.unlink(documentId, otherId)
+              if (result.drive_delete_pending) driveDeletePendingCount++
+            }
+          }
+        } catch (e) { setError(`文件移除失敗：${e instanceof Error ? e.message : ''}`); router.refresh(); return }
+        finally { setUploading(false) }
+      }
+
       if (pendingVersionUpdates.size > 0) {
         setUploading(true)
         try {
@@ -570,17 +657,41 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
 
   // ── 文件連結：新增/編輯模式都暫存到按「建立」/「儲存」才真正呼叫 API ──
   function stageDocUpload(file: File, type: string, name: string) {
-    setPendingDocUploads(prev => [...prev, { localId: `${Date.now()}_${prev.length}`, file, type, name }])
-    setDocUploadName('')
+    setPendingDocUploads(prev => {
+      const next = [...prev, { localId: `${Date.now()}_${prev.length}`, file, type, name }]
+      pendingDocUploadsRef.current = next
+      return next
+    })
   }
 
+  // 多選檔案：逐一處理，每個檔案各自做同名偵測；若偵測到同名，暫停等使用者二選一
+  // （取代版本／先刪除再上傳）決定完才繼續處理下一個檔案，避免多個提示疊在一起
   async function handleDocFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
+    for (const file of files) {
+      // eslint-disable-next-line no-await-in-loop
+      await processDocFileForUpload(file)
+    }
+  }
+
+  async function processDocFileForUpload(file: File) {
     const type = docUploadType || localSettings.documentTypes[0] || '規格書'
-    const name = docUploadName.trim()
-    const displayName = name || file.name.replace(/\.[^/.]+$/, '')
+    const displayName = file.name.replace(/\.[^/.]+$/, '')
+
+    // 本次多選清單內查重：跟 pending 清單裡尚未送出的項目同名時，直接問要不要取代該 pending
+    // 項目的檔案內容（都還沒真的上傳到任何地方，不需要走資料庫版「先刪除再上傳」的完整流程）。
+    // 讀 ref 而不是 state，因為同一次多選裡前一個檔案可能才剛 stage 進去，state 還沒提交
+    const pendingMatch = pendingDocUploadsRef.current.find(
+      p => p.name.trim().toLowerCase() === displayName.trim().toLowerCase(),
+    )
+    if (pendingMatch) {
+      await new Promise<void>(resolve => {
+        setPendingDocDuplicatePrompt({ file, displayName, pendingLocalId: pendingMatch.localId, resolve })
+      })
+      return
+    }
 
     // 精確同名（不拘大小寫）既有文件偵測：search 本身是模糊查詢，這裡自己做精確過濾，
     // 避免「S168」這種短字串隨便命中一堆不相關文件就跳提示
@@ -597,24 +708,129 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       setDocsBusy(false)
     }
 
-    if (duplicate) {
-      setDuplicateDocPrompt({ file, type, name, match: duplicate })
+    if (!duplicate) {
+      stageDocUpload(file, type, displayName)
       return
     }
 
-    stageDocUpload(file, type, name)
+    // 精確同名：暫停，等使用者在 ConfirmDialog 二選一後才繼續處理下一個檔案
+    await new Promise<void>(resolve => {
+      setDuplicateDocPrompt({ file, type, displayName, match: duplicate as DocumentSearchResult, resolve })
+    })
+  }
+
+  // 選項一：取代（更新版本）——新檔案內容排入既有同名文件的版本更新佇列，
+  // 若目前這張卡片還沒有掛載那份既有文件，一併排入待掛載
+  function handleDuplicateReplace() {
+    if (!duplicateDocPrompt) return
+    const { file, match, resolve } = duplicateDocPrompt
+    setDuplicateDocPrompt(null)
+    setPendingVersionUpdates(prev => {
+      const n = new Map(prev)
+      n.set(match.id, file)
+      return n
+    })
+    const isAlreadyLinkedHere = documents.some(d => d.id === match.id) || pendingDocLinks.some(p => p.documentId === match.id)
+    if (!isAlreadyLinkedHere) {
+      setPendingDocLinks(prev => [...prev, {
+        localId: `${Date.now()}_${prev.length}`,
+        documentId: match.id, name: match.name, type: match.type,
+        url: match.url, drive_file_id: match.drive_file_id, equipment_ids: match.equipment_ids,
+      }])
+    }
+    resolve()
+  }
+
+  // 選項二：先刪除舊的再上傳——舊文件整個報廢。若還掛載在其他料卡，先跳二次確認列出受影響料卡
+  async function handleDuplicateDeleteReupload() {
+    if (!duplicateDocPrompt) return
+    const { file, type, displayName, match, resolve } = duplicateDocPrompt
+    setDuplicateDocPrompt(null)
+
+    const currentEquipId = form.equipment_id.trim()
+    const otherIds = match.equipment_ids.filter(id => id !== currentEquipId)
+
+    if (otherIds.length === 0) {
+      finalizeDeleteReupload(match, file, type, displayName, [])
+      resolve()
+      return
+    }
+
+    // 用窄範圍反查端點取得料卡品名：只需要 edit_card_documents 權限（跟開這個對話框
+    // 需要的權限相同），一般編輯者也看得到完整清單。仍保留 try/catch 防呆
+    // （網路異常等非權限問題），失敗時退回只顯示受影響張數，不擋流程。
+    let affectedCards: { equipment_id: string; name: string }[] | null = null
+    try {
+      const found = await docApi.getLinkedCards(match.id)
+      affectedCards = found.linked_cards.filter(c => c.equipment_id !== currentEquipId)
+    } catch {
+      affectedCards = null
+    }
+
+    setDeleteReuploadConfirm({ file, type, displayName, match, affectedCards, otherIds, resolve })
+  }
+
+  // 「先刪除舊的再上傳」的實際暫存：標記舊文件全面移除（含當前卡片、含其他料卡），
+  // 再把新選的檔案照「上傳新文件」流程排入（全新獨立文件，只掛載這張卡片）
+  function finalizeDeleteReupload(
+    match: DocumentSearchResult, file: File, type: string, displayName: string, otherIds: string[],
+  ) {
+    const currentEquipId = form.equipment_id.trim()
+    const isCurrentlyLinkedHere = match.equipment_ids.includes(currentEquipId) && documents.some(d => d.id === match.id)
+    if (isCurrentlyLinkedHere) {
+      setPendingRemoveDocIds(prev => new Set([...Array.from(prev), match.id]))
+    }
+    if (otherIds.length > 0) {
+      setPendingFullRemoveDocs(prev => [...prev, { documentId: match.id, otherEquipmentIds: otherIds }])
+    }
+    // 移除意圖優先：這份舊文件即將整個報廢，若剛好也留有待處理的版本更新，一併撤銷，
+    // 避免儲存時對已解除關聯（甚至已被刪除）的 documentId 又跑一次 updateVersion
+    clearPendingVersionUpdate(match.id)
+    stageDocUpload(file, type, displayName)
+  }
+
+  // 移除意圖優先於版本更新：標記一份文件要移除時，同步撤銷該文件先前選好的「更新版本」暫存，
+  // 避免 handleUpdate 先處理完移除（甚至已把文件本體刪除）之後，又對同一個 documentId 呼叫
+  // updateVersion——輕則對已消失的文件 404、重則誤覆蓋了其他料卡仍在共用的同一份文件內容
+  function clearPendingVersionUpdate(docId: string) {
+    setPendingVersionUpdates(prev => {
+      if (!prev.has(docId)) return prev
+      const n = new Map(prev)
+      n.delete(docId)
+      return n
+    })
   }
 
   function updatePendingDocUploadType(localId: string, type: string) {
     setPendingDocUploads(prev => prev.map(p => p.localId === localId ? { ...p, type } : p))
   }
 
-  function updatePendingDocUploadName(localId: string, name: string) {
-    setPendingDocUploads(prev => prev.map(p => p.localId === localId ? { ...p, name } : p))
+  function handleRemovePendingDocUpload(localId: string) {
+    setPendingDocUploads(prev => {
+      const next = prev.filter(p => p.localId !== localId)
+      pendingDocUploadsRef.current = next
+      return next
+    })
   }
 
-  function handleRemovePendingDocUpload(localId: string) {
-    setPendingDocUploads(prev => prev.filter(p => p.localId !== localId))
+  // 本次多選清單內查重二選一：取代 pending 項目的檔案內容 / 取消這次選取（不加入新列）
+  function handlePendingDocDupReplace() {
+    if (!pendingDocDuplicatePrompt) return
+    const { file, pendingLocalId, resolve } = pendingDocDuplicatePrompt
+    setPendingDocDuplicatePrompt(null)
+    setPendingDocUploads(prev => {
+      const next = prev.map(p => p.localId === pendingLocalId ? { ...p, file } : p)
+      pendingDocUploadsRef.current = next
+      return next
+    })
+    resolve()
+  }
+
+  function handlePendingDocDupCancel() {
+    if (!pendingDocDuplicatePrompt) return
+    const { resolve } = pendingDocDuplicatePrompt
+    setPendingDocDuplicatePrompt(null)
+    resolve()
   }
 
   function handleRemovePendingDocLink(localId: string) {
@@ -651,6 +867,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     const docId = doc.id
     if (!docId) return
     setPendingRemoveDocIds(prev => new Set([...Array.from(prev), docId]))
+    // 移除意圖優先：若這份文件先前已選好要更新版本，一併撤銷該暫存
+    clearPendingVersionUpdate(docId)
     setConfirmRemoveDoc(null)
   }
 
@@ -968,20 +1186,15 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
-                  <input
-                    type="text"
-                    value={docUploadName}
-                    onChange={e => setDocUploadName(e.target.value)}
-                    placeholder="顯示名稱（選填，預設用檔名）"
-                    disabled={isBusy}
-                    className={`${inputCls} flex-1 text-xs py-1.5 disabled:opacity-50`}
-                  />
+                  <span className="flex-1 flex items-center text-[10px] text-[#a08060]">
+                    顯示名稱固定用檔名（去除副檔名）
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => docFileRef.current?.click()} disabled={isBusy}
                     className="flex-1 flex items-center justify-center gap-1.5 border-2 border-dashed border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] transition-all disabled:opacity-40">
                     <Upload className="h-3.5 w-3.5" />
-                    上傳新文件
+                    上傳新文件（可多選）
                   </button>
                   <button type="button" onClick={() => setShowDocSearch(v => !v)} disabled={isBusy}
                     className="flex-1 flex items-center justify-center gap-1.5 border-2 border-dashed border-[#e8ddd0] rounded-lg px-3 py-2 text-xs text-[#a08060] hover:border-[#c49a72] hover:text-[#7a5230] transition-all disabled:opacity-40">
@@ -989,7 +1202,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                     挑選既有文件
                   </button>
                 </div>
-                <input ref={docFileRef} type="file" className="hidden" onChange={handleDocFileChosen} />
+                <input ref={docFileRef} type="file" multiple className="hidden" onChange={handleDocFileChosen} />
 
                 {showDocSearch && (
                   <div className="flex flex-col gap-1.5 pt-1">
@@ -1102,18 +1315,13 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="flex gap-2">
-                      <select value={p.type} onChange={e => updatePendingDocUploadType(p.localId, e.target.value)}
-                        disabled={isBusy}
-                        className="border border-[#e8ddd0] rounded-lg px-2 py-1 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50">
-                        {localSettings.documentTypes.map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                      <input type="text" value={p.name} onChange={e => updatePendingDocUploadName(p.localId, e.target.value)}
-                        placeholder="顯示名稱（選填）" disabled={isBusy}
-                        className={`${inputCls} flex-1 text-xs py-1 disabled:opacity-50`} />
-                    </div>
+                    <select value={p.type} onChange={e => updatePendingDocUploadType(p.localId, e.target.value)}
+                      disabled={isBusy}
+                      className="border border-[#e8ddd0] rounded-lg px-2 py-1 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50">
+                      {localSettings.documentTypes.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
                     <span className="text-[10px] text-[#a08060]">{mode === 'create' ? '待建立料卡後上傳' : '待儲存後上傳'}</span>
                   </div>
                 ))}
@@ -1126,6 +1334,9 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
                       <span className="text-[#a08060] flex-shrink-0">（{p.type}）</span>
                     </span>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {pendingVersionUpdates.has(p.documentId) && (
+                        <span className="text-[10px] text-[#7a5230] whitespace-nowrap">已選擇新版本待上傳</span>
+                      )}
                       <span className="text-[10px] text-[#a08060] whitespace-nowrap">{mode === 'create' ? '待建立料卡後掛載' : '待儲存後掛載'}</span>
                       <button type="button" onClick={() => handleRemovePendingDocLink(p.localId)} disabled={isBusy}
                         className="text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
@@ -1477,26 +1688,58 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       />
 
       <ConfirmDialog
+        open={!!pendingDocDuplicatePrompt}
+        title="本次選取內有同名檔案"
+        message={
+          pendingDocDuplicatePrompt
+            ? `待上傳清單裡已經有「${pendingDocDuplicatePrompt.displayName}」，是否要用這次選的檔案取代它？`
+            : undefined
+        }
+        confirmLabel="取代"
+        cancelLabel="取消這次選取"
+        onConfirm={handlePendingDocDupReplace}
+        onCancel={handlePendingDocDupCancel}
+      />
+
+      <ConfirmDialog
         open={!!duplicateDocPrompt}
         title="發現同名文件"
         message={
           duplicateDocPrompt
-            ? `已有相同名稱的文件「${duplicateDocPrompt.match.name}」，是否要改用「挑選既有文件」掛載，避免建立重複檔案？`
+            ? `已有相同名稱的文件「${duplicateDocPrompt.match.name}」，請選擇處理方式：`
             : undefined
         }
-        confirmLabel="改用挑選既有文件"
-        cancelLabel="仍要上傳新文件"
+        confirmLabel="取代（更新版本）"
+        cancelLabel="先刪除舊的再上傳"
+        onConfirm={handleDuplicateReplace}
+        onCancel={handleDuplicateDeleteReupload}
+      />
+
+      <ConfirmDialog
+        open={!!deleteReuploadConfirm}
+        title="這份文件也掛載在其他料卡"
+        message={
+          deleteReuploadConfirm
+            ? deleteReuploadConfirm.affectedCards
+              ? `這份文件也掛載在以下料卡：${deleteReuploadConfirm.affectedCards.map(c => `${c.equipment_id} ${c.name}`).join('、')}，確定要一併移除嗎？`
+              : `這份文件目前還掛載在其他 ${deleteReuploadConfirm.otherIds.length} 個品號，確定要一併移除嗎？`
+            : undefined
+        }
+        confirmLabel="確定一併移除"
+        cancelLabel="取消（不處理這份檔案）"
+        danger
         onConfirm={() => {
-          if (!duplicateDocPrompt) return
-          const { match } = duplicateDocPrompt
-          setDuplicateDocPrompt(null)
-          handlePickExistingDoc(match)
+          if (!deleteReuploadConfirm) return
+          const { match, file, type, displayName, otherIds, resolve } = deleteReuploadConfirm
+          setDeleteReuploadConfirm(null)
+          finalizeDeleteReupload(match, file, type, displayName, otherIds)
+          resolve()
         }}
         onCancel={() => {
-          if (!duplicateDocPrompt) return
-          const { file, type, name } = duplicateDocPrompt
-          setDuplicateDocPrompt(null)
-          stageDocUpload(file, type, name)
+          if (!deleteReuploadConfirm) return
+          const { resolve } = deleteReuploadConfirm
+          setDeleteReuploadConfirm(null)
+          resolve()
         }}
       />
     </div>
