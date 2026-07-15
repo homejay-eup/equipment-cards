@@ -15,9 +15,12 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
 import QuotesClient from '@/components/QuotesClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt } from 'lucide-react'
+import DocumentsClient from '@/components/DocumentsClient'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
+import { useHeartbeat } from '@/hooks/useHeartbeat'
+import { logUsageEvent } from '@/lib/analyticsClient'
 
 interface TrackerData {
   initialIssues: Issue[]
@@ -50,6 +53,8 @@ const SORT_OPTIONS = [
 export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [] }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
+
+  useHeartbeat()
 
   const canManage        = permissions.includes('manage_users')
   const canEditCard      = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
@@ -101,7 +106,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -117,6 +122,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'quotes') setQuotesMounted(true)
   }, [activeTab])
+  // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
+  const [documentsMounted, setDocumentsMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'documents') setDocumentsMounted(true)
+  }, [activeTab])
+  // 文件管理批次動作背景執行中時，即使切走分頁也要在分頁按鈕上維持提示
+  const [documentsBusy, setDocumentsBusy] = useState(false)
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
     if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
@@ -187,6 +199,16 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     const qs = params.toString()
     router.replace(qs ? `?${qs}` : '/', { scroll: false })
   }, [query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, router])
+
+  // 使用統計埋點：搜尋 debounce 800ms 後才記錄一次，避免每個按鍵都送
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!trimmed) return
+    const timer = setTimeout(() => {
+      logUsageEvent('card_search', { query: trimmed })
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [query])
 
   const fuse = useMemo(() => new Fuse(initialCards, {
     keys: [
@@ -527,7 +549,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 {userRole}
               </span>
             ) : null}
-            {userEmail && <UserMenu email={userEmail} />}
+            {userEmail && <UserMenu email={userEmail} permissions={permissions} />}
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
@@ -588,10 +610,26 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 )}
               </button>
             )}
+            {permissions.includes('manage_documents') && (
+              <button
+                onClick={() => setActiveTab('documents')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'documents'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                文件管理
+                {documentsBusy && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#b5451b] animate-pulse" title="批次動作背景執行中" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -924,6 +962,17 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             initialItems={quoteItems}
             categories={settings.quoteCategories}
             permissions={permissions}
+          />
+        </div>
+      )}
+
+      {/* 文件管理：首次進入後保持常駐（CSS hide/show），批次動作不受切換分頁影響 */}
+      {documentsMounted && (
+        <div className={activeTab !== 'documents' ? 'hidden' : ''}>
+          <DocumentsClient
+            allCards={initialCards}
+            documentTypes={settings.documentTypes}
+            onBusyChange={setDocumentsBusy}
           />
         </div>
       )}

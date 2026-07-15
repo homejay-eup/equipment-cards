@@ -22,6 +22,8 @@ const VALID_PERMISSION_KEYS = [
   'view_tracker', 'view_my_tasks', 'create_issues', 'tracker_edit_issue',
   'manage_subfilter_tags',
   'view_quotes', 'view_quotes_manager_price', 'edit_quotes',
+  'manage_documents',
+  'view_analytics',
 ]
 
 // GET /api/roles/[id]/permissions

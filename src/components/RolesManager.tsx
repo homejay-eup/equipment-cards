@@ -67,6 +67,8 @@ const PERM_LABELS: Record<string, string> = {
   // 帳號管理
   manage_users:               '帳號管理/指派角色',
   manage_roles:               '角色與權限設定',
+  // 文件管理
+  manage_documents:           '文件管理（批次上傳/批次刪除/重新產生目錄檔）',
   // 追蹤板
   view_tracker:               '可看任務板 (只有同一部門能看到彼此任務)',
   view_my_tasks:              '我的任務',
@@ -78,6 +80,8 @@ const PERM_LABELS: Record<string, string> = {
   view_quotes:                '可看人為配件報價',
   view_quotes_manager_price:  '可看主管權限價',
   edit_quotes:                '新增/編輯報價品項與價格',
+  // 使用統計
+  view_analytics:             '可看使用統計',
 }
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
@@ -106,6 +110,9 @@ const EDIT_CARD_CHILD_PERMS = [
 // 料卡管理分組（不含子 edit_card_* 欄位）
 const CARD_MGMT_PERMS = ['create_delete_cards'] as const
 
+// 文件管理分組（單一總開關，批次上傳/批次刪除/重新產生目錄檔不分層級）
+const DOCUMENT_MGMT_PERMS = ['manage_documents'] as const
+
 const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
 
 const FEATURE_PERMS = ['manage_subfilter_tags'] as const
@@ -120,6 +127,9 @@ const QUOTE_PERMS = [
   'view_quotes_manager_price',
   'edit_quotes',
 ] as const
+
+// 使用統計分組：獨立單一權限，不需父子連動
+const ANALYTICS_PERMS = ['view_analytics'] as const
 
 const DEPT_GROUP_LABELS: Record<string, string> = {
   admin:        '管理',
@@ -475,6 +485,57 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     }
   }
 
+  // 新建角色表單：扁平列出一組 perm keys 的共用 render（可見性/料卡列表/功能設定/料卡細節/
+  // 帳號管理/追蹤板/人為配件報價共用；拆成函式讓 sections 陣列可以在「料卡管理」「文件管理」
+  // 前後分兩段呼叫，藉此達成「料卡管理→文件管理→追蹤板」的顯示順序，不用整個重寫版面）
+  function renderNewRolePermSection(section: { label: string; keys: readonly string[]; radio: boolean }) {
+    return (
+      <div key={section.label}>
+        <p className="text-[11px] font-semibold text-[#a08060] mb-1">{section.label}</p>
+        <div className="space-y-1 pl-1">
+          {section.keys.map(key => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type={section.radio ? 'radio' : 'checkbox'}
+                name={section.radio ? 'new-role-visibility' : undefined}
+                checked={newRolePerms.includes(key)}
+                onChange={() => {
+                  if (section.radio) {
+                    const other = key === 'read_all_cards' ? 'read_active_only' : 'read_all_cards'
+                    setNewRolePerms(prev => [...prev.filter(p => p !== other && p !== key), key])
+                  } else {
+                    setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])
+                  }
+                }}
+                className="accent-[#7a5230]"
+              />
+              <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
+            </label>
+          ))}
+          {/* 追蹤板：合併 checkbox */}
+          {section.label === '追蹤板' && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')}
+                onChange={() => {
+                  const hasAny = newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')
+                  if (hasAny) {
+                    setNewRolePerms(prev => prev.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'))
+                  } else {
+                    setNewRolePerms(prev => [...prev, 'create_issues', 'tracker_edit_issue'])
+                  }
+                }}
+                className="accent-[#7a5230]"
+              />
+              <span className="text-xs text-[#4a3422]">可新增/編輯任務</span>
+            </label>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   function askDelete(role: RoleData) {
     setPendingDelete(role)
     setDeleteError(null)
@@ -605,53 +666,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                 { label: '功能設定', keys: FEATURE_PERMS, radio: false },
                 { label: '料卡細節', keys: DETAIL_PERMS, radio: false },
                 { label: '帳號管理', keys: ACCOUNT_PERMS, radio: false },
-                { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
-                { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
-              ].map(section => (
-                <div key={section.label}>
-                  <p className="text-[11px] font-semibold text-[#a08060] mb-1">{section.label}</p>
-                  <div className="space-y-1 pl-1">
-                    {section.keys.map(key => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type={section.radio ? 'radio' : 'checkbox'}
-                          name={section.radio ? 'new-role-visibility' : undefined}
-                          checked={newRolePerms.includes(key)}
-                          onChange={() => {
-                            if (section.radio) {
-                              const other = key === 'read_all_cards' ? 'read_active_only' : 'read_all_cards'
-                              setNewRolePerms(prev => [...prev.filter(p => p !== other && p !== key), key])
-                            } else {
-                              setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])
-                            }
-                          }}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
-                      </label>
-                    ))}
-                    {/* 追蹤板：合併 checkbox */}
-                    {section.label === '追蹤板' && (
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')}
-                          onChange={() => {
-                            const hasAny = newRolePerms.includes('create_issues') || newRolePerms.includes('tracker_edit_issue')
-                            if (hasAny) {
-                              setNewRolePerms(prev => prev.filter(p => p !== 'create_issues' && p !== 'tracker_edit_issue'))
-                            } else {
-                              setNewRolePerms(prev => [...prev, 'create_issues', 'tracker_edit_issue'])
-                            }
-                          }}
-                          className="accent-[#7a5230]"
-                        />
-                        <span className="text-xs text-[#4a3422]">可新增/編輯任務</span>
-                      </label>
-                    )}
-                  </div>
-                </div>
-              ))}
+              ].map(section => renderNewRolePermSection(section))}
               {/* 料卡管理 */}
               <div>
                 <p className="text-[11px] font-semibold text-[#a08060] mb-1">料卡管理</p>
@@ -701,6 +716,28 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </div>
                 </div>
               </div>
+              {/* 文件管理 */}
+              <div>
+                <p className="text-[11px] font-semibold text-[#a08060] mb-1">文件管理</p>
+                <div className="space-y-1 pl-1">
+                  {DOCUMENT_MGMT_PERMS.map(key => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={newRolePerms.includes(key)}
+                        onChange={() => setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {[
+                { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
+                { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
+                { label: '使用統計', keys: ANALYTICS_PERMS, radio: false },
+              ].map(section => renderNewRolePermSection(section))}
             </div>
             {createError && <p className="text-xs text-[#b5451b]">{createError}</p>}
             <div className="flex gap-2 justify-end">
@@ -983,6 +1020,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </div>
                 </div>
 
+                {/* 文件管理 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">文件管理</p>
+                  <div className="space-y-1.5">
+                    {DOCUMENT_MGMT_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 追蹤板 */}
                 <div>
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">追蹤板</p>
@@ -1038,6 +1094,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                             if (key === 'view_quotes_manager_price') return handleQuoteManagerPriceToggle(role)
                             return handleDetailToggle(role, key)
                           }}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 使用統計 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">使用統計</p>
+                  <div className="space-y-1.5">
+                    {ANALYTICS_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
                           disabled={isSavingPerm}
                           className="accent-[#7a5230]"
                         />
