@@ -549,7 +549,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 {userRole}
               </span>
             ) : null}
-            {userEmail && <UserMenu email={userEmail} permissions={permissions} />}
+            {userEmail && <UserMenu email={userEmail} />}
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
