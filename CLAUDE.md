@@ -103,7 +103,8 @@
     3. `DocumentsClient.tsx` 從 623 行拆成 `src/components/documents/` 底下 6 個子元件
     4. 同名/受影響料卡確認框補上警語、改用可捲動的 `detail` prop、逐行顯示；批次上傳補齊料卡清單數量提示與文件類型設定入口
     - **非阻塞待辦**：手機版 `EquipmentQuickPick` 下拉選單是否會跟 `overflow-x-auto` 產生巢狀捲動，待部署後實機驗證；`manage_documents`／`edit_card_documents` 是兩個獨立權限彼此不隱含，角色設定時建議兩者一起給
-    - **⚠️ 待辦（阻塞 commit）**：工作目錄裡混有另一個未提交的獨立功能（Step 33 使用統計），跟本次改動交錯在 `PhotoWall.tsx`／`RolesManager.tsx` 等同一批檔案裡，無法乾淨分開 commit（Step 33 那邊的 session 也已確認同樣的阻塞），需使用者決定處理方式
+    - **commit 狀態**：已 commit + push（`9312f02`）。先前顧慮的「Step 30b/33 檔案交錯無法乾淨分開 commit」問題，其實已在另一個 session 處理完畢（`6bb4750`／`8a6f0cb`／`6f0ca3a` 三個 commit 依序完成 Step 30b 第一版、Step 33、整合共用檔案），非真的卡住
+  - ✅ **2026-07-15 Step 30b 第三輪優化：批次新增/取消掛載——已執行完成**：使用者部署後實測反映「新增掛載料卡」「挑選既有文件」是單選、「取消掛載」逐筆執行且每筆都重新整理整份清單。先對焦確認需求（依文件/依料號兩視圖都要），CodeGraph + Grep 確認影響範圍侷限 `EquipmentQuickPick.tsx`/`AddDocumentToCard.tsx`/`ExpandableDocumentList.tsx` 3 個檔案後才執行。改為打勾複選＋批次送出，`computeUnlinkPlan()` 判斷批次裡哪些會導致文件整個被刪除、哪些只是解除關聯，全部處理完只重新整理一次。`reviewer` 抓到 1 個 High（判斷用的快照可能過期導致誤判成「安全」，其實文件已被刪除，改為事後比對 `unlink()` 實際回傳結果補警示）+ 1 個 Medium（`busyIds` 鎖定漏了一處），皆已直接修正。build 通過，尚未 commit。
 - **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，正式 Supabase 已執行 `_開發檔案/sql/step32-quote-items.sql`、`step32b-quote-items-sort-order.sql`（建表、預設分類、管理員權限授予、拖拉排序欄位），並匯入 88 筆初始報價資料（來源：配件報價2023-08.pdf），功能已由使用者本機實測確認（含一般人員視角、拖拉排序、分類管理）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
 - **目前 git HEAD**：`a919074`（合併 Step 30 Drive 刪除修正與 Step 32 報價查詢的 merge commit，已 push main，Vercel 應已自動部署，Step 30 待使用者再次實測移除文件確認）

@@ -4,14 +4,14 @@ import { useState } from 'react'
 import { FileText, Loader2, Plus, Upload } from 'lucide-react'
 import { useDocumentUpload, DocumentSearchResult } from '@/hooks/useDocumentUpload'
 
-// 新增文件到某張料卡：挑選既有文件（依名稱搜尋既有文件後掛載）／上傳新文件（只掛這一張卡）二選一。
-// 抽成獨立元件，因為每一列展開時都各自需要一份獨立的 local state（查詢字串、搜尋結果、上傳中狀態）
+// 新增文件到某張料卡：挑選既有文件（依名稱搜尋既有文件後掛載，複選）／上傳新文件（只掛這一張卡，單一檔案）二選一。
+// 抽成獨立元件，因為每一列展開時都各自需要一份獨立的 local state（查詢字串、搜尋結果、勾選狀態、上傳中狀態）
 export default function AddDocumentToCard({
-  documentTypes, disabled, onPickExisting, onUploadNew,
+  documentTypes, disabled, onPickManyExisting, onUploadNew,
 }: {
   documentTypes: string[]
   disabled?: boolean
-  onPickExisting: (doc: DocumentSearchResult) => void | Promise<void>
+  onPickManyExisting: (docs: DocumentSearchResult[]) => void | Promise<void>
   onUploadNew: (file: File, type: string) => void | Promise<void>
 }) {
   const docApi = useDocumentUpload()
@@ -21,6 +21,9 @@ export default function AddDocumentToCard({
   const [searching, setSearching] = useState(false)
   const [uploadType, setUploadType] = useState(documentTypes[0] ?? '規格書')
   const [busy, setBusy] = useState(false)
+  // 已選的既有文件（複選）：用 Map 保留完整 doc 內容，這樣即使重新搜尋换了 results，
+  // 之前選過但這次搜尋結果沒出現的文件仍能留在已選清單裡
+  const [selected, setSelected] = useState<Map<string, DocumentSearchResult>>(new Map())
 
   async function handleSearch() {
     if (!query.trim()) { setResults([]); return }
@@ -48,13 +51,27 @@ export default function AddDocumentToCard({
     }
   }
 
-  async function handlePick(doc: DocumentSearchResult) {
+  function toggleSelect(doc: DocumentSearchResult) {
+    setSelected(prev => {
+      const n = new Map(prev)
+      if (n.has(doc.id)) n.delete(doc.id); else n.set(doc.id, doc)
+      return n
+    })
+  }
+
+  function closeSearch() {
+    setMode('closed')
+    setQuery('')
+    setResults([])
+    setSelected(new Map())
+  }
+
+  async function handleConfirmPick() {
+    if (selected.size === 0) return
     setBusy(true)
     try {
-      await onPickExisting(doc)
-      setMode('closed')
-      setQuery('')
-      setResults([])
+      await onPickManyExisting(Array.from(selected.values()))
+      closeSearch()
     } finally {
       setBusy(false)
     }
@@ -106,22 +123,36 @@ export default function AddDocumentToCard({
           className="px-2.5 py-1 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors">
           {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '搜尋'}
         </button>
-        <button type="button" onClick={() => setMode('closed')} disabled={busy}
+        <button type="button" onClick={closeSearch} disabled={busy}
           className="text-xs text-[#a08060] hover:text-[#6b4f38] disabled:opacity-40 transition-colors">取消</button>
       </div>
       {results.length > 0 && (
         <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
-          {results.map(r => (
-            <button key={r.id} type="button" onClick={() => handlePick(r)} disabled={busy}
-              className="flex items-center justify-between gap-2 text-left px-2.5 py-1.5 text-xs bg-[#fff9f4] border border-[rgba(122,82,48,.15)] rounded-lg hover:border-[#c49a72] disabled:opacity-40 transition-colors">
-              <span className="flex items-center gap-1.5 truncate">
-                <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                <span className="truncate">{r.name}</span>
-                <span className="text-[#a08060] flex-shrink-0">（{r.type}）</span>
-              </span>
-              <span className="text-[#a08060] flex-shrink-0">用於 {r.equipment_ids.length} 個品號</span>
-            </button>
-          ))}
+          {results.map(r => {
+            const checked = selected.has(r.id)
+            return (
+              <label key={r.id}
+                className={`flex items-center justify-between gap-2 text-left px-2.5 py-1.5 text-xs bg-[#fff9f4] border rounded-lg cursor-pointer transition-colors ${checked ? 'border-[#c49a72]' : 'border-[rgba(122,82,48,.15)] hover:border-[#c49a72]'} ${busy ? 'opacity-40 pointer-events-none' : ''}`}>
+                <span className="flex items-center gap-1.5 truncate">
+                  <input type="checkbox" checked={checked} onChange={() => toggleSelect(r)} disabled={busy}
+                    className="accent-[#7a5230] flex-shrink-0" />
+                  <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
+                  <span className="truncate">{r.name}</span>
+                  <span className="text-[#a08060] flex-shrink-0">（{r.type}）</span>
+                </span>
+                <span className="text-[#a08060] flex-shrink-0">用於 {r.equipment_ids.length} 個品號</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+      {selected.size > 0 && (
+        <div className="flex justify-end">
+          <button type="button" onClick={handleConfirmPick} disabled={busy}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-white bg-[#7a5230] rounded-lg hover:bg-[#6b4530] disabled:opacity-40 transition-colors">
+            {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+            確認新增（已選 {selected.size}）
+          </button>
         </div>
       )}
     </div>
