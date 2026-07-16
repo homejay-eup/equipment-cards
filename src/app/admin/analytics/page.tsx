@@ -15,7 +15,7 @@ export default async function AnalyticsPage() {
     <main className="min-h-screen bg-[#faf6f0]">
       <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
+          <Link href="/admin/users" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="flex items-center gap-2">
