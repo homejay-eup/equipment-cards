@@ -386,25 +386,31 @@ export default function ExpandableDocumentList({
         filteredCardGroups.length === 0 ? (
           <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的料卡</p>
         ) : (
-          <div className="border border-[#e8ddd0] rounded-lg overflow-x-auto">
-            <div className="min-w-[480px]">
-            <div className="grid grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 bg-[#faf6f0] border-b border-[#e8ddd0] text-[10px] font-semibold text-[#a08060]">
-              <span />
-              <SortHeader label="料號" sortKey="equipment_id" active={cardSort.key === 'equipment_id'} dir={cardSort.dir} onSort={handleCardSort} />
-              <SortHeader label="品名" sortKey="name" active={cardSort.key === 'name'} dir={cardSort.dir} onSort={handleCardSort} />
+          <div className="border border-[#e8ddd0] rounded-lg sm:overflow-x-auto">
+            <div className="sm:min-w-[480px]">
+            <div className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 bg-[#faf6f0] border-b border-[#e8ddd0] text-[10px] font-semibold text-[#a08060]">
+              <span className="hidden sm:block" />
+              <div className="flex-1 min-w-0 sm:contents">
+                <SortHeader label="料號" sortKey="equipment_id" active={cardSort.key === 'equipment_id'} dir={cardSort.dir} onSort={handleCardSort} className="hidden sm:flex" />
+                <SortHeader label="品名" sortKey="name" active={cardSort.key === 'name'} dir={cardSort.dir} onSort={handleCardSort} className="hidden sm:flex" />
+                <span className="sm:hidden">料號／品名</span>
+              </div>
               <SortHeader label="掛載文件數" sortKey="count" active={cardSort.key === 'count'} dir={cardSort.dir} onSort={handleCardSort} className="justify-end" />
             </div>
             {filteredCardGroups.map(g => {
               const isExpanded = expanded.has(g.equipment_id)
               return (
                 <div key={g.equipment_id} className="border-t border-[#f0e8dc]">
-                  <div className="grid grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
-                    <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
+                  <div className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
+                    <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </button>
-                    <span className="text-[#4a3422] truncate">{g.equipment_id}</span>
-                    <span className="text-[#6b4f38] truncate">{g.name}</span>
-                    <span className="text-right text-[#6b4f38]">{g.docs.length}</span>
+                    <div className="flex-1 min-w-0 sm:contents">
+                      <span className="hidden sm:inline text-[#4a3422] truncate">{g.equipment_id}</span>
+                      <span className="hidden sm:inline text-[#6b4f38] truncate">{g.name}</span>
+                      <span className="sm:hidden block truncate"><span className="text-[#4a3422]">{g.equipment_id}</span> <span className="text-[#6b4f38]">{g.name}</span></span>
+                    </div>
+                    <span className="text-right text-[#6b4f38] flex-shrink-0">{g.docs.length}</span>
                   </div>
                   {isExpanded && (
                     <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">

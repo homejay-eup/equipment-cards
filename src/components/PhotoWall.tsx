@@ -16,7 +16,7 @@ import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
 import QuotesClient from '@/components/QuotesClient'
 import DocumentsClient from '@/components/DocumentsClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import { useHeartbeat } from '@/hooks/useHeartbeat'
@@ -527,9 +527,9 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       <div className="sticky top-0 z-40 bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] shadow-sm">
         {/* 標題列 */}
         <div className="max-w-7xl mx-auto px-4 pt-2 pb-2 flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
-            <h1 className="text-xl font-bold text-[#7a5230]">設備料卡管理系統</h1>
-            <p className="text-xs text-[#a08060]">共 {mainPhotosCount} 張主圖、{detailPhotosCount} 張細節</p>
+          <div className="flex items-baseline gap-2 min-w-0">
+            <h1 className="text-xl font-bold text-[#7a5230] whitespace-nowrap">設備料卡管理系統</h1>
+            <p className="hidden sm:block text-xs text-[#a08060] whitespace-nowrap">共 {mainPhotosCount} 張主圖、{detailPhotosCount} 張細節</p>
           </div>
           <div className="flex items-center gap-3">
             {canManage ? (
@@ -553,42 +553,46 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
-          {/* Tab 切換 */}
-          <div className="flex gap-1 mb-2">
+          {/* Tab 切換：手機版只顯示圖示＋數字，桌面版（sm 以上）顯示完整文字 */}
+          <div className="flex flex-wrap gap-1 mb-2">
             <button
               onClick={() => setActiveTab('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+              title="全部料卡"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                 activeTab === 'all'
                   ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
                   : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
               }`}
             >
-              全部料卡
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">全部料卡</span>
             </button>
             {(permissions.includes('view_quotes') || permissions.includes('edit_quotes')) && (
               <button
                 onClick={() => setActiveTab('quotes')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                title="人為配件報價"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'quotes'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
                     : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}
               >
                 <Receipt className="h-3.5 w-3.5" />
-                人為配件報價
+                <span className="hidden sm:inline">人為配件報價</span>
               </button>
             )}
             {permissions.includes('use_bookmarks') && (
               <button
                 onClick={() => setActiveTab('bookmarks')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                title="我的關注"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'bookmarks'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
                     : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}
               >
                 <Star className={`h-3.5 w-3.5 ${activeTab === 'bookmarks' ? 'fill-white text-white' : bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
-                我的關注
+                <span className="hidden sm:inline">我的關注</span>
                 {bookmarkedIds.size > 0 && (
                   <span className="text-xs">{bookmarkedIds.size}</span>
                 )}
@@ -597,14 +601,15 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             {permissions.includes('view_tracker') && (
               <button
                 onClick={() => { setActiveTab('tracker'); router.refresh() }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                title="任務板"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'tracker'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
                     : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}
               >
                 <ClipboardList className="h-3.5 w-3.5" />
-                任務板
+                <span className="hidden sm:inline">任務板</span>
                 {trackerPendingCount > 0 && (
                   <span className="text-xs">{trackerPendingCount}</span>
                 )}
@@ -613,14 +618,15 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             {permissions.includes('manage_documents') && (
               <button
                 onClick={() => setActiveTab('documents')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                title="文件管理"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'documents'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
                     : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
                 }`}
               >
                 <FileText className="h-3.5 w-3.5" />
-                文件管理
+                <span className="hidden sm:inline">文件管理</span>
                 {documentsBusy && (
                   <span className="h-1.5 w-1.5 rounded-full bg-[#b5451b] animate-pulse" title="批次動作背景執行中" />
                 )}

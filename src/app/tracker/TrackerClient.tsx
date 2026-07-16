@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone } from 'lucide-react'
+import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone, SlidersHorizontal, X } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
@@ -87,6 +87,14 @@ export default function TrackerClient({
   const [myTasksOnly,          setMyTasksOnly]          = useState(() => searchParams.get('tab') === 'my')
   const [filterPriority,       setFilterPriority]       = useState<'' | 'high' | 'medium' | 'low'>('')
   const [filterAssignee,       setFilterAssignee]       = useState('')
+  const [showFilters,          setShowFilters]          = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const saved = localStorage.getItem('trackerShowFilters')
+      if (saved !== null) return saved === 'true'
+      return window.innerWidth >= 768
+    } catch { return window.innerWidth >= 768 }
+  })
   const [selectedIssue,        setSelectedIssue]        = useState<Issue | null>(null)
   const [newIssueOpen,         setNewIssueOpen]         = useState(false)
   const [newIssueStatus,       setNewIssueStatus]       = useState('待處理')
@@ -112,6 +120,13 @@ export default function TrackerClient({
     router.refresh()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('trackerShowFilters', String(showFilters)) } catch {}
+  }, [showFilters])
+
+  const hasActiveFilters = !!(filterPriority || filterAssignee)
+  const activeFilterCount = (filterPriority ? 1 : 0) + (filterAssignee ? 1 : 0)
 
   // router.refresh() 完成後 initialIssues prop 更新，同步至 state
   // hasMutatedRef 有操作進行中時，仍同步 is_pinned（避免 Router Cache 舊值封鎖公佈欄顯示）
@@ -451,8 +466,22 @@ export default function TrackerClient({
           )}
         </div>
 
-        {/* 排序 + 新增（右側） */}
+        {/* 篩選切換 + 排序 + 新增（右側） */}
         <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-lg bg-white transition-colors focus:outline-none ${
+              showFilters || hasActiveFilters
+                ? 'border-[#c49a72] text-[#7a5230]'
+                : 'border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            篩選
+            {activeFilterCount > 0 && (
+              <span className="bg-[#7a5230] text-white text-xs rounded-full px-1.5 leading-5 min-w-[18px] text-center">{activeFilterCount}</span>
+            )}
+          </button>
           <button
             onClick={handleSort}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#6b4f38] border border-[rgba(122,82,48,.2)] rounded-lg hover:bg-[rgba(122,82,48,.06)] transition-colors bg-white"
@@ -473,52 +502,77 @@ export default function TrackerClient({
         </div>
       </div>
 
-      {/* ── 優先級篩選 chips ── */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-xs text-[#a08060]">優先級：</span>
-        {(
-          [
-            { key: '' as const,        label: '全部',  count: priCounts.all    },
-            { key: 'high' as const,    label: '緊急',  count: priCounts.high   },
-            { key: 'medium' as const,  label: '重要',  count: priCounts.medium },
-            { key: 'low' as const,     label: '普通',  count: priCounts.low    },
-          ] as const
-        ).map(chip => (
-          <button
-            key={chip.key}
-            onClick={() => setFilterPriority(chip.key)}
-            className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
-              filterPriority === chip.key
-                ? 'bg-[#7a5230] border-[#7a5230] text-white font-medium'
-                : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
-            }`}
-          >
-            {chip.label}
-            <span className="opacity-70 ml-0.5">{chip.count}</span>
+      {/* ── 手機版：收合時顯示已選條件 chips ── */}
+      {!showFilters && hasActiveFilters && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {filterPriority && (
+            <button onClick={() => setFilterPriority('')}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+              {PRIORITY_PILL[filterPriority]?.label ?? filterPriority}<X className="h-3 w-3" />
+            </button>
+          )}
+          {filterAssignee && (
+            <button onClick={() => setFilterAssignee('')}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+              {assigneeCounts.find(p => p.email === filterAssignee)?.prefix ?? filterAssignee}<X className="h-3 w-3" />
+            </button>
+          )}
+          <button onClick={() => { setFilterPriority(''); setFilterAssignee('') }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-[#a08060] border border-[#e8ddd0] hover:text-[#7a5230]">
+            <X className="h-3 w-3" />清除篩選
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* ── 負責人篩選 chips ── */}
-      {!myTasksOnly && assigneeCounts.length > 0 && (
+      {/* ── 篩選列：桌面預設顯示，手機按「篩選」按鈕展開 ── */}
+      <div className={showFilters ? 'block' : 'hidden'}>
+        {/* 優先級篩選 chips */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-xs text-[#a08060]">負責人：</span>
-          {assigneeCounts.map(person => (
+          <span className="text-xs text-[#a08060]">優先級：</span>
+          {(
+            [
+              { key: '' as const,        label: '全部',  count: priCounts.all    },
+              { key: 'high' as const,    label: '緊急',  count: priCounts.high   },
+              { key: 'medium' as const,  label: '重要',  count: priCounts.medium },
+              { key: 'low' as const,     label: '普通',  count: priCounts.low    },
+            ] as const
+          ).map(chip => (
             <button
-              key={person.email}
-              onClick={() => setFilterAssignee(prev => prev === person.email ? '' : person.email)}
+              key={chip.key}
+              onClick={() => setFilterPriority(chip.key)}
               className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
-                filterAssignee === person.email
+                filterPriority === chip.key
                   ? 'bg-[#7a5230] border-[#7a5230] text-white font-medium'
                   : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
               }`}
             >
-              {person.prefix}
-              <span className="opacity-70 ml-0.5">{person.count}</span>
+              {chip.label}
+              <span className="opacity-70 ml-0.5">{chip.count}</span>
             </button>
           ))}
         </div>
-      )}
+
+        {/* 負責人篩選 chips */}
+        {!myTasksOnly && assigneeCounts.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-xs text-[#a08060]">負責人：</span>
+            {assigneeCounts.map(person => (
+              <button
+                key={person.email}
+                onClick={() => setFilterAssignee(prev => prev === person.email ? '' : person.email)}
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-all ${
+                  filterAssignee === person.email
+                    ? 'bg-[#7a5230] border-[#7a5230] text-white font-medium'
+                    : 'bg-white border-[rgba(122,82,48,.2)] text-[#6b4f38] hover:border-[rgba(122,82,48,.4)]'
+                }`}
+              >
+                {person.prefix}
+                <span className="opacity-70 ml-0.5">{person.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── 公佈欄 ── */}
       {announcements.length > 0 && (

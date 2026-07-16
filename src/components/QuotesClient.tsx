@@ -356,7 +356,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                 <div className="grid grid-cols-1 sm:grid-cols-2 bg-[#faf6f0] border-b border-[#e8ddd0]">
                   {[0, 1].map(col => (
                     (col === 0 || groupItems.length > 1) && (
-                      <div key={col} className={`flex items-center gap-3 px-4 py-1 ${col === 1 ? 'sm:border-l border-[#e8ddd0]' : ''}`}>
+                      <div key={col} className={`${col === 1 ? 'hidden sm:flex sm:border-l' : 'flex'} items-center gap-3 px-4 py-1 border-[#e8ddd0]`}>
                         {canEdit && <span className="w-4 flex-shrink-0" />}
                         <span className="flex-1" />
                         <span className="text-xs font-semibold text-[#a08060] w-20 text-right">標準售價</span>
