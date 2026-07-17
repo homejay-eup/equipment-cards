@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { ArrowLeft, type LucideIcon } from 'lucide-react'
 
 interface Props {
@@ -24,15 +25,14 @@ export default function AdminLoadingSkeleton({ icon: Icon, title, maxWidthClassN
         </div>
       </header>
 
-      <div className={`${maxWidthClassName} mx-auto px-4 py-8`}>
-        <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
-          {Array.from({ length: rows }).map((_, i) => (
-            <div
-              key={i}
-              className="skeleton-shimmer h-14 border-b border-[rgba(122,82,48,.08)] last:border-b-0"
-            />
-          ))}
-        </div>
+      <div className={`${maxWidthClassName} mx-auto px-4 py-8 flex flex-col gap-2`}>
+        {Array.from({ length: rows }).map((_, i) => (
+          <div
+            key={i}
+            className="skeleton-shimmer-admin h-14 rounded-lg border border-[rgba(122,82,48,.1)] bg-white shadow-sm"
+            style={{ '--skeleton-delay': `${i * 0.12}s` } as CSSProperties}
+          />
+        ))}
       </div>
     </main>
   )
