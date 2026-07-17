@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck, RefreshCw } from 'lucide-react'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck, RefreshCw, ArrowLeft, Users, BarChart3, Search } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
@@ -38,6 +38,8 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
 
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null)
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<string>(availableRoles[0] ?? 'viewer')
@@ -130,6 +132,12 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
     }
   }
 
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return users
+    return users.filter(u => u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q))
+  }, [users, searchQuery])
+
   function handleRemove(user: UserRow) {
     setPendingRemove(user)
     setConfirmOpen(true)
@@ -178,27 +186,65 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-[#7a5230]" />
+              <h1 className="text-xl font-bold text-[#7a5230]">帳號管理</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {canSyncUsers && (
+              <button
+                type="button"
+                onClick={syncUsers}
+                disabled={syncing}
+                className="flex items-center gap-1.5 text-sm text-[#7a5230] border border-[rgba(122,82,48,.25)] bg-[rgba(122,82,48,.05)] rounded-md px-3 py-1.5 hover:bg-[rgba(122,82,48,.12)] disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                同步公司帳號
+              </button>
+            )}
+            {permissions.includes('view_analytics') && (
+              <Link
+                href="/admin/analytics"
+                className="flex items-center gap-1.5 text-sm text-[#7a5230] border border-[rgba(122,82,48,.25)] bg-[rgba(122,82,48,.05)] rounded-md px-3 py-1.5 hover:bg-[rgba(122,82,48,.12)] transition-colors whitespace-nowrap"
+              >
+                <BarChart3 className="h-4 w-4" />
+                使用統計
+              </Link>
+            )}
+            {permissions.includes('manage_roles') && (
+              <Link
+                href="/admin/roles"
+                className="flex items-center gap-1.5 text-sm text-[#7a5230] border border-[rgba(122,82,48,.25)] bg-[rgba(122,82,48,.05)] rounded-md px-3 py-1.5 hover:bg-[rgba(122,82,48,.12)] transition-colors whitespace-nowrap"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                角色管理
+              </Link>
+            )}
+          </div>
+        </div>
+        {syncMessage && (
+          <div className="max-w-4xl mx-auto px-4 pb-3 -mt-1">
+            <p className={`text-xs ${syncMessage.isError ? 'text-[#b5451b]' : 'text-[#7a5230]'}`}>{syncMessage.text}</p>
+          </div>
+        )}
+      </header>
+
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
 
       {/* 新增 Email 表單 */}
       <div className="bg-white rounded-xl border border-[rgba(122,82,48,.15)] p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h2 className="text-sm font-semibold text-[#6b4f38] flex items-center gap-2">
-            <UserPlus className="h-4 w-4 text-[#7a5230]" />
-            指派角色
-          </h2>
-          {canSyncUsers && (
-            <button
-              type="button"
-              onClick={syncUsers}
-              disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-[#e8ddd0] rounded-lg text-xs font-medium text-[#6b4f38] bg-[#faf6f0] hover:border-[rgba(122,82,48,.35)] hover:shadow-[0_0_6px_rgba(122,82,48,.18)] disabled:opacity-50 transition-all whitespace-nowrap"
-            >
-              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              同步公司帳號
-            </button>
-          )}
-        </div>
+        <h2 className="text-sm font-semibold text-[#6b4f38] flex items-center gap-2 mb-1">
+          <UserPlus className="h-4 w-4 text-[#7a5230]" />
+          指派角色
+        </h2>
         <p className="text-xs text-[#a08060] mb-3">所有公司帳號皆可登入；在此加入的 Email 可指定為管理員。角色變更將於對方重新整理頁面後生效。</p>
         <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
           <input
@@ -255,9 +301,6 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         {addError && (
           <p className="mt-2 text-sm text-[#b5451b]">{addError}</p>
         )}
-        {syncMessage && (
-          <p className={`mt-2 text-sm ${syncMessage.isError ? 'text-[#b5451b]' : 'text-[#7a5230]'}`}>{syncMessage.text}</p>
-        )}
       </div>
 
       {/* 使用者清單 */}
@@ -268,36 +311,42 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
           </div>
         )}
 
-        <div className="mb-3 text-sm text-[#a08060]">
-          共 {users.length} 位使用者
+        <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a08060]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="搜尋 Email 或角色"
+              className="w-full border border-[#e8ddd0] rounded-lg pl-9 pr-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
+            />
+          </div>
+          <div className="text-sm text-[#a08060] whitespace-nowrap">
+            {searchQuery.trim()
+              ? `找到 ${filteredUsers.length} 筆（共 ${users.length} 位使用者）`
+              : `共 ${users.length} 位使用者`}
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
           {users.length === 0 ? (
             <div className="py-12 text-center text-sm text-[#a08060]">尚未加入任何使用者</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="py-12 text-center text-sm text-[#a08060]">找不到符合的使用者</div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">
-                    <span className="flex items-center gap-2">
-                      角色
-                      {permissions.includes('manage_roles') && (
-                        <Link href="/admin/roles" className="flex items-center gap-1 text-[10px] font-normal text-[#a08060] hover:text-[#7a5230] transition-colors border border-[rgba(122,82,48,.2)] rounded px-1.5 py-0.5 hover:border-[rgba(122,82,48,.4)] whitespace-nowrap">
-                          <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
-                          角色管理
-                        </Link>
-                      )}
-                    </span>
-                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">角色</th>
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">初始登入</th>
                   <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">最後登入</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(122,82,48,.08)]">
-                {users.map(user => {
+                {filteredUsers.map(user => {
                   const isSelf = user.email === currentUserEmail
                   const isLoading = loadingEmail === user.email
                   const isRowRoleOpen = openRoleEmail === user.email
@@ -399,6 +448,7 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
         onConfirm={() => { setConfirmOpen(false); if (pendingRemove) doRemove(pendingRemove) }}
         onCancel={() => { setConfirmOpen(false); setPendingRemove(null) }}
       />
-    </div>
+      </div>
+    </>
   )
 }
