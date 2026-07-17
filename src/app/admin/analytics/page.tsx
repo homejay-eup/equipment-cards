@@ -1,15 +1,20 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { requirePermission } from '@/lib/admin'
-import { getUsageAnalyticsSummary } from '@/lib/analytics'
+import { getUsageAnalyticsSummary, getUsageGrowthTrend } from '@/lib/analytics'
 import AnalyticsClient from '@/components/AnalyticsClient'
+import AnalyticsTrendCharts from '@/components/AnalyticsTrendCharts'
+import UsageLeaderboard from '@/components/UsageLeaderboard'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
 
 export default async function AnalyticsPage() {
   const user = await requirePermission('view_analytics')
   if (!user) redirect('/')
 
-  const analyticsData = await getUsageAnalyticsSummary()
+  const [analyticsData, trendData] = await Promise.all([
+    getUsageAnalyticsSummary(),
+    getUsageGrowthTrend(),
+  ])
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
@@ -26,6 +31,8 @@ export default async function AnalyticsPage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        <AnalyticsTrendCharts trend={trendData} />
+        <UsageLeaderboard rows={analyticsData} />
         <AnalyticsClient initialData={analyticsData} />
       </div>
     </main>

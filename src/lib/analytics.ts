@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { format, addDays } from 'date-fns'
 
 function getServiceClient() {
   return createClient(
@@ -95,4 +96,93 @@ export async function getUsageAnalyticsSummary(): Promise<UsageAnalyticsRow[]> {
   results.sort((a, b) => b.loginCount - a.loginCount)
 
   return results
+}
+
+export interface UsageGrowthPoint {
+  date: string
+  cumulativeLogins: number
+  cumulativeMinutes: number
+}
+
+interface LoginEventCreatedAtRow {
+  created_at: string
+}
+
+interface UsageSessionTimestampsRow {
+  started_at: string
+  last_ping_at: string
+}
+
+// 依日期分桶（保留時間戳），計算「累計登入次數」與「累計停留分鐘數」隨時間成長的趨勢序列，
+// 從最早一筆資料的日期補到今天，中間沒有資料的日期延續前一天的累計值（不斷線、不歸零）
+export async function getUsageGrowthTrend(): Promise<UsageGrowthPoint[]> {
+  const service = getServiceClient()
+
+  const [loginResult, sessionResult] = await Promise.all([
+    service.from('login_events').select('created_at'),
+    service.from('usage_sessions').select('started_at, last_ping_at'),
+  ])
+
+  if (loginResult.error) throw loginResult.error
+  if (sessionResult.error) throw sessionResult.error
+
+  const loginRows = (loginResult.data ?? []) as LoginEventCreatedAtRow[]
+  const sessionRows = (sessionResult.data ?? []) as UsageSessionTimestampsRow[]
+
+  if (loginRows.length === 0 && sessionRows.length === 0) {
+    return []
+  }
+
+  const dateKey = (d: Date) => format(d, 'yyyy-MM-dd')
+
+  const dailyLoginCounts = new Map<string, number>()
+  for (const row of loginRows) {
+    const created = new Date(row.created_at)
+    if (Number.isNaN(created.getTime())) continue
+    const key = dateKey(created)
+    dailyLoginCounts.set(key, (dailyLoginCounts.get(key) ?? 0) + 1)
+  }
+
+  const dailyMinutes = new Map<string, number>()
+  for (const row of sessionRows) {
+    const started = new Date(row.started_at)
+    const lastPing = new Date(row.last_ping_at)
+    if (Number.isNaN(started.getTime()) || Number.isNaN(lastPing.getTime())) continue
+    const durationMinutes = Math.max(0, (lastPing.getTime() - started.getTime()) / 60000)
+    const key = dateKey(started)
+    dailyMinutes.set(key, (dailyMinutes.get(key) ?? 0) + durationMinutes)
+  }
+
+  const allKeys = [...Array.from(dailyLoginCounts.keys()), ...Array.from(dailyMinutes.keys())]
+  allKeys.sort()
+
+  if (allKeys.length === 0) {
+    return []
+  }
+
+  const earliestKey = allKeys[0]
+  const [ey, em, ed] = earliestKey.split('-').map(Number)
+  let cursor = new Date(ey, em - 1, ed)
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+  const trend: UsageGrowthPoint[] = []
+  let cumulativeLogins = 0
+  let cumulativeMinutes = 0
+
+  while (cursor.getTime() <= todayStart.getTime()) {
+    const key = dateKey(cursor)
+    cumulativeLogins += dailyLoginCounts.get(key) ?? 0
+    cumulativeMinutes += dailyMinutes.get(key) ?? 0
+
+    trend.push({
+      date: key,
+      cumulativeLogins,
+      cumulativeMinutes,
+    })
+
+    cursor = addDays(cursor, 1)
+  }
+
+  return trend
 }
