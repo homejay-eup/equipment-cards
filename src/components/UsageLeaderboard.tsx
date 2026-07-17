@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -10,6 +11,8 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { UsageAnalyticsRow } from '@/lib/analytics'
+
+const COLLAPSED_COUNT = 10
 
 interface Props {
   rows: UsageAnalyticsRow[]
@@ -59,10 +62,14 @@ function EmptyState() {
 }
 
 export default function UsageLeaderboard({ rows }: Props) {
+  const [expanded, setExpanded] = useState(false)
+
   const sortedRows = [...rows].sort(
     (a, b) => b.totalDurationSeconds - a.totalDurationSeconds,
   )
-  const chartHeight = Math.max(240, sortedRows.length * 40)
+  const displayRows = expanded ? sortedRows : sortedRows.slice(0, COLLAPSED_COUNT)
+  const chartHeight = Math.max(240, displayRows.length * 40)
+  const hasMore = sortedRows.length > COLLAPSED_COUNT
 
   return (
     <div className="mb-6">
@@ -72,7 +79,7 @@ export default function UsageLeaderboard({ rows }: Props) {
         ) : (
           <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart
-              data={sortedRows}
+              data={displayRows}
               layout="vertical"
               margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
             >
@@ -111,6 +118,15 @@ export default function UsageLeaderboard({ rows }: Props) {
               <Bar dataKey="totalDurationSeconds" fill={BAR_COLOR} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        )}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="mt-2 text-sm font-medium text-[#7a5230] hover:text-[#5c3d24] transition-colors"
+          >
+            {expanded ? '收合' : `展開全部（共 ${sortedRows.length} 位）`}
+          </button>
         )}
       </ChartCard>
     </div>

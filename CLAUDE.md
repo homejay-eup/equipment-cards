@@ -126,6 +126,10 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 
 > **背景**：`codegraph install` 把設定寫入 `~/.claude/settings.json`（舊格式），但 CCD 只讀 `~/.claude.json`（新格式）。`claude mcp add --scope user` 才是正確路徑。
 
+**這是預設行為，不需要使用者每次提醒才執行。** 每次要修改程式碼前，主 session 要主動照下面流程走，不要等使用者說「記得用 CodeGraph」才做。
+
+⚠️ **worktree 注意事項**：每個 git worktree 是獨立目錄，`.codegraph/` 索引不會跨 worktree 共用。換一個新 worktree 第一次用 CodeGraph 前，先確認 `.codegraph/` 是否存在；不存在的話要先 `codegraph init` 建索引，否則 `codegraph_explore`/`codegraph_search` 會查不到東西、或回傳其他目錄的舊內容而不自知。若查詢結果跟實際檔案內容對不上（例如 Read 出來的內容跟 codegraph_explore 顯示的不同），視為索引失準，直接改用 Grep 驗證，不要採信 codegraph 的結果。
+
 **每次修改 code 前的強制流程**：
 1. 用「功能描述」呼叫 `codegraph_explore` → 找出要改的 symbol 名稱
 2. **確定 symbol 後，再用 symbol 名稱呼叫 `codegraph_explore`** → 取得 caller 清單（blast radius）
