@@ -18,18 +18,18 @@ export default function AdminLoadingSkeleton({ icon: Icon, title, maxWidthClassN
             <ArrowLeft className="h-5 w-5" />
           </span>
           <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5 text-[#7a5230]" />
+            <Icon className="h-5 w-5 text-[#7a5230] skeleton-icon-pulse" />
             <h1 className="text-xl font-bold text-[#7a5230]">{title}</h1>
           </div>
         </div>
       </header>
 
       <div className={`${maxWidthClassName} mx-auto px-4 py-8`}>
-        <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm animate-pulse">
+        <div className="overflow-hidden rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
           {Array.from({ length: rows }).map((_, i) => (
             <div
               key={i}
-              className="h-14 border-b border-[rgba(122,82,48,.08)] last:border-b-0 bg-[rgba(122,82,48,.04)]"
+              className="skeleton-shimmer h-14 border-b border-[rgba(122,82,48,.08)] last:border-b-0"
             />
           ))}
         </div>
