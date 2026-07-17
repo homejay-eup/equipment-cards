@@ -4,6 +4,7 @@ import { requirePermission } from '@/lib/admin'
 import { getUsageAnalyticsSummary, getUsageDailyHeatmap } from '@/lib/analytics'
 import AnalyticsClient from '@/components/AnalyticsClient'
 import UsageHeatmap from '@/components/UsageHeatmap'
+import CumulativeDurationChart from '@/components/CumulativeDurationChart'
 import UsageLeaderboard from '@/components/UsageLeaderboard'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
 
@@ -32,6 +33,7 @@ export default async function AnalyticsPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <UsageHeatmap heatmap={heatmapData} />
+        <CumulativeDurationChart heatmap={heatmapData} />
         <UsageLeaderboard rows={analyticsData} />
         <AnalyticsClient initialData={analyticsData} />
       </div>
