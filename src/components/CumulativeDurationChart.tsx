@@ -52,7 +52,7 @@ function formatAxisPeriod(period: string, granularity: Granularity): string {
     const [y, m] = period.split('-')
     return `${y}/${Number(m)}`
   }
-  const [y, m, d] = period.split('-')
+  const [, m, d] = period.split('-')
   return `${Number(m)}/${Number(d)}`
 }
 
