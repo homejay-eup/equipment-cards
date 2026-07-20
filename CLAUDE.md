@@ -220,6 +220,10 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 - 三元運算式不能當 statement（ESLint `no-unused-expressions`，已踩過 3 次）
 - shadcn/ui Popover 在 overflow:hidden 父容器需改 fixed 定位
 - Fuse.js 純數字查詢要走 `includes`，不走模糊算法
+- **⚠️ worktree 內 `npm run build` 驗不出 ESLint error（結構性盲點，已踩坑一次）**：本專案的 git worktree 位於 `設備料卡/.claude/worktrees/...`，往上層目錄另有 `.eslintrc.json`，兩者的 `@next/next` plugin 定義衝突，導致 `next build` 的 lint 階段直接放棄執行（build 尾端會出現 `⨯ ESLint: Plugin "@next/next" was conflicted between ...` 這行），因此**本機 build 就算 exit 0 也不代表 lint 乾淨**。Vercel 從乾淨 checkout 建置時 lint 正常執行，才會抓到 error 導致 production build 失敗。
+  - **對策**：在 worktree 內完成程式碼後、push 到 main 前，針對本次「新增/修改的檔案」額外跑一次繞過巢狀設定的 lint：
+    `npx eslint <改動的檔案...> --no-eslintrc --config .eslintrc.json --parser-options=project:tsconfig.json`
+    確認 `No issues found` 再 push；委派 `tester`/`reviewer` 時也要明確要求做這一步，不要只依賴 `npm run build` 的結果。
 
 ---
 
