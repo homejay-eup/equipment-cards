@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ShieldCheck, RefreshCw, ArrowLeft, Users, BarChart3, Search } from 'lucide-react'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, ShieldCheck, RefreshCw, ArrowLeft, Users, BarChart3, Search } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
@@ -137,6 +137,37 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
     if (!q) return users
     return users.filter(u => u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q))
   }, [users, searchQuery])
+
+  // 前端排序：Email／角色（字串）、初始登入／最後登入（時間，未登入的 null 一律排最後）
+  type SortKey = 'email' | 'role' | 'auth_created_at' | 'last_sign_in_at'
+  const [sort, setSort] = useState<{ key: SortKey | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' })
+
+  function handleSort(key: SortKey) {
+    setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
+  }
+
+  const sortedUsers = useMemo(() => {
+    if (!sort.key) return filteredUsers
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const key = sort.key
+    return [...filteredUsers].sort((a, b) => {
+      if (key === 'email' || key === 'role') {
+        return a[key].localeCompare(b[key], 'zh-Hant') * dir
+      }
+      // 時間欄位：null（尚未登入）恆排最後，不受升降序影響
+      const av = a[key] ? new Date(a[key] as string).getTime() : null
+      const bv = b[key] ? new Date(b[key] as string).getTime() : null
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return (av - bv) * dir
+    })
+  }, [filteredUsers, sort])
+
+  function SortIcon({ column }: { column: SortKey }) {
+    if (sort.key !== column) return <ChevronsUpDown className="h-3 w-3 opacity-40" />
+    return sort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+  }
 
   function handleRemove(user: UserRow) {
     setPendingRemove(user)
@@ -338,15 +369,31 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">角色</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">初始登入</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">最後登入</th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38]">
+                    <button type="button" onClick={() => handleSort('email')} className="flex items-center gap-1 hover:text-[#7a5230] transition-colors">
+                      Email <SortIcon column="email" />
+                    </button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort('role')} className="flex items-center gap-1 hover:text-[#7a5230] transition-colors">
+                      角色 <SortIcon column="role" />
+                    </button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort('auth_created_at')} className="flex items-center gap-1 hover:text-[#7a5230] transition-colors">
+                      初始登入 <SortIcon column="auth_created_at" />
+                    </button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] hidden sm:table-cell whitespace-nowrap">
+                    <button type="button" onClick={() => handleSort('last_sign_in_at')} className="flex items-center gap-1 hover:text-[#7a5230] transition-colors">
+                      最後登入 <SortIcon column="last_sign_in_at" />
+                    </button>
+                  </th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(122,82,48,.08)]">
-                {filteredUsers.map(user => {
+                {sortedUsers.map(user => {
                   const isSelf = user.email === currentUserEmail
                   const isLoading = loadingEmail === user.email
                   const isRowRoleOpen = openRoleEmail === user.email

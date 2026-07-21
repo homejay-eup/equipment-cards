@@ -68,8 +68,11 @@ export async function getUserRoleWithPermissions(): Promise<{ roleName: string; 
   ])
 
   if (!user?.email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
-  if (!isAllowedDomain(user.email)) return { roleName: '', permissions: VIEWER_PERMISSIONS }
 
+  // 不再用網域降級決定權限：登入閘門 isEmailAllowedToLogin 已保證「非公司信箱一定要先被
+  // 管理員加進 allowed_emails 才進得來」，所以這裡一律以 allowed_emails 指派的角色算權限，
+  // 私人信箱（外包人員）指派的角色才會真正生效。未被指派角色者（公司預設 / 查無資料）
+  // 會在下面的 fallback 落到 VIEWER_PERMISSIONS，不會誤放權。
   const { data: emailData } = await getServiceClient()
     .from('allowed_emails')
     .select('role')
@@ -110,9 +113,8 @@ export async function getUserRole(): Promise<'admin' | 'viewer' | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return null
 
-  // 非公司信箱：無權限（嚴格比對 domain）
-  if (!isAllowedDomain(user.email)) return null
-
+  // 與 getUserRoleWithPermissions 一致：不再用網域降級，一律以 allowed_emails 指派的角色決定
+  // （非公司信箱能登入代表已在 allowed_emails；未指派者預設 viewer）
   const { data } = await getServiceClient()
     .from('allowed_emails')
     .select('role')

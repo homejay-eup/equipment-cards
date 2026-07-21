@@ -400,12 +400,13 @@ export default function ExpandableDocumentList({
 
   return (
     <div className="rounded-xl border border-[#e8ddd0] bg-white p-4">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
+      {/* 手機分兩層（標題＋切換一層、搜尋＋動作一層），桌機仍為左右一整排 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+        <div className="flex items-center justify-between sm:justify-start gap-2">
           <h3 className="text-sm font-semibold text-[#6b4f38]">
             文件清單（共 {documents.length} 份，掛載 {cardGroups.length} 張料卡）
           </h3>
-          <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+          <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs flex-shrink-0">
             <button type="button" onClick={() => setView('byDoc')}
               className={`px-2.5 py-1 transition-colors ${view === 'byDoc' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
               依文件
@@ -417,20 +418,20 @@ export default function ExpandableDocumentList({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
             <input value={listQuery} onChange={e => setListQuery(e.target.value)}
               placeholder={view === 'byDoc' ? '搜尋文件名稱…' : '搜尋料號、品名…'}
-              className="pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
+              className="w-full sm:w-auto pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
           </div>
           <button onClick={handleExport} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
             <Download className="h-3.5 w-3.5" />
             匯出 CSV
           </button>
           {view === 'byDoc' && (
             <button onClick={askBatchDelete} disabled={selectedDocIds.size === 0 || deleteRunning}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#b5451b] border border-[rgba(181,69,27,.3)] rounded-lg hover:bg-[rgba(181,69,27,.06)] disabled:opacity-40 transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#b5451b] border border-[rgba(181,69,27,.3)] rounded-lg hover:bg-[rgba(181,69,27,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
               <Trash2 className="h-3.5 w-3.5" />
               批次刪除（{selectedDocIds.size}）
             </button>

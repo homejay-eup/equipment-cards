@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useMemo } from 'react'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import type { UsageAnalyticsRow } from '@/lib/analytics'
 
 interface Props {
@@ -17,7 +19,53 @@ function formatDuration(seconds: number): string {
   return `${hours} 小時 ${minutes} 分`
 }
 
+type SortKey = 'email' | 'loginCount' | 'totalDurationSeconds' | 'averageDurationSeconds' | 'card_search' | 'card_detail_view'
+
+// 各欄位取值（數字欄位皆回傳 number，email 回字串），供排序共用
+function sortValue(row: UsageAnalyticsRow, key: SortKey): string | number {
+  switch (key) {
+    case 'email': return row.email
+    case 'loginCount': return row.loginCount
+    case 'totalDurationSeconds': return row.totalDurationSeconds
+    case 'averageDurationSeconds': return row.averageDurationSeconds
+    case 'card_search': return row.eventCounts['card_search'] ?? 0
+    case 'card_detail_view': return row.eventCounts['card_detail_view'] ?? 0
+  }
+}
+
 export default function AnalyticsClient({ initialData }: Props) {
+  // 前端排序：預設維持後端排序（總停留時長 desc），點欄位才切換
+  const [sort, setSort] = useState<{ key: SortKey | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' })
+
+  function handleSort(key: SortKey) {
+    setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
+  }
+
+  const sortedData = useMemo(() => {
+    if (!sort.key) return initialData
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const key = sort.key
+    return [...initialData].sort((a, b) => {
+      const av = sortValue(a, key)
+      const bv = sortValue(b, key)
+      if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv, 'zh-Hant') * dir
+      return ((av as number) - (bv as number)) * dir
+    })
+  }, [initialData, sort])
+
+  function SortableHeader({ label, column, className }: { label: string; column: SortKey; className?: string }) {
+    return (
+      <th className={`text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap ${className ?? ''}`}>
+        <button type="button" onClick={() => handleSort(column)} className="flex items-center gap-1 hover:text-[#7a5230] transition-colors">
+          {label}
+          {sort.key !== column
+            ? <ChevronsUpDown className="h-3 w-3 opacity-40" />
+            : sort.dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+      </th>
+    )
+  }
+
   return (
     <div>
       <div className="mb-3 text-sm text-[#a08060]">
@@ -32,16 +80,16 @@ export default function AnalyticsClient({ initialData }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.12)]">
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">登入次數</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">總停留時長</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">平均停留時長</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">料卡搜尋次數</th>
-                  <th className="text-left px-4 py-3 font-medium text-[#6b4f38] whitespace-nowrap">料卡瀏覽次數</th>
+                  <SortableHeader label="Email" column="email" />
+                  <SortableHeader label="登入次數" column="loginCount" />
+                  <SortableHeader label="總停留時長" column="totalDurationSeconds" />
+                  <SortableHeader label="平均停留時長" column="averageDurationSeconds" />
+                  <SortableHeader label="料卡搜尋次數" column="card_search" />
+                  <SortableHeader label="料卡瀏覽次數" column="card_detail_view" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(122,82,48,.08)]">
-                {initialData.map(row => (
+                {sortedData.map(row => (
                   <tr key={row.email} className="hover:bg-[rgba(122,82,48,.03)] transition-colors">
                     <td className="px-4 py-3 text-[#2c1e12] whitespace-nowrap">{row.email}</td>
                     <td className="px-4 py-3 text-[#4a3422]">{row.loginCount}</td>
