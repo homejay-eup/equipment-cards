@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -19,19 +19,40 @@ interface Props {
 
 type Granularity = 'daily' | 'monthly'
 
-const BAR_COLOR = '#7a5230'
+const AREA_COLOR = '#7a5230'
 const AXIS_COLOR = '#c4b19a'
 const GRID_COLOR = 'rgba(122,82,48,.1)'
 const MAX_VISIBLE_TICKS = 12
 
-// Y 軸刻度用：粗略顯示到整數小時。先四捨五入到分鐘再判斷門檻，
-// 避免「59.9 分鐘」這種邊界值被 <1 小時分支誤判成「60 分鐘」而非「1 小時」
+// Y 軸刻度用：累計值皆為小時級（不會低於 1 小時），統一顯示整數「X 小時」，
+// 包含 0 也顯示「0 小時」，不再出現分鐘單位。傳入值為分鐘，換算成小時後四捨五入。
 function formatHoursAxis(minutes: number): string {
-  const totalMinutes = Math.round(minutes)
-  if (totalMinutes < 60) {
-    return `${totalMinutes} 分鐘`
+  return `${Math.round(minutes / 60)} 小時`
+}
+
+// 依資料最大值算出整齊的 Y 軸上限與刻度（皆以分鐘為單位，供 recharts domain/ticks 使用）。
+// 級距（step）從候選整數小時中挑選，讓刻度數量落在約 4~5 個之間，避免 recharts 自動產生
+// 67/133/267 這種怪數。上限往上取整到 step 的倍數；若剛好等於最大值再加一個 step，
+// 確保頂端資料點上方一定有留白、不會被切到。
+function computeHoursAxis(maxMinutes: number): { domainMax: number; ticks: number[] } {
+  const maxHours = maxMinutes / 60
+  const candidateSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
+  let step = candidateSteps[candidateSteps.length - 1]
+  for (const candidate of candidateSteps) {
+    if (Math.ceil(maxHours / candidate) <= 5) {
+      step = candidate
+      break
+    }
   }
-  return `${Math.round(totalMinutes / 60)} 小時`
+  let upperHours = Math.ceil(maxHours / step) * step
+  if (upperHours <= maxHours) upperHours += step
+  if (upperHours <= 0) upperHours = step
+
+  const ticks: number[] = []
+  for (let h = 0; h <= upperHours + 1e-9; h += step) {
+    ticks.push(h * 60)
+  }
+  return { domainMax: upperHours * 60, ticks }
 }
 
 // Tooltip 用：精確顯示「X 小時 Y 分」，比照 UsageHeatmap.tsx/UsageLeaderboard.tsx
@@ -139,6 +160,10 @@ export default function CumulativeDurationChart({ heatmap }: Props) {
   const tickInterval =
     data.length > MAX_VISIBLE_TICKS ? Math.ceil(data.length / MAX_VISIBLE_TICKS) : 0
 
+  // Y 軸整齊化：以資料最大累計值算出整齊的上限與刻度（累計值只增不減，最大值即最後一點）
+  const maxMinutes = data.reduce((m, p) => Math.max(m, p.cumulativeMinutes), 0)
+  const { domainMax, ticks } = computeHoursAxis(maxMinutes)
+
   return (
     <div className="mb-6">
       <ChartCard
@@ -149,7 +174,13 @@ export default function CumulativeDurationChart({ heatmap }: Props) {
           <EmptyState />
         ) : (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="cumulativeDurationFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={AREA_COLOR} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={AREA_COLOR} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
               <CartesianGrid stroke={GRID_COLOR} vertical={false} />
               <XAxis
                 dataKey="period"
@@ -162,6 +193,8 @@ export default function CumulativeDurationChart({ heatmap }: Props) {
               />
               <YAxis
                 dataKey="cumulativeMinutes"
+                domain={[0, domainMax]}
+                ticks={ticks}
                 tickFormatter={formatHoursAxis}
                 stroke={AXIS_COLOR}
                 tick={{ fill: '#a08060', fontSize: 12 }}
@@ -178,8 +211,14 @@ export default function CumulativeDurationChart({ heatmap }: Props) {
                   fontSize: 12,
                 }}
               />
-              <Bar dataKey="cumulativeMinutes" fill={BAR_COLOR} radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Area
+                type="monotone"
+                dataKey="cumulativeMinutes"
+                stroke={AREA_COLOR}
+                strokeWidth={2}
+                fill="url(#cumulativeDurationFill)"
+              />
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </ChartCard>

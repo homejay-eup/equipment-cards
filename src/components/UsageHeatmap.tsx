@@ -139,7 +139,7 @@ export default function UsageHeatmap({ heatmap }: Props) {
                       style={{ height: CELL_SIZE, fontSize: 10, lineHeight: `${CELL_SIZE}px` }}
                       className="text-[#a08060]"
                     >
-                      {i % 2 === 1 ? label : ''}
+                      {label}
                     </div>
                   ))}
                 </div>
