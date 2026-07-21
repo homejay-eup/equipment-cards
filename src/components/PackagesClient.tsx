@@ -19,6 +19,7 @@ interface Props {
   permissions: string[]
   userDepartmentId: string | null
   sourceGroupUpdatedAt: Record<string, string>
+  isActive: boolean
 }
 
 // 純前端比對：同部門套餐是否有兩個以上料號組合完全相同（排序後 set 比較）
@@ -50,7 +51,7 @@ function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, strin
 // PhotoWall 往下傳（page.tsx 一次 fetch 好），不再自己 fetch allCards。
 export default function PackagesClient({
   initialOwnPackages, initialSharedPackages, departments, allCards,
-  permissions, userDepartmentId, sourceGroupUpdatedAt,
+  permissions, userDepartmentId, sourceGroupUpdatedAt, isActive,
 }: Props) {
   const pkgApi = usePackages()
   const [ownPackages, setOwnPackages] = useState<EquipmentPackage[]>(initialOwnPackages)
@@ -81,6 +82,16 @@ export default function PackagesClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 這個分頁是「首次切入才 mount，之後 CSS 隱藏保留 state」，不會每次切換都重新 mount，
+  // 所以資料只在第一次進入時抓過一次；例如在「我的關注」複製/對齊套餐後切回這個分頁，
+  // 不會自動知道要重抓。改成每次「切回」這個分頁都重新拿一次最新清單。
+  useEffect(() => {
+    if (!isActive) return
+    if (canViewOwn) refreshOwn()
+    if (canViewShared) refreshShared()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive])
 
   const duplicateGroups = useMemo(() => computeDuplicateGroups(ownPackages), [ownPackages])
 
