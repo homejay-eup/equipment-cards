@@ -246,15 +246,21 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     if (isNewFilter)               result = result.filter(c => c.is_new)
     if (noPhotoFilter)             result = result.filter(c => !c.main_photo)
     if (selectedSubTags.length > 0) {
+      // 次級篩選是精確的預設標籤（例如「MDVR-4G-2鏡」），一律用精確包含比對，
+      // 不能走 Fuse 模糊搜尋——否則「MDVR-4G-2鏡」跟「MDVR-4G-8鏡」這種只差一個字元
+      // 的標籤會互相模糊命中，篩選範圍變得不精確
       const matchedIds = new Set<string>()
       for (const tag of selectedSubTags) {
         const t = tag.trim()
-        if (/^\d+$/.test(t)) {
-          result.forEach(c => { if (c.equipment_id.includes(t) || c.name.includes(t)) matchedIds.add(c.equipment_id) })
-        } else {
-          const fuseT = t.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
-          if (fuseT) fuse.search(fuseT).forEach(r => matchedIds.add(r.item.equipment_id))
-        }
+        result.forEach(c => {
+          if (
+            c.equipment_id.includes(t) ||
+            c.name.includes(t) ||
+            c.tags.some(cardTag => cardTag.includes(t))
+          ) {
+            matchedIds.add(c.equipment_id)
+          }
+        })
       }
       result = result.filter(c => matchedIds.has(c.equipment_id))
     }
