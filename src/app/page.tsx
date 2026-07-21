@@ -9,7 +9,9 @@ import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { assertStillAuthorized, getUserRoleWithPermissions } from '@/lib/admin'
 import { getSettings } from '@/lib/settings'
+import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 import type { Issue } from '@/app/tracker/page'
+import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 
 async function getEquipmentCards(): Promise<EquipmentCard[]> {
   const supabase = createClient(
@@ -215,6 +217,81 @@ async function getTrackerData(userEmail: string): Promise<{
   return { initialIssues, allowedEmails, issueTypes, issueTags, userDepartmentId }
 }
 
+interface PackagesData {
+  ownPackages: EquipmentPackage[]
+  sharedPackages: SharedEquipmentPackage[]
+  departments: { id: string; name: string }[]
+  userDepartmentId: string | null
+  sourceGroupUpdatedAt: Record<string, string>
+}
+
+// Step 34 第四輪：原本是獨立路由 /packages page.tsx 自己 fetch 的邏輯搬過來，
+// 比照 getTrackerData/getQuoteItems 模式改為 HomePage 一次 fetch 好透過 props 往下傳，
+// allCards 直接沿用呼叫端已查好的 getEquipmentCards() 結果，不重複查一次。
+async function getPackagesData(userEmail: string, permissions: string[]): Promise<PackagesData> {
+  const adminClient = getServiceClient()
+  const userDepartmentId = userEmail ? await getCallerDepartmentId(userEmail) : null
+
+  const canViewOwn = permissions.includes('view_own_packages') || permissions.includes('edit_own_packages')
+  const canViewShared = permissions.includes('view_shared_packages')
+
+  const [ownResult, sharedResult, deptResult] = await Promise.all([
+    canViewOwn && userDepartmentId
+      ? adminClient
+          .from('equipment_packages')
+          .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+          .eq('department_id', userDepartmentId)
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] }),
+    canViewShared && userDepartmentId
+      ? (async () => {
+          const { data: shares } = await adminClient
+            .from('package_shared_departments')
+            .select('package_id')
+            .eq('department_id', userDepartmentId)
+          const packageIds = (shares ?? []).map((s: { package_id: string }) => s.package_id)
+          if (packageIds.length === 0) return { data: [] }
+          return adminClient
+            .from('equipment_packages')
+            .select('*, package_items(equipment_id, added_at), departments!equipment_packages_department_id_fkey(name)')
+            .in('id', packageIds)
+            .neq('department_id', userDepartmentId)
+            .order('created_at', { ascending: false })
+        })()
+      : Promise.resolve({ data: [] }),
+    adminClient.from('departments').select('id, name').order('created_at', { ascending: true }),
+  ])
+
+  const ownPackages = (ownResult.data ?? []) as EquipmentPackage[]
+
+  // 對齊狀態徽章用：另外查一次 user_groups（service client，不受 RLS/擁有者限制），
+  // 組成 { source_group_id: updated_at } 對照表供前端比較是否「來源已更新」。
+  const sourceGroupIds = Array.from(new Set(
+    ownPackages.map(p => p.source_group_id).filter((id): id is string => !!id),
+  ))
+  const sourceGroupUpdatedAt: Record<string, string> = {}
+  if (sourceGroupIds.length > 0) {
+    const { data: sourceGroups } = await adminClient
+      .from('user_groups')
+      .select('id, updated_at')
+      .in('id', sourceGroupIds)
+    for (const g of (sourceGroups ?? []) as { id: string; updated_at: string }[]) {
+      sourceGroupUpdatedAt[g.id] = g.updated_at
+    }
+  }
+
+  type SharedRaw = Record<string, unknown> & { departments?: { name: string } | null }
+  const sharedPackages: SharedEquipmentPackage[] = ((sharedResult.data ?? []) as SharedRaw[]).map((p) => ({
+    ...(p as unknown as EquipmentPackage),
+    source_department_name: p.departments?.name ?? null,
+  }))
+
+  const departments = (deptResult.data ?? []) as { id: string; name: string }[]
+
+  return { ownPackages, sharedPackages, departments, userDepartmentId, sourceGroupUpdatedAt }
+}
+
 export default async function HomePage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -250,6 +327,10 @@ export default async function HomePage() {
     ? rawQuoteItems
     : rawQuoteItems.map(item => ({ ...item, manager_price: null }))
 
+  const PACKAGE_PERM_KEYS = ['view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages']
+  const hasPackagesPermission = PACKAGE_PERM_KEYS.some(k => permissions.includes(k))
+  const packagesData = hasPackagesPermission ? await getPackagesData(user.email ?? '', permissions) : undefined
+
   return (
     <main className="min-h-screen bg-[#faf6f0]">
       <Suspense fallback={
@@ -269,6 +350,7 @@ export default async function HomePage() {
           trackerData={trackerData ?? undefined}
           subfilterConfig={subfilterConfig}
           quoteItems={quoteItems}
+          packagesData={packagesData}
         />
       </Suspense>
     </main>

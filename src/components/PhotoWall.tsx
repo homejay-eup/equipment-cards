@@ -16,9 +16,11 @@ import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
 import QuotesClient from '@/components/QuotesClient'
 import DocumentsClient from '@/components/DocumentsClient'
+import PackagesClient from '@/components/PackagesClient'
 import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
+import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { useHeartbeat } from '@/hooks/useHeartbeat'
 import { logUsageEvent } from '@/lib/analyticsClient'
 
@@ -28,6 +30,14 @@ interface TrackerData {
   issueTypes: string[]
   issueTags: string[]
   userDepartmentId?: string | null
+}
+
+interface PackagesData {
+  ownPackages: EquipmentPackage[]
+  sharedPackages: SharedEquipmentPackage[]
+  departments: { id: string; name: string }[]
+  userDepartmentId: string | null
+  sourceGroupUpdatedAt: Record<string, string>
 }
 
 interface Props {
@@ -42,6 +52,7 @@ interface Props {
   trackerData?: TrackerData
   subfilterConfig?: Record<string, string[]>
   quoteItems?: QuoteItem[]
+  packagesData?: PackagesData
 }
 
 const SORT_OPTIONS = [
@@ -50,7 +61,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [] }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -106,7 +117,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -129,6 +140,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [activeTab])
   // 文件管理批次動作背景執行中時，即使切走分頁也要在分頁按鈕上維持提示
   const [documentsBusy, setDocumentsBusy] = useState(false)
+  // 首次切到「設備套餐」才 mount PackagesClient，之後保持常駐（CSS hide/show）保留 state
+  const [packagesMounted, setPackagesMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'packages') setPackagesMounted(true)
+  }, [activeTab])
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
     if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
@@ -640,19 +656,23 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             )}
             {(permissions.includes('view_own_packages') || permissions.includes('edit_own_packages')
               || permissions.includes('share_own_packages') || permissions.includes('view_shared_packages')) && (
-              <Link
-                href="/packages"
+              <button
+                onClick={() => setActiveTab('packages')}
                 title="設備套餐"
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'packages'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
               >
                 <Package className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">設備套餐</span>
-              </Link>
+              </button>
             )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -997,6 +1017,21 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             allCards={initialCards}
             documentTypes={settings.documentTypes}
             onBusyChange={setDocumentsBusy}
+          />
+        </div>
+      )}
+
+      {/* 設備套餐：首次進入後保持常駐（CSS hide/show），資料由 page.tsx 一次 fetch 好往下傳 */}
+      {packagesMounted && packagesData && (
+        <div className={activeTab !== 'packages' ? 'hidden' : ''}>
+          <PackagesClient
+            initialOwnPackages={packagesData.ownPackages}
+            initialSharedPackages={packagesData.sharedPackages}
+            departments={packagesData.departments}
+            allCards={initialCards}
+            permissions={permissions}
+            userDepartmentId={packagesData.userDepartmentId}
+            sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Loader2, Search, LayoutGrid, List as ListIcon, Check, RefreshCw,
 } from 'lucide-react'
@@ -83,7 +83,13 @@ export default function PackageExplorer({
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; names: string[] } | null>(null)
   const [running, setRunning] = useState(false)
 
+  // 分享成功提示：範圍侷限套餐分享情境的輕量 toast，2.5 秒後自動消失（無全站共用元件）
+  const [shareToast, setShareToast] = useState<string | null>(null)
+  const shareToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current) }, [])
+
   const cardMap = useMemo(() => new Map(allCards.map(c => [c.equipment_id, c])), [allCards])
+  const deptNameMap = useMemo(() => new Map(departments.map(d => [d.id, d.name])), [departments])
 
   function toggleExpand(key: string) {
     setExpanded(prev => {
@@ -163,6 +169,18 @@ export default function PackageExplorer({
     )
   }
 
+  // 本部門套餐已分享部門標籤（僅 own 有意義；shared 視圖用 source_department_name 顯示「來自」）
+  function sharedDeptLabel(pkg: EquipmentPackage | SharedEquipmentPackage) {
+    const shares = pkg.package_shared_departments
+    if (!shares || shares.length === 0) return null
+    const names = shares.map(s => deptNameMap.get(s.department_id) ?? s.department_id)
+    return (
+      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)] flex-shrink-0">
+        分享給：{names.join('、')}
+      </span>
+    )
+  }
+
   // ── 新增掛載（複選）──────────────────────────────────────────
   async function handleAddManyToPackage(packageId: string, equipmentIds: string[]) {
     if (equipmentIds.length === 0) return
@@ -233,19 +251,6 @@ export default function PackageExplorer({
     await onChanged()
   }
 
-  async function handleRemoveSingle(packageId: string, equipmentId: string) {
-    setActionError(null)
-    setBusyIds(prev => new Set([...Array.from(prev), packageId]))
-    try {
-      await pkgApi.removeItem(packageId, equipmentId)
-      await onChanged()
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : '移除失敗')
-    } finally {
-      setBusyIds(prev => { const n = new Set(prev); n.delete(packageId); return n })
-    }
-  }
-
   // ── 重命名 ────────────────────────────────────────────────
   function startRename(pkg: EquipmentPackage | SharedEquipmentPackage) {
     setRenamingId(pkg.id)
@@ -298,7 +303,14 @@ export default function PackageExplorer({
     try {
       await pkgApi.batchShare(ids, departmentIds)
       setShareOpen(false)
-      await onChanged()
+      await onChanged() // 重新整理套餐清單，列表上的「分享給：OO部門」標籤即刻反映最新結果
+      if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current)
+      setShareToast(
+        departmentIds.length > 0
+          ? `已分享至 ${departmentIds.length} 個部門`
+          : '已取消分享（不再分享給任何部門）',
+      )
+      shareToastTimerRef.current = setTimeout(() => setShareToast(null), 2500)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : '分享設定失敗')
     }
@@ -390,6 +402,7 @@ export default function PackageExplorer({
           togglePackageSelect={togglePackageSelect}
           duplicateGroups={duplicateGroups}
           alignmentBadge={alignmentBadge}
+          sharedDeptLabel={sharedDeptLabel}
           display={display}
           renamingId={renamingId}
           renameValue={renameValue}
@@ -400,7 +413,6 @@ export default function PackageExplorer({
           selectedUnlinkKeys={selectedUnlinkKeys}
           toggleUnlinkSelect={toggleUnlinkSelect}
           running={running}
-          handleRemoveSingle={handleRemoveSingle}
           handleBatchUnlink={handleBatchUnlink}
           handleAddManyToPackage={handleAddManyToPackage}
           setDuplicateTarget={setDuplicateTarget}
@@ -457,6 +469,17 @@ export default function PackageExplorer({
           onConfirm={handleConfirmDuplicate}
           onCancel={() => setDuplicateTarget(null)}
         />
+      )}
+
+      {/* 分享成功提示：輕量 toast，侷限套餐分享情境，2.5 秒後自動消失 */}
+      {shareToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] bg-[#4a3422] text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2"
+        >
+          {shareToast}
+        </div>
       )}
     </div>
   )
