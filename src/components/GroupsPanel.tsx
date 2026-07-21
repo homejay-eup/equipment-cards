@@ -806,9 +806,11 @@ export default function GroupsPanel({
                         </>
                       )}
 
-                      {/* 編輯按鈕：重命名時隱藏，absolute 不佔計數空間 */}
+                      {/* 編輯按鈕：重命名時隱藏。改為佔用 flex 版面空間（非 absolute），
+                          避免覆蓋在筆數／對齊徽章上方——hover 前用 opacity-0 + pointer-events-none
+                          隱藏但保留版面寬度，hover 後才淡入並可點擊 */}
                       {!group.is_default && renamingId !== group.id && (
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity bg-gradient-to-l from-[#faf6f0] from-50% pl-8">
+                        <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 pointer-events-none group-hover/header:opacity-100 group-hover/header:pointer-events-auto transition-opacity">
                           {canManagePackages && (
                             packagesByGroupId[group.id] ? (
                               <button

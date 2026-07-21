@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import Link from 'next/link'
-import { ArrowLeft, Plus, Check, X, Loader2, Package } from 'lucide-react'
+import { Plus, Check, X, Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import PackageExplorer from '@/components/packages/PackageExplorer'
@@ -18,7 +17,6 @@ interface Props {
   departments: Department[]
   allCards: EquipmentCard[]
   permissions: string[]
-  userEmail: string
   userDepartmentId: string | null
   sourceGroupUpdatedAt: Record<string, string>
 }
@@ -47,6 +45,9 @@ function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, strin
   return result
 }
 
+// Step 34 第四輪：原本是獨立路由 /packages 的頁面內容，改為 PhotoWall 內嵌分頁
+// （比照任務板/人為配件報價/文件管理），移除頁面標題列與返回連結，資料改由
+// PhotoWall 往下傳（page.tsx 一次 fetch 好），不再自己 fetch allCards。
 export default function PackagesClient({
   initialOwnPackages, initialSharedPackages, departments, allCards,
   permissions, userDepartmentId, sourceGroupUpdatedAt,
@@ -121,16 +122,6 @@ export default function PackagesClient({
 
   return (
     <div className="max-w-5xl mx-auto px-4 pt-4 pb-16 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Link href="/" className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors" title="返回首頁">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <Package className="h-5 w-5 text-[#7a5230]" />
-          <h1 className="text-lg font-semibold text-[#4a3422]">設備套餐</h1>
-        </div>
-      </div>
-
       {loadError && <p className="text-xs text-[#b5451b]">{loadError}</p>}
 
       {canViewOwn && (

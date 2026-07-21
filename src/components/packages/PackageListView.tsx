@@ -15,10 +15,10 @@ type DisplayMode = 'list' | 'photo'
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function PackageListView({
   filteredPackages, allCards, cardMap, expanded, toggleExpand, busyIds, isShared, canEdit, canShare,
-  selectedPackageIds, togglePackageSelect, duplicateGroups, alignmentBadge, display,
+  selectedPackageIds, togglePackageSelect, duplicateGroups, alignmentBadge, sharedDeptLabel, display,
   renamingId, renameValue, setRenameValue, submitRename, startRename, setRenamingId,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
-  handleRemoveSingle, handleBatchUnlink, handleAddManyToPackage,
+  handleBatchUnlink, handleAddManyToPackage,
   setDuplicateTarget, askDeleteSingle,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
@@ -34,6 +34,7 @@ export default function PackageListView({
   togglePackageSelect: (id: string) => void
   duplicateGroups: Map<string, string[]>
   alignmentBadge: (pkg: EquipmentPackage | SharedEquipmentPackage) => React.ReactNode
+  sharedDeptLabel: (pkg: EquipmentPackage | SharedEquipmentPackage) => React.ReactNode
   display: DisplayMode
   renamingId: string | null
   renameValue: string
@@ -44,7 +45,6 @@ export default function PackageListView({
   selectedUnlinkKeys: Set<string>
   toggleUnlinkSelect: (packageId: string, equipmentId: string) => void
   running: boolean
-  handleRemoveSingle: (packageId: string, equipmentId: string) => void | Promise<void>
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddManyToPackage: (packageId: string, equipmentIds: string[]) => void | Promise<void>
   setDuplicateTarget: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
@@ -96,6 +96,7 @@ export default function PackageListView({
                   來自：{sharedDept}
                 </span>
               )}
+              {!isShared && sharedDeptLabel(pkg)}
               {alignmentBadge(pkg)}
               {duplicates && duplicates.length > 0 && (
                 <span title={`與「${duplicates.join('、')}」內容完全相同`}
@@ -126,16 +127,23 @@ export default function PackageListView({
                   <p className="text-xs text-[#a08060] py-1.5">此套餐尚無料卡</p>
                 ) : display === 'photo' ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 py-2">
-                    {equipmentCards.map(card => (
-                      <EquipmentCardItem
-                        key={card.equipment_id}
-                        card={card}
-                        onClick={() => {}}
-                        isAdmin={false}
-                        activeStatus={card.status}
-                        onRemoveFromGroup={!isShared && canEdit ? () => handleRemoveSingle(pkg.id, card.equipment_id) : undefined}
-                      />
-                    ))}
+                    {equipmentCards.map(card => {
+                      // 照片模式改用跟清單模式對等的複選＋批次取消掛載（沿用同一份 selectedUnlinkKeys），
+                      // 不再是單張單顆「－」立即移除，維持跟清單模式一致的操作方式
+                      const k = unlinkKey(pkg.id, card.equipment_id)
+                      return (
+                        <EquipmentCardItem
+                          key={card.equipment_id}
+                          card={card}
+                          onClick={() => {}}
+                          isAdmin={false}
+                          activeStatus={card.status}
+                          selectMode={!isShared && canEdit}
+                          isSelected={selectedUnlinkKeys.has(k)}
+                          onSelect={() => toggleUnlinkSelect(pkg.id, card.equipment_id)}
+                        />
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1 py-1.5">
