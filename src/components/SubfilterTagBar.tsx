@@ -25,6 +25,9 @@ export default function SubfilterTagBar({
   const [inputValue, setInputValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  // 用 index 而非標籤字串本身記錄拖曳來源/目標，避免萬一出現重複標籤字串時 indexOf 抓錯位置
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   function openEdit() {
     setEditTags([...tags])
@@ -52,6 +55,18 @@ export default function SubfilterTagBar({
 
   function removeEditTag(tag: string) {
     setEditTags(prev => prev.filter(t => t !== tag))
+  }
+
+  function handleTagReorder(fromIdx: number, toIdx: number) {
+    if (fromIdx === toIdx) return
+    setEditTags(prev => {
+      const reordered = [...prev]
+      const [dragged] = reordered.splice(fromIdx, 1)
+      reordered.splice(toIdx, 0, dragged)
+      return reordered
+    })
+    setDraggingIndex(null)
+    setDragOverIndex(null)
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -124,10 +139,17 @@ export default function SubfilterTagBar({
             {editTags.length === 0 && (
               <span className="text-xs text-[#c0a882] italic">尚無標籤</span>
             )}
-            {editTags.map(tag => (
+            {editTags.map((tag, idx) => (
               <span
-                key={tag}
-                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)]"
+                key={`${tag}-${idx}`}
+                draggable
+                onDragStart={() => setDraggingIndex(idx)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx) }}
+                onDrop={(e) => { e.preventDefault(); if (draggingIndex !== null) handleTagReorder(draggingIndex, idx) }}
+                onDragEnd={() => { setDraggingIndex(null); setDragOverIndex(null) }}
+                className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)] cursor-grab ${
+                  draggingIndex !== null && dragOverIndex === idx ? 'ring-2 ring-[#c49a72]' : ''
+                }`}
               >
                 {tag}
                 <button

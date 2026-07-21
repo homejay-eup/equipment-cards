@@ -253,8 +253,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         c.name.includes(q)
       )
     } else {
-      const fuseQ = q.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
-      result = fuseQ ? fuse.search(fuseQ).map(r => r.item) : [...initialCards]
+      // 兩階段搜尋：先精確比對（避免「MDVR-4G-4鏡」誤命中「HS 4G-DVR」這種
+      // 只是部分片段對得上、但整體不相關的料卡），只有完全沒有精確結果時
+      // 才 fallback 回 Fuse 模糊搜尋，保留給打錯字/記不清楚名稱的情境用
+      const exactMatches = initialCards.filter(c =>
+        c.equipment_id.includes(q) ||
+        c.name.includes(q) ||
+        c.tags.some(tag => tag.includes(q)) ||
+        (c.vendor ?? '').includes(q) ||
+        (c.category ?? '').includes(q)
+      )
+      if (exactMatches.length > 0) {
+        result = exactMatches
+      } else {
+        const fuseQ = q.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
+        result = fuseQ ? fuse.search(fuseQ).map(r => r.item) : [...initialCards]
+      }
     }
 
     if (selectedCats.size > 0)     result = result.filter(c => selectedCats.has(c.category ?? ''))
@@ -926,7 +940,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           {/* 結果數量 */}
           <p className="text-sm text-[#a08060] mb-4">
             顯示 {filtered.length} / {initialCards.length} 筆
-            {query && <span className="ml-1.5 text-[#7a5230]">— 模糊搜尋「{query}」</span>}
+            {query && <span className="ml-1.5 text-[#7a5230]">— 搜尋「{query}」</span>}
           </p>
 
           {/* 網格 */}
