@@ -6,7 +6,7 @@ import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 // ── GET /api/packages ──────────────────────────────────────────
 // 查詢「本部門套餐」清單（含內含料卡）
 // 權限：view_own_packages 或 edit_own_packages（edit 隱含 view）
-export async function GET(req: NextRequest) {
+export async function GET() {
   const supabase = createSupabaseServerClient()
   const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser?.email) {

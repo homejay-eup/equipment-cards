@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── GET /api/packages/shared ───────────────────────────────────
 // 查詢其他部門有分享給「我的部門」的套餐（永遠唯讀），每筆帶來源部門名稱
 // 權限：view_shared_packages
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const user = await requirePermission('view_shared_packages')
   if (!user) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
