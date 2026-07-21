@@ -1046,6 +1046,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             permissions={permissions}
             userDepartmentId={packagesData.userDepartmentId}
             sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
+            isActive={activeTab === 'packages'}
           />
         </div>
       )}
