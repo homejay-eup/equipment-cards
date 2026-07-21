@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const { data, error } = await admin
     .from('user_groups')
-    .update({ name: name.trim() })
+    .update({ name: name.trim(), updated_at: new Date().toISOString() })
     .eq('id', params.id)
     .select('*, group_items(equipment_id, added_at)')
     .single()

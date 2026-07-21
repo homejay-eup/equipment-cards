@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     } catch {
       // ignore duplicate key error
     }
+    // 供「設備套餐」來源對齊機制比對：替換卡片也算群組內容變動
+    await admin.from('user_groups').update({ updated_at: new Date().toISOString() }).eq('id', groupId)
   }
 
   return NextResponse.json({ success: true })

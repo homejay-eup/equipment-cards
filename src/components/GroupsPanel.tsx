@@ -5,7 +5,8 @@ import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, GripVertical } from 'lucide-react'
+import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, GripVertical, Copy, RefreshCw, PackageCheck } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -17,6 +18,8 @@ interface GroupsPanelProps {
   filteredCards?: EquipmentCard[]
   bookmarkedIds?: Set<string>
   onToggleBookmark?: (card: EquipmentCard) => void
+  // Step 34：設備套餐來源對齊機制。預設 false 不影響既有呼叫端（未給此 prop 時完全不出現套餐相關按鈕/API 呼叫）
+  canManagePackages?: boolean
 }
 
 // ── 替換料卡彈窗 ────────────────────────────────────────────────
@@ -322,6 +325,7 @@ export default function GroupsPanel({
   filteredCards,
   bookmarkedIds,
   onToggleBookmark,
+  canManagePackages = false,
 }: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
@@ -350,6 +354,73 @@ export default function GroupsPanel({
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+
+  // ── Step 34：設備套餐來源對齊（複製為套餐／重新對齊套餐） ─────────
+  const pkgApi = usePackages()
+  // 只在有 canManagePackages 時才打 /api/packages，避免沒有此權限的一般使用者也發出請求
+  const [packagesByGroupId, setPackagesByGroupId] = useState<Record<string, EquipmentPackage>>({})
+  const [packageActionError, setPackageActionError] = useState<string | null>(null)
+  const [copyingGroupId, setCopyingGroupId] = useState<string | null>(null)
+  const [aligningGroupId, setAligningGroupId] = useState<string | null>(null)
+  const [alignConfirmGroup, setAlignConfirmGroup] = useState<UserGroup | null>(null)
+
+  useEffect(() => {
+    if (!canManagePackages) return
+    let cancelled = false
+    pkgApi.list().then(pkgs => {
+      if (cancelled) return
+      const map: Record<string, EquipmentPackage> = {}
+      for (const p of pkgs) {
+        if (p.source_group_id) map[p.source_group_id] = p
+      }
+      setPackagesByGroupId(map)
+    }).catch(() => { /* 靜默失敗：僅是輔助資訊，不影響群組本身功能 */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManagePackages])
+
+  async function handleCopyToPackage(group: UserGroup) {
+    setPackageActionError(null)
+    setCopyingGroupId(group.id)
+    try {
+      const pkg = await pkgApi.create(group.name, group.id)
+      setPackagesByGroupId(prev => ({ ...prev, [group.id]: pkg }))
+    } catch (e) {
+      setPackageActionError(e instanceof Error ? e.message : '複製為套餐失敗')
+    } finally {
+      setCopyingGroupId(null)
+    }
+  }
+
+  function askAlign(group: UserGroup) {
+    setAlignConfirmGroup(group)
+  }
+
+  async function handleConfirmAlign() {
+    const group = alignConfirmGroup
+    setAlignConfirmGroup(null)
+    if (!group) return
+    const linked = packagesByGroupId[group.id]
+    if (!linked) return
+    setPackageActionError(null)
+    setAligningGroupId(group.id)
+    try {
+      const pkg = await pkgApi.align(linked.id)
+      setPackagesByGroupId(prev => ({ ...prev, [group.id]: pkg }))
+    } catch (e) {
+      setPackageActionError(e instanceof Error ? e.message : '重新對齊失敗')
+    } finally {
+      setAligningGroupId(null)
+    }
+  }
+
+  // 對齊狀態：group.updated_at（SQL migration 執行前可能為 undefined，視為未過期）
+  // 晚於 linked package 的 source_synced_at → 來源已更新，可重新對齊
+  function isSourceStale(group: UserGroup, linked: EquipmentPackage): boolean {
+    if (!group.updated_at) return false
+    if (!linked.source_synced_at) return true
+    return new Date(group.updated_at).getTime() > new Date(linked.source_synced_at).getTime()
+  }
 
   // 搜尋篩選 Set：O(1) 查詢用
   const filteredSet = useMemo(() =>
@@ -623,6 +694,10 @@ export default function GroupsPanel({
               )}
             </div>
 
+            {packageActionError && (
+              <p className="text-xs text-[#b5451b] pt-2">{packageActionError}</p>
+            )}
+
             {/* 群組列表 */}
             <div className="divide-y divide-[rgba(122,82,48,.08)]">
               {groups.map(group => {
@@ -709,6 +784,20 @@ export default function GroupsPanel({
                                 : `${itemCount} 筆`
                               }
                             </span>
+                            {canManagePackages && !group.is_default && packagesByGroupId[group.id] && (
+                              isSourceStale(group, packagesByGroupId[group.id])
+                                ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)] flex-shrink-0 mr-1">
+                                    <RefreshCw className="h-2.5 w-2.5" />
+                                    來源已更新
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(34,139,34,.08)] text-green-700 border border-[rgba(34,139,34,.2)] flex-shrink-0 mr-1">
+                                    <Check className="h-2.5 w-2.5" />
+                                    已對齊最新版本
+                                  </span>
+                                )
+                            )}
                             {isExpanded
                               ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
                               : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
@@ -720,6 +809,33 @@ export default function GroupsPanel({
                       {/* 編輯按鈕：重命名時隱藏，absolute 不佔計數空間 */}
                       {!group.is_default && renamingId !== group.id && (
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/header:opacity-100 transition-opacity bg-gradient-to-l from-[#faf6f0] from-50% pl-8">
+                          {canManagePackages && (
+                            packagesByGroupId[group.id] ? (
+                              <button
+                                onClick={e => { e.stopPropagation(); askAlign(group) }}
+                                disabled={aligningGroupId === group.id}
+                                className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
+                                title="重新對齊套餐（會覆蓋套餐目前內容）"
+                              >
+                                {aligningGroupId === group.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <PackageCheck className="h-3.5 w-3.5" />
+                                }
+                              </button>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleCopyToPackage(group) }}
+                                disabled={copyingGroupId === group.id}
+                                className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
+                                title="複製為套餐"
+                              >
+                                {copyingGroupId === group.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Copy className="h-3.5 w-3.5" />
+                                }
+                              </button>
+                            )
+                          )}
                           <button
                             onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
                             className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
@@ -798,6 +914,15 @@ export default function GroupsPanel({
         onCancel={() => { setConfirmOpen(false); setConfirmTarget(null) }}
       />
 
+      <ConfirmDialog
+        open={!!alignConfirmGroup}
+        title={`重新對齊套餐「${alignConfirmGroup ? (packagesByGroupId[alignConfirmGroup.id]?.name ?? alignConfirmGroup.name) : ''}」？`}
+        message="會用此群組目前的名稱與料卡清單，整個覆蓋套餐目前的內容，無法復原。"
+        confirmLabel="確定對齊"
+        danger
+        onConfirm={handleConfirmAlign}
+        onCancel={() => setAlignConfirmGroup(null)}
+      />
 
       {replaceTarget && (
         <ReplaceDialog
