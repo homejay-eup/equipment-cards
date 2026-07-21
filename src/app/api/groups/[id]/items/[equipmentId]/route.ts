@@ -28,5 +28,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string; equ
     .eq('group_id', params.id)
     .eq('equipment_id', params.equipmentId)
 
+  // 供「設備套餐」來源對齊機制比對：移除卡片也算群組內容變動
+  await admin.from('user_groups').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
+
   return new NextResponse(null, { status: 204 })
 }

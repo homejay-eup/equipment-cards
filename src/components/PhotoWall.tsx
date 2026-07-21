@@ -16,7 +16,7 @@ import GroupsPanel from '@/components/GroupsPanel'
 import SubfilterTagBar from '@/components/SubfilterTagBar'
 import QuotesClient from '@/components/QuotesClient'
 import DocumentsClient from '@/components/DocumentsClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import { useHeartbeat } from '@/hooks/useHeartbeat'
@@ -632,6 +632,17 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 )}
               </button>
             )}
+            {(permissions.includes('view_own_packages') || permissions.includes('edit_own_packages')
+              || permissions.includes('share_own_packages') || permissions.includes('view_shared_packages')) && (
+              <Link
+                href="/packages"
+                title="設備套餐"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]"
+              >
+                <Package className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">設備套餐</span>
+              </Link>
+            )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
@@ -941,6 +952,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             filteredCards={filtered}
             bookmarkedIds={bookmarkedIds}
             onToggleBookmark={toggleDefaultGroup}
+            canManagePackages={permissions.includes('edit_own_packages')}
           />
         </div>
       )}

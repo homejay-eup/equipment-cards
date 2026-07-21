@@ -24,6 +24,7 @@ const VALID_PERMISSION_KEYS = [
   'view_quotes', 'view_quotes_manager_price', 'edit_quotes',
   'manage_documents',
   'view_analytics',
+  'view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages',
 ]
 
 // GET /api/roles/[id]/permissions

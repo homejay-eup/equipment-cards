@@ -81,6 +81,7 @@ export interface UserGroup {
   is_default: boolean
   sort_order: number
   created_at: string
+  updated_at?: string  // Step 34：供「設備套餐」來源對齊機制比對，SQL migration 執行前可能為 undefined
   group_items: GroupItem[]
 }
 
