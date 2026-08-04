@@ -155,7 +155,11 @@ export default function PackageExplorer({
     if (!pkg.source_group_id) return null
     const groupUpdatedAt = sourceGroupUpdatedAt[pkg.source_group_id]
     if (!groupUpdatedAt) return null
-    const stale = !pkg.source_synced_at || new Date(groupUpdatedAt).getTime() > new Date(pkg.source_synced_at).getTime()
+    // 雙向比對：群組內容變了，或套餐本身被直接編輯過（跟來源群組不一致），都算「來源已更新」
+    const syncedAt = pkg.source_synced_at ? new Date(pkg.source_synced_at).getTime() : null
+    const stale = syncedAt === null
+      || new Date(groupUpdatedAt).getTime() > syncedAt
+      || new Date(pkg.updated_at).getTime() > syncedAt
     return stale ? (
       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)]">
         <RefreshCw className="h-2.5 w-2.5" />

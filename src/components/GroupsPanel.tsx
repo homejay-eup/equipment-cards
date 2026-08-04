@@ -414,12 +414,15 @@ export default function GroupsPanel({
     }
   }
 
-  // 對齊狀態：group.updated_at（SQL migration 執行前可能為 undefined，視為未過期）
-  // 晚於 linked package 的 source_synced_at → 來源已更新，可重新對齊
+  // 對齊狀態：雙向比對，群組或套餐任一邊晚於 source_synced_at 就算「來源已更新」
+  // - group.updated_at 晚於 source_synced_at → 群組內容變了，需要重新對齊
+  // - linked.updated_at 晚於 source_synced_at → 套餐被直接編輯過，已跟來源群組不一致
+  // （group.updated_at 在 SQL migration 執行前可能為 undefined，視為群組這邊未過期）
   function isSourceStale(group: UserGroup, linked: EquipmentPackage): boolean {
-    if (!group.updated_at) return false
     if (!linked.source_synced_at) return true
-    return new Date(group.updated_at).getTime() > new Date(linked.source_synced_at).getTime()
+    const syncedAt = new Date(linked.source_synced_at).getTime()
+    if (group.updated_at && new Date(group.updated_at).getTime() > syncedAt) return true
+    return new Date(linked.updated_at).getTime() > syncedAt
   }
 
   // 搜尋篩選 Set：O(1) 查詢用
