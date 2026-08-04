@@ -42,6 +42,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // 先查目前實際內容，算出 add/remove 是否會造成淨變動——
+    // 供「設備套餐」來源對齊機制比對：no-op（加已存在的料號、移不存在的料號）不算內容異動，不 bump updated_at
+    const { data: existingItems } = await supabase
+      .from('package_items')
+      .select('equipment_id')
+      .eq('package_id', params.id)
+    const existingIds = new Set((existingItems ?? []).map((i: { equipment_id: string }) => i.equipment_id))
+    const hasRealChange = remove.some((id) => existingIds.has(id)) || add.some((id) => !existingIds.has(id))
+
     if (remove.length > 0) {
       const { error: removeError } = await supabase
         .from('package_items')
@@ -62,10 +71,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (addError) throw addError
     }
 
-    await supabase
-      .from('equipment_packages')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', params.id)
+    if (hasRealChange) {
+      await supabase
+        .from('equipment_packages')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', params.id)
+    }
 
     const { data: full } = await supabase
       .from('equipment_packages')
