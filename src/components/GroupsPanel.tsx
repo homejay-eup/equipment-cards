@@ -552,7 +552,8 @@ export default function GroupsPanel({
         if (!items.some(i => i.equipment_id === newCard.equipment_id)) {
           items.unshift({ equipment_id: newCard.equipment_id, added_at: now })
         }
-        return { ...g, group_items: items }
+        // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
+        return { ...g, group_items: items, updated_at: now }
       }))
     }
     setReplaceTarget(null)
@@ -560,8 +561,9 @@ export default function GroupsPanel({
 
   async function handleRemoveCard(card: EquipmentCard, groupId: string) {
     // 樂觀更新：立即從 UI 移除，不等 API 回應
+    // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
     applyGroups(groups.map(g =>
-      g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
+      g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id), updated_at: new Date().toISOString() }
     ))
     await fetch(`/api/groups/${groupId}/items/${card.equipment_id}`, { method: 'DELETE' })
   }
@@ -587,7 +589,8 @@ export default function GroupsPanel({
         const newItems = successIds
           .filter(id => !g.group_items.some(i => i.equipment_id === id))
           .map(id => ({ equipment_id: id, added_at: now }))
-        return { ...g, group_items: [...newItems, ...g.group_items] }
+        // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
+        return { ...g, group_items: [...newItems, ...g.group_items], updated_at: now }
       }))
     }
     setAddTarget(null)
