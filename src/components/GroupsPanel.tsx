@@ -6,7 +6,7 @@ import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, GripVertical, Copy, RefreshCw, PackageCheck } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -954,7 +954,7 @@ export default function GroupsPanel({
                             className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
                             title="複製群組"
                           >
-                            <Copy className="h-3.5 w-3.5" />
+                            <FolderPlus className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
