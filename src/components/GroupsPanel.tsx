@@ -6,7 +6,7 @@ import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, Minus } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -389,6 +389,25 @@ function DuplicateGroupDialog({ sourceName, onConfirm, onCancel }: DuplicateGrou
   )
 }
 
+// ── 清單/照片顯示模式：比照 packages/PackageExplorer.tsx 的 useLocalStorageState 寫法，
+// 各自維護一份、不共用檔案，避免跨檔案耦合。storage key 用 groups_display 跟套餐那邊
+// `${storageKeyPrefix}_display` 不會衝突。
+function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(initial)
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(key)
+      if (stored) setValue(stored as T)
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  function update(v: T) {
+    setValue(v)
+    try { window.localStorage.setItem(key, v) } catch { /* ignore */ }
+  }
+  return [value, update]
+}
+
 // ── 主元件 ────────────────────────────────────────────────────────
 export default function GroupsPanel({
   initialGroups,
@@ -405,6 +424,9 @@ export default function GroupsPanel({
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
     new Set(initialGroups.map(g => g.id)))
+
+  // 全域清單/照片顯示模式（套用到全部群組，非各自切換），localStorage 記住偏好
+  const [display, setDisplay] = useLocalStorageState<'list' | 'photo'>('groups_display', 'photo')
 
   // 同步外部 groups 變更（例如從全部料卡的加入群組 popup 更新）
   // 當 initialGroups 參考改變時才更新（即 PhotoWall setGroups 被呼叫時）
@@ -787,20 +809,40 @@ export default function GroupsPanel({
                 </button>
               )}
               {groups.length > 0 && (
-                <div className="flex items-center gap-0.5 text-xs text-[#c0a882] shrink-0">
-                  <button
-                    onClick={() => setExpandedIds(new Set(groups.map(g => g.id)))}
-                    className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
-                  >
-                    展開全部
-                  </button>
-                  <span className="select-none">|</span>
-                  <button
-                    onClick={() => setExpandedIds(new Set())}
-                    className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
-                  >
-                    收合全部
-                  </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setDisplay('list')}
+                      title="清單模式"
+                      className={`p-1.5 transition-colors ${display === 'list' ? 'bg-[#7a5230] text-white' : 'text-[#a08060] hover:bg-[rgba(122,82,48,.06)]'}`}
+                    >
+                      <ListIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDisplay('photo')}
+                      title="照片模式"
+                      className={`p-1.5 transition-colors ${display === 'photo' ? 'bg-[#7a5230] text-white' : 'text-[#a08060] hover:bg-[rgba(122,82,48,.06)]'}`}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-0.5 text-xs text-[#c0a882]">
+                    <button
+                      onClick={() => setExpandedIds(new Set(groups.map(g => g.id)))}
+                      className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                    >
+                      展開全部
+                    </button>
+                    <span className="select-none">|</span>
+                    <button
+                      onClick={() => setExpandedIds(new Set())}
+                      className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                    >
+                      收合全部
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -996,7 +1038,7 @@ export default function GroupsPanel({
                         </div>
                       ) : displayCards.length === 0 ? (
                         <p className="text-sm text-[#b0967a] italic pt-2 pb-1">篩選後無符合結果</p>
-                      ) : (
+                      ) : display === 'photo' ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pt-2">
                           {displayCards.map(card => (
                             <EquipmentCardItem
@@ -1013,6 +1055,65 @@ export default function GroupsPanel({
                               onToggleBookmark={group.is_default && onToggleBookmark ? () => onToggleBookmark(card) : undefined}
                             />
                           ))}
+                        </div>
+                      ) : (
+                        /* 清單模式：純文字列，操作圖示常駐顯示（無縮圖可 hover） */
+                        <div className="flex flex-col divide-y divide-[rgba(122,82,48,.06)] pt-2">
+                          {displayCards.map(card => {
+                            const isBookmarked = bookmarkedIds?.has(card.equipment_id)
+                            return (
+                              <div key={card.equipment_id} className="flex items-center gap-2 py-1.5 text-xs">
+                                <button
+                                  onClick={() => onCardClick(card)}
+                                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                                >
+                                  <span className="font-mono text-[10px] text-[#a08060] flex-shrink-0 w-16">{card.equipment_id}</span>
+                                  <span className="truncate text-[#4a3422]">{card.name}</span>
+                                </button>
+                                <span className="flex items-center gap-0.5 flex-shrink-0">
+                                  {group.is_default ? (
+                                    <>
+                                      {onToggleBookmark && (
+                                        <button
+                                          onClick={() => onToggleBookmark(card)}
+                                          title={isBookmarked ? '移除關注' : '加入關注'}
+                                          className={`p-1 rounded transition-colors ${isBookmarked ? 'text-amber-400' : 'text-[#c49a72] hover:text-amber-400'}`}
+                                        >
+                                          <Star className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-400' : ''}`} />
+                                        </button>
+                                      )}
+                                      {onDelete && (
+                                        <button
+                                          onClick={() => onDelete(card)}
+                                          title="刪除料卡"
+                                          className="p-1 text-[#a08060] hover:text-red-500 rounded transition-colors"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => setReplaceTarget({ card })}
+                                        title="替換料卡"
+                                        className="p-1 text-[#a08060] hover:text-[#7a5230] rounded transition-colors"
+                                      >
+                                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleRemoveCard(card, group.id)}
+                                        title="從群組移除"
+                                        className="p-1 text-[#a08060] hover:text-[#b5451b] rounded transition-colors"
+                                      >
+                                        <Minus className="h-3.5 w-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     )}
