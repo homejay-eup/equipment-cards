@@ -18,7 +18,7 @@ export async function GET() {
   // 查詢現有群組
   let { data: groups } = await admin
     .from('user_groups')
-    .select('*, group_items(equipment_id, added_at)')
+    .select('*, group_items(equipment_id, added_at, quantity)')
     .eq('user_id', user.id)
     .order('is_default', { ascending: false })
     .order('sort_order')
@@ -48,7 +48,7 @@ export async function GET() {
 
     const { data: fresh } = await admin
       .from('user_groups')
-      .select('*, group_items(equipment_id, added_at)')
+      .select('*, group_items(equipment_id, added_at, quantity)')
       .eq('user_id', user.id)
       .order('is_default', { ascending: false })
       .order('sort_order')
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const { data, error } = await admin
     .from('user_groups')
     .insert({ user_id: user.id, name: name.trim() })
-    .select('*, group_items(equipment_id, added_at)')
+    .select('*, group_items(equipment_id, added_at, quantity)')
     .single()
 
   if (error) {

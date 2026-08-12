@@ -13,8 +13,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { equipment_id } = await request.json()
+  const { equipment_id, quantity } = await request.json()
   if (!equipment_id) return NextResponse.json({ error: 'equipment_id required' }, { status: 400 })
+
+  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > 999)) {
+    return NextResponse.json({ error: '數量需為 1–999 的整數' }, { status: 400 })
+  }
 
   const admin = adminClient()
   const { data: group } = await admin
@@ -25,9 +29,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (!group || group.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const insertPayload: { group_id: string; equipment_id: string; quantity?: number } = {
+    group_id: params.id,
+    equipment_id,
+  }
+  if (quantity !== undefined) insertPayload.quantity = quantity
+
   const { data, error } = await admin
     .from('group_items')
-    .insert({ group_id: params.id, equipment_id })
+    .insert(insertPayload)
     .select()
     .single()
 

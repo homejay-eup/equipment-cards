@@ -362,13 +362,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         // Rollback
         setGroups(prev => prev.map(g =>
           g.id === dg.id
-            ? { ...g, group_items: [...g.group_items, { equipment_id: card.equipment_id, added_at: new Date().toISOString() }] }
+            ? { ...g, group_items: [...g.group_items, { equipment_id: card.equipment_id, added_at: new Date().toISOString(), quantity: 1 }] }
             : g
         ))
       }
     } else {
       // Optimistic add
-      const tempItem = { equipment_id: card.equipment_id, added_at: new Date().toISOString() }
+      const tempItem = { equipment_id: card.equipment_id, added_at: new Date().toISOString(), quantity: 1 }
       setGroups(prev => prev.map(g =>
         g.id === dg.id
           ? { ...g, group_items: [tempItem, ...g.group_items] }
@@ -427,7 +427,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     if (toAdd.length === 0 && toRemove.length === 0) return
     const now = new Date().toISOString()
     setGroups(prev => prev.map(g => {
-      if (toAdd.includes(g.id)) return { ...g, group_items: [{ equipment_id: card.equipment_id, added_at: now }, ...g.group_items] }
+      if (toAdd.includes(g.id)) return { ...g, group_items: [{ equipment_id: card.equipment_id, added_at: now, quantity: 1 }, ...g.group_items] }
       if (toRemove.includes(g.id)) return { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id) }
       return g
     }))

@@ -50,10 +50,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     const { data: groupItems } = await supabase
       .from('group_items')
-      .select('equipment_id')
+      .select('equipment_id, quantity')
       .eq('group_id', pkg.source_group_id)
 
-    const equipmentIds = (groupItems ?? []).map((g: { equipment_id: string }) => g.equipment_id)
+    const items = (groupItems ?? []) as { equipment_id: string; quantity: number }[]
     const now = new Date().toISOString()
 
     // 整個覆蓋 package_items
@@ -63,10 +63,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .eq('package_id', params.id)
     if (deleteError) throw deleteError
 
-    if (equipmentIds.length > 0) {
+    if (items.length > 0) {
       const { error: insertError } = await supabase
         .from('package_items')
-        .insert(equipmentIds.map((equipment_id) => ({ package_id: params.id, equipment_id })))
+        .insert(items.map((g) => ({ package_id: params.id, equipment_id: g.equipment_id, quantity: g.quantity })))
       if (insertError) throw insertError
     }
 
@@ -74,7 +74,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .from('equipment_packages')
       .update({ name: group.name, source_synced_at: now, updated_at: now })
       .eq('id', params.id)
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .single()
 
     if (updateError) {

@@ -39,6 +39,8 @@ interface Props {
   duplicateGroups: Map<string, string[]> // packageId -> 內容完全相同的其他套餐名稱（僅 own 有意義）
   sourceGroupUpdatedAt: Record<string, string> // source_group_id -> 群組目前 updated_at（僅 own 有意義）
   onChanged: () => void | Promise<void>
+  // Step 35：數量本地樂觀更新（僅 own 有意義；shared 不可編輯不會用到）
+  onOptimisticQuantityChange?: (packageId: string, equipmentId: string, quantity: number) => void
   storageKeyPrefix: string // 依 own/shared 各自獨立記憶顯示偏好
 }
 
@@ -62,7 +64,7 @@ function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v
 // 比照 documents/ExpandableDocumentList.tsx 的拆法與互動模式（依文件/依料號 -> 依套餐/依料號）。
 export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
-  duplicateGroups, sourceGroupUpdatedAt, onChanged, storageKeyPrefix,
+  duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange, storageKeyPrefix,
 }: Props) {
   const pkgApi = usePackages()
   const [view, setView] = useLocalStorageState<ViewMode>(`${storageKeyPrefix}_view`, 'byPackage')
@@ -255,6 +257,20 @@ export default function PackageExplorer({
     await onChanged()
   }
 
+  // ── 更新單一料卡數量 ────────────────────────────────────────
+  // 先本地樂觀更新（比照 GroupsPanel），連續點擊 +/- 時每次都算在最新值上；
+  // 失敗才整包重抓，修正回正確值
+  async function handleUpdateQuantity(packageId: string, equipmentId: string, quantity: number) {
+    onOptimisticQuantityChange?.(packageId, equipmentId, quantity)
+    setActionError(null)
+    try {
+      await pkgApi.updateItemQuantity(packageId, equipmentId, quantity)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : '更新數量失敗')
+      await onChanged()
+    }
+  }
+
   // ── 重命名 ────────────────────────────────────────────────
   function startRename(pkg: EquipmentPackage | SharedEquipmentPackage) {
     setRenamingId(pkg.id)
@@ -419,6 +435,7 @@ export default function PackageExplorer({
           running={running}
           handleBatchUnlink={handleBatchUnlink}
           handleAddManyToPackage={handleAddManyToPackage}
+          onUpdateQuantity={handleUpdateQuantity}
           setDuplicateTarget={setDuplicateTarget}
           askDeleteSingle={askDeleteSingle}
         />
@@ -436,6 +453,7 @@ export default function PackageExplorer({
           running={running}
           handleBatchUnlink={handleBatchUnlink}
           handleAddEquipmentToManyPackages={handleAddEquipmentToManyPackages}
+          onUpdateQuantity={handleUpdateQuantity}
         />
       )}
 

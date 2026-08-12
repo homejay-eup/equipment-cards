@@ -24,8 +24,9 @@ interface Props {
 
 // 純前端比對：同部門套餐是否有兩個以上料號組合完全相同（排序後 set 比較）
 function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, string[]> {
+  // Step 35：數量也納入「內容是否相同」的比對，同樣料號但數量不同不算內容完全相同
   const signatureOf = (p: EquipmentPackage) =>
-    p.package_items.map(i => i.equipment_id).sort().join('|')
+    p.package_items.map(i => `${i.equipment_id}:${i.quantity}`).sort().join('|')
 
   const bySignature = new Map<string, EquipmentPackage[]>()
   for (const p of packages) {
@@ -81,6 +82,17 @@ export default function PackagesClient({
       setLoadError(e instanceof Error ? e.message : '重新整理失敗')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Step 35 補：本部門套餐數量的樂觀更新——比照 GroupsPanel 的 handleUpdateQuantity，
+  // 讓連續點擊 QuantityStepper 時每次都算在最新的本地值上，不會因為等 API 回應而送出過期值
+  const applyOwnQuantity = useCallback((packageId: string, equipmentId: string, quantity: number) => {
+    setOwnPackages(prev => prev.map(p =>
+      p.id !== packageId ? p : {
+        ...p,
+        package_items: p.package_items.map(i => i.equipment_id === equipmentId ? { ...i, quantity } : i),
+      }
+    ))
   }, [])
 
   // 這個分頁是「首次切入才 mount，之後 CSS 隱藏保留 state」，不會每次切換都重新 mount，
@@ -188,6 +200,7 @@ export default function PackagesClient({
               duplicateGroups={duplicateGroups}
               sourceGroupUpdatedAt={sourceGroupUpdatedAt}
               onChanged={refreshOwn}
+              onOptimisticQuantityChange={applyOwnQuantity}
               storageKeyPrefix="packages_own"
             />
           )}

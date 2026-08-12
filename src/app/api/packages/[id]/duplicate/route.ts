@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { data: source } = await supabase
       .from('equipment_packages')
-      .select('id, department_id, package_items(equipment_id)')
+      .select('id, department_id, package_items(equipment_id, quantity)')
       .eq('id', params.id)
       .single()
 
@@ -56,17 +56,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       throw insertError
     }
 
-    const items = (source.package_items ?? []) as { equipment_id: string }[]
+    const items = (source.package_items ?? []) as { equipment_id: string; quantity: number }[]
     if (items.length > 0) {
       const { error: itemsError } = await supabase
         .from('package_items')
-        .insert(items.map((i) => ({ package_id: newPkg.id, equipment_id: i.equipment_id })))
+        .insert(items.map((i) => ({ package_id: newPkg.id, equipment_id: i.equipment_id, quantity: i.quantity })))
       if (itemsError) throw itemsError
     }
 
     const { data: full } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .eq('id', newPkg.id)
       .single()
 

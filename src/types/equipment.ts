@@ -73,6 +73,7 @@ export interface QuoteItem {
 export interface GroupItem {
   equipment_id: string
   added_at: string
+  quantity: number
 }
 
 export interface UserGroup {

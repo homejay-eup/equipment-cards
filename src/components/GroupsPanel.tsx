@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Fuse from 'fuse.js'
 import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
+import QuantityStepper from '@/components/QuantityStepper'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
 import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, Minus } from 'lucide-react'
@@ -678,9 +679,12 @@ export default function GroupsPanel({
       const now = new Date().toISOString()
       applyGroups(groups.map(g => {
         if (!targetGroupIds.includes(g.id)) return g
+        // 替換料卡時延續舊料卡原有的數量設定，不重置成 1（後端 /api/groups/replace 也會做同樣的事，
+        // 這裡只是讓樂觀更新的畫面立刻跟後端結果一致，不用等重新整理）
+        const oldQuantity = g.group_items.find(i => i.equipment_id === oldCard.equipment_id)?.quantity ?? 1
         const items = g.group_items.filter(i => i.equipment_id !== oldCard.equipment_id)
         if (!items.some(i => i.equipment_id === newCard.equipment_id)) {
-          items.unshift({ equipment_id: newCard.equipment_id, added_at: now })
+          items.unshift({ equipment_id: newCard.equipment_id, added_at: now, quantity: oldQuantity })
         }
         // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
         return { ...g, group_items: items, updated_at: now }
@@ -696,6 +700,27 @@ export default function GroupsPanel({
       g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id), updated_at: new Date().toISOString() }
     ))
     await fetch(`/api/groups/${groupId}/items/${card.equipment_id}`, { method: 'DELETE' })
+  }
+
+  // Step 35：更新單一料卡數量。樂觀更新+同步 bump updated_at，比照 handleRemoveCard/handleAddCards 的寫法
+  async function handleUpdateQuantity(groupId: string, equipmentId: string, quantity: number) {
+    const now = new Date().toISOString()
+    applyGroups(groups.map(g =>
+      g.id !== groupId ? g : {
+        ...g,
+        group_items: g.group_items.map(i => i.equipment_id === equipmentId ? { ...i, quantity } : i),
+        updated_at: now,
+      }
+    ))
+    try {
+      await fetch(`/api/groups/${groupId}/items/${equipmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity }),
+      })
+    } catch (e) {
+      console.error('[GroupsPanel] update quantity failed', groupId, equipmentId, e)
+    }
   }
 
   const handleAddCards = useCallback(async (groupId: string, equipmentIds: string[]) => {
@@ -718,7 +743,7 @@ export default function GroupsPanel({
         if (g.id !== groupId) return g
         const newItems = successIds
           .filter(id => !g.group_items.some(i => i.equipment_id === id))
-          .map(id => ({ equipment_id: id, added_at: now }))
+          .map(id => ({ equipment_id: id, added_at: now, quantity: 1 }))
         // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
         return { ...g, group_items: [...newItems, ...g.group_items], updated_at: now }
       }))
@@ -1053,23 +1078,22 @@ export default function GroupsPanel({
                               onRemoveFromGroup={!group.is_default ? () => handleRemoveCard(card, group.id) : undefined}
                               isBookmarked={group.is_default ? bookmarkedIds?.has(card.equipment_id) : undefined}
                               onToggleBookmark={group.is_default && onToggleBookmark ? () => onToggleBookmark(card) : undefined}
+                              quantity={group.group_items.find(i => i.equipment_id === card.equipment_id)?.quantity}
                             />
                           ))}
                         </div>
                       ) : (
-                        /* 清單模式：純文字列，操作圖示常駐顯示（無縮圖可 hover） */
-                        <div className="flex flex-col divide-y divide-[rgba(122,82,48,.06)] pt-2">
+                        /* 清單模式：純文字列，操作圖示改放料號左側（滑鼠不用跨過整列空白），
+                           整列 hover 時有「浮起」強調效果（背景亮起＋輕微陰影＋些微上移） */
+                        <div className="flex flex-col gap-1 pt-2">
                           {displayCards.map(card => {
                             const isBookmarked = bookmarkedIds?.has(card.equipment_id)
+                            const quantity = group.group_items.find(i => i.equipment_id === card.equipment_id)?.quantity ?? 1
                             return (
-                              <div key={card.equipment_id} className="flex items-center gap-2 py-1.5 text-xs">
-                                <button
-                                  onClick={() => onCardClick(card)}
-                                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                                >
-                                  <span className="font-mono text-[10px] text-[#a08060] flex-shrink-0 w-16">{card.equipment_id}</span>
-                                  <span className="truncate text-[#4a3422]">{card.name}</span>
-                                </button>
+                              <div
+                                key={card.equipment_id}
+                                className="group/row flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px"
+                              >
                                 <span className="flex items-center gap-0.5 flex-shrink-0">
                                   {group.is_default ? (
                                     <>
@@ -1077,7 +1101,7 @@ export default function GroupsPanel({
                                         <button
                                           onClick={() => onToggleBookmark(card)}
                                           title={isBookmarked ? '移除關注' : '加入關注'}
-                                          className={`p-1 rounded transition-colors ${isBookmarked ? 'text-amber-400' : 'text-[#c49a72] hover:text-amber-400'}`}
+                                          className={`p-1 rounded transition-colors ${isBookmarked ? 'text-amber-400' : 'text-[#c49a72] group-hover/row:text-amber-400'}`}
                                         >
                                           <Star className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-400' : ''}`} />
                                         </button>
@@ -1086,7 +1110,7 @@ export default function GroupsPanel({
                                         <button
                                           onClick={() => onDelete(card)}
                                           title="刪除料卡"
-                                          className="p-1 text-[#a08060] hover:text-red-500 rounded transition-colors"
+                                          className="p-1 text-[#a08060] group-hover/row:text-red-500 rounded transition-colors"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
                                         </button>
@@ -1097,20 +1121,31 @@ export default function GroupsPanel({
                                       <button
                                         onClick={() => setReplaceTarget({ card })}
                                         title="替換料卡"
-                                        className="p-1 text-[#a08060] hover:text-[#7a5230] rounded transition-colors"
+                                        className="p-1 text-[#a08060] group-hover/row:text-[#7a5230] rounded transition-colors"
                                       >
                                         <ArrowLeftRight className="h-3.5 w-3.5" />
                                       </button>
                                       <button
                                         onClick={() => handleRemoveCard(card, group.id)}
                                         title="從群組移除"
-                                        className="p-1 text-[#a08060] hover:text-[#b5451b] rounded transition-colors"
+                                        className="p-1 text-[#a08060] group-hover/row:text-[#b5451b] rounded transition-colors"
                                       >
                                         <Minus className="h-3.5 w-3.5" />
                                       </button>
                                     </>
                                   )}
                                 </span>
+                                <button
+                                  onClick={() => onCardClick(card)}
+                                  className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                                >
+                                  <span className="font-mono text-[10px] text-[#a08060] flex-shrink-0 w-16">{card.equipment_id}</span>
+                                  <span className="truncate text-[#4a3422]">{card.name}</span>
+                                </button>
+                                <QuantityStepper
+                                  value={quantity}
+                                  onChange={v => handleUpdateQuantity(group.id, card.equipment_id, v)}
+                                />
                               </div>
                             )
                           })}
