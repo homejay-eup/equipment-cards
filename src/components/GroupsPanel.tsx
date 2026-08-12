@@ -454,6 +454,10 @@ export default function GroupsPanel({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
+  // Step 36：群組內料卡拖曳排序（清單模式才能拖；跨群組拖曳不支援，只允許同一個群組內部重排）
+  const [draggingItem, setDraggingItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
+  const [dragOverItem, setDragOverItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
+
   // ── Step 34：設備套餐來源對齊（複製為套餐／重新對齊套餐） ─────────
   const pkgApi = usePackages()
   // 只在有 canManagePackages 時才打 /api/packages，避免沒有此權限的一般使用者也發出請求
@@ -679,12 +683,14 @@ export default function GroupsPanel({
       const now = new Date().toISOString()
       applyGroups(groups.map(g => {
         if (!targetGroupIds.includes(g.id)) return g
-        // 替換料卡時延續舊料卡原有的數量設定，不重置成 1（後端 /api/groups/replace 也會做同樣的事，
-        // 這裡只是讓樂觀更新的畫面立刻跟後端結果一致，不用等重新整理）
-        const oldQuantity = g.group_items.find(i => i.equipment_id === oldCard.equipment_id)?.quantity ?? 1
+        // 替換料卡時延續舊料卡原有的數量設定與排序位置，不重置成 1／移到最前（後端 /api/groups/replace
+        // 也會做同樣的事，這裡只是讓樂觀更新的畫面立刻跟後端結果一致，不用等重新整理）
+        const oldItem = g.group_items.find(i => i.equipment_id === oldCard.equipment_id)
+        const oldQuantity = oldItem?.quantity ?? 1
+        const oldSortOrder = oldItem?.sort_order ?? 0
         const items = g.group_items.filter(i => i.equipment_id !== oldCard.equipment_id)
         if (!items.some(i => i.equipment_id === newCard.equipment_id)) {
-          items.unshift({ equipment_id: newCard.equipment_id, added_at: now, quantity: oldQuantity })
+          items.unshift({ equipment_id: newCard.equipment_id, added_at: now, quantity: oldQuantity, sort_order: oldSortOrder })
         }
         // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
         return { ...g, group_items: items, updated_at: now }
@@ -741,9 +747,10 @@ export default function GroupsPanel({
     if (successIds.length > 0) {
       applyGroups(groups.map(g => {
         if (g.id !== groupId) return g
+        const baseSortOrder = Math.max(0, ...g.group_items.map(i => i.sort_order))
         const newItems = successIds
           .filter(id => !g.group_items.some(i => i.equipment_id === id))
-          .map(id => ({ equipment_id: id, added_at: now, quantity: 1 }))
+          .map((id, idx) => ({ equipment_id: id, added_at: now, quantity: 1, sort_order: baseSortOrder + (idx + 1) * 1000 }))
         // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
         return { ...g, group_items: [...newItems, ...g.group_items], updated_at: now }
       }))
@@ -772,6 +779,45 @@ export default function GroupsPanel({
     const orders = reordered.map((g, i) => ({ id: g.id, sort_order: (i + 1) * 1000 }))
     try {
       const res = await fetch('/api/groups/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      applyGroups(originalGroups)
+      alert('排序更新失敗，請重試')
+    }
+  }
+
+  // Step 36：群組內料卡拖曳排序（清單模式才能拖，照片模式沿用同一份 group_items 順序）。
+  // 只允許同一個群組內部重新排序，不支援跨群組拖曳。
+  async function handleItemReorder(groupId: string, fromEquipmentId: string, toEquipmentId: string) {
+    if (fromEquipmentId === toEquipmentId) return
+    const group = groups.find(g => g.id === groupId)
+    if (!group) return
+
+    // 用依 sort_order 排好的順序操作，跟畫面上實際看到的順序一致
+    // （group.group_items 這個原始陣列的實際排列順序不一定跟 sort_order 一致，
+    // 例如剛新增過料卡的樂觀更新是插在陣列前面，但 sort_order 給的是排在最後的值）
+    const items = [...group.group_items].sort((a, b) => a.sort_order - b.sort_order)
+    const fromIdx = items.findIndex(i => i.equipment_id === fromEquipmentId)
+    const toIdx = items.findIndex(i => i.equipment_id === toEquipmentId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...items]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+    const withSortOrder = reordered.map((item, i) => ({ ...item, sort_order: (i + 1) * 1000 }))
+
+    const originalGroups = groups
+    applyGroups(groups.map(g => g.id === groupId ? { ...g, group_items: withSortOrder } : g))
+    setDraggingItem(null)
+    setDragOverItem(null)
+
+    const orders = withSortOrder.map(item => ({ equipment_id: item.equipment_id, sort_order: item.sort_order }))
+    try {
+      const res = await fetch(`/api/groups/${groupId}/items/reorder`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
@@ -881,7 +927,8 @@ export default function GroupsPanel({
                 const isExpanded = expandedIds.has(group.id)
                 const itemCount = group.group_items.length
 
-                const groupCards = group.group_items
+                const groupCards = [...group.group_items]
+                  .sort((a, b) => a.sort_order - b.sort_order)
                   .map(item => allCards.find(c => c.equipment_id === item.equipment_id))
                 const validCards = groupCards.filter(Boolean) as EquipmentCard[]
                 const displayCards = filteredSet
@@ -1088,11 +1135,35 @@ export default function GroupsPanel({
                           {displayCards.map(card => {
                             const isBookmarked = bookmarkedIds?.has(card.equipment_id)
                             const quantity = group.group_items.find(i => i.equipment_id === card.equipment_id)?.quantity ?? 1
+                            const isDraggingThis = draggingItem?.groupId === group.id && draggingItem.equipmentId === card.equipment_id
+                            const isDragOverThis = !isDraggingThis && dragOverItem?.groupId === group.id && dragOverItem.equipmentId === card.equipment_id
                             return (
                               <div
                                 key={card.equipment_id}
-                                className="group/row flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px"
+                                className={`group/row flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThis ? 'opacity-40' : ''} ${isDragOverThis ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+                                onDragOver={e => {
+                                  e.preventDefault()
+                                  if (draggingItem && draggingItem.groupId === group.id && draggingItem.equipmentId !== card.equipment_id) {
+                                    setDragOverItem({ groupId: group.id, equipmentId: card.equipment_id })
+                                  }
+                                }}
+                                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverItem(null) }}
+                                onDrop={e => {
+                                  e.preventDefault()
+                                  if (draggingItem && draggingItem.groupId === group.id) {
+                                    handleItemReorder(group.id, draggingItem.equipmentId, card.equipment_id)
+                                  }
+                                  setDragOverItem(null)
+                                }}
                               >
+                                <span
+                                  draggable
+                                  onDragStart={e => { e.stopPropagation(); setDraggingItem({ groupId: group.id, equipmentId: card.equipment_id }) }}
+                                  onDragEnd={() => { setDraggingItem(null); setDragOverItem(null) }}
+                                  className="opacity-0 group-hover/row:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
+                                >
+                                  <GripVertical className="h-3.5 w-3.5" />
+                                </span>
                                 <span className="flex items-center gap-0.5 flex-shrink-0">
                                   {group.is_default ? (
                                     <>
@@ -1134,6 +1205,10 @@ export default function GroupsPanel({
                                     </>
                                   )}
                                 </span>
+                                <QuantityStepper
+                                  value={quantity}
+                                  onChange={v => handleUpdateQuantity(group.id, card.equipment_id, v)}
+                                />
                                 <button
                                   onClick={() => onCardClick(card)}
                                   className="flex items-center gap-2 flex-1 min-w-0 text-left"
@@ -1141,10 +1216,6 @@ export default function GroupsPanel({
                                   <span className="font-mono text-[10px] text-[#a08060] flex-shrink-0 w-16">{card.equipment_id}</span>
                                   <span className="truncate text-[#4a3422]">{card.name}</span>
                                 </button>
-                                <QuantityStepper
-                                  value={quantity}
-                                  onChange={v => handleUpdateQuantity(group.id, card.equipment_id, v)}
-                                />
                               </div>
                             )
                           })}

@@ -55,10 +55,11 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
 
   let { data: groups } = await supabase
     .from('user_groups')
-    .select('*, group_items(equipment_id, added_at, quantity)')
+    .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
     .eq('user_id', userId)
     .order('is_default', { ascending: false })
     .order('sort_order')
+    .order('sort_order', { foreignTable: 'group_items', ascending: true })
 
   // 懶遷移：若完全沒有群組，從 user_bookmarks 建立預設群組並遷移
   if (!groups || groups.length === 0) {
@@ -74,21 +75,25 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
       .single()
 
     if (newGroup && bookmarks && bookmarks.length > 0) {
+      // 依料號升序給初始排序值，比照 step36 backfill 邏輯
+      const sorted = [...bookmarks].sort((a, b) => a.equipment_id.localeCompare(b.equipment_id))
       await supabase.from('group_items').insert(
-        bookmarks.map((b: { equipment_id: string; created_at: string }) => ({
+        sorted.map((b: { equipment_id: string; created_at: string }, idx: number) => ({
           group_id: newGroup.id,
           equipment_id: b.equipment_id,
           added_at: b.created_at,
+          sort_order: (idx + 1) * 1000,
         }))
       )
     }
 
     const { data: fresh } = await supabase
       .from('user_groups')
-      .select('*, group_items(equipment_id, added_at, quantity)')
+      .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
       .eq('user_id', userId)
       .order('is_default', { ascending: false })
       .order('sort_order')
+      .order('sort_order', { foreignTable: 'group_items', ascending: true })
     groups = fresh
   }
 
@@ -239,10 +244,11 @@ async function getPackagesData(userEmail: string, permissions: string[]): Promis
     canViewOwn && userDepartmentId
       ? adminClient
           .from('equipment_packages')
-          .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
+          .select('*, package_items(equipment_id, added_at, quantity, sort_order), package_shared_departments(department_id)')
           .eq('department_id', userDepartmentId)
           .order('sort_order', { ascending: true, nullsFirst: false })
           .order('created_at', { ascending: false })
+          .order('sort_order', { foreignTable: 'package_items', ascending: true })
       : Promise.resolve({ data: [] }),
     canViewShared && userDepartmentId
       ? (async () => {
@@ -254,10 +260,12 @@ async function getPackagesData(userEmail: string, permissions: string[]): Promis
           if (packageIds.length === 0) return { data: [] }
           return adminClient
             .from('equipment_packages')
-            .select('*, package_items(equipment_id, added_at, quantity), departments!equipment_packages_department_id_fkey(name)')
+            .select('*, package_items(equipment_id, added_at, quantity, sort_order), departments!equipment_packages_department_id_fkey(name)')
             .in('id', packageIds)
             .neq('department_id', userDepartmentId)
+            .order('sort_order', { ascending: true, nullsFirst: false })
             .order('created_at', { ascending: false })
+            .order('sort_order', { foreignTable: 'package_items', ascending: true })
         })()
       : Promise.resolve({ data: [] }),
     adminClient.from('departments').select('id, name').order('created_at', { ascending: true }),

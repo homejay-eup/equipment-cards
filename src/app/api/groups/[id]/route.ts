@@ -30,7 +30,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .from('user_groups')
     .update({ name: name.trim(), updated_at: new Date().toISOString() })
     .eq('id', params.id)
-    .select('*, group_items(equipment_id, added_at, quantity)')
+    .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
+    .order('sort_order', { foreignTable: 'group_items', ascending: true })
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

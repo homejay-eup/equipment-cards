@@ -95,6 +95,28 @@ export default function PackagesClient({
     ))
   }, [])
 
+  // Step 36：套餐本身／套餐內料卡拖曳排序的本地樂觀更新，比照 applyOwnQuantity 的寫法
+  const applyOwnPackageOrder = useCallback((orderedPackageIds: string[]) => {
+    setOwnPackages(prev => {
+      const byId = new Map(prev.map(p => [p.id, p]))
+      const reordered = orderedPackageIds
+        .map(id => byId.get(id))
+        .filter((p): p is EquipmentPackage => !!p)
+      return reordered.map((p, i) => ({ ...p, sort_order: (i + 1) * 1000 }))
+    })
+  }, [])
+
+  const applyOwnItemOrder = useCallback((packageId: string, orderedEquipmentIds: string[]) => {
+    setOwnPackages(prev => prev.map(p => {
+      if (p.id !== packageId) return p
+      const byId = new Map(p.package_items.map(i => [i.equipment_id, i]))
+      const reordered = orderedEquipmentIds
+        .map(id => byId.get(id))
+        .filter((i): i is EquipmentPackage['package_items'][number] => !!i)
+      return { ...p, package_items: reordered.map((i, idx) => ({ ...i, sort_order: (idx + 1) * 1000 })) }
+    }))
+  }, [])
+
   // 這個分頁是「首次切入才 mount，之後 CSS 隱藏保留 state」，不會每次切換都重新 mount，
   // 所以資料只在第一次進入時抓過一次；例如在「我的關注」複製/對齊套餐後切回這個分頁，
   // 不會自動知道要重抓。改成每次「切回」這個分頁都重新拿一次最新清單。
@@ -201,6 +223,8 @@ export default function PackagesClient({
               sourceGroupUpdatedAt={sourceGroupUpdatedAt}
               onChanged={refreshOwn}
               onOptimisticQuantityChange={applyOwnQuantity}
+              onOptimisticPackageOrder={applyOwnPackageOrder}
+              onOptimisticItemOrder={applyOwnItemOrder}
               storageKeyPrefix="packages_own"
             />
           )}

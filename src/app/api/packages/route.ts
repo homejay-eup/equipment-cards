@@ -28,10 +28,11 @@ export async function GET() {
     const supabase = getServiceClient()
     const { data, error } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity, sort_order), package_shared_departments(department_id)')
       .eq('department_id', departmentId)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
+      .order('sort_order', { foreignTable: 'package_items', ascending: true })
 
     if (error) throw error
     return NextResponse.json(data ?? [])
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient()
 
-    let itemsToCopy: { equipment_id: string; quantity: number }[] = []
+    let itemsToCopy: { equipment_id: string; quantity: number; sort_order: number }[] = []
 
     if (sourceGroupId) {
       // 驗證來源群組屬於此使用者
@@ -96,10 +97,10 @@ export async function POST(req: NextRequest) {
 
       const { data: groupItems } = await supabase
         .from('group_items')
-        .select('equipment_id, quantity')
+        .select('equipment_id, quantity, sort_order')
         .eq('group_id', sourceGroupId)
 
-      itemsToCopy = (groupItems ?? []) as { equipment_id: string; quantity: number }[]
+      itemsToCopy = (groupItems ?? []) as { equipment_id: string; quantity: number; sort_order: number }[]
     }
 
     const now = new Date().toISOString()
@@ -141,14 +142,20 @@ export async function POST(req: NextRequest) {
     if (itemsToCopy.length > 0) {
       const { error: itemsError } = await supabase
         .from('package_items')
-        .insert(itemsToCopy.map((i) => ({ package_id: pkg.id, equipment_id: i.equipment_id, quantity: i.quantity })))
+        .insert(itemsToCopy.map((i) => ({
+          package_id: pkg.id,
+          equipment_id: i.equipment_id,
+          quantity: i.quantity,
+          sort_order: i.sort_order,
+        })))
       if (itemsError) throw itemsError
     }
 
     const { data: full } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity, sort_order), package_shared_departments(department_id)')
       .eq('id', pkg.id)
+      .order('sort_order', { foreignTable: 'package_items', ascending: true })
       .single()
 
     return NextResponse.json(full ?? pkg, { status: 201 })

@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import {
-  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown,
+  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical,
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
@@ -12,7 +13,7 @@ import { unlinkKey } from './unlinkKey'
 
 type DisplayMode = 'list' | 'photo'
 
-// 依套餐列表：展開/摺疊、重命名、複製、刪除、批次取消掛載、新增掛載。
+// 依套餐列表：展開/摺疊、重命名、複製、刪除、批次取消掛載、新增掛載、拖曳排序（套餐本身＋套餐內料卡）。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function PackageListView({
   filteredPackages, allCards, cardMap, expanded, toggleExpand, busyIds, isShared, canEdit, canShare,
@@ -21,6 +22,9 @@ export default function PackageListView({
   selectedUnlinkKeys, toggleUnlinkSelect, running,
   handleBatchUnlink, handleAddManyToPackage, onUpdateQuantity,
   setDuplicateTarget, askDeleteSingle,
+  canReorderPackages, draggingPackageId, dragOverPackageId,
+  onPackageDragStart, onPackageDragEnd, onPackageDragOver, onPackageDragLeave, onPackageDrop,
+  onReorderItems,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
   allCards: EquipmentCard[]
@@ -51,7 +55,23 @@ export default function PackageListView({
   onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
   setDuplicateTarget: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
   askDeleteSingle: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
+  // Step 36：套餐本身拖曳排序（只在無搜尋關鍵字、!isShared && canEdit 時才允許，由 PackageExplorer 算好傳入）
+  canReorderPackages: boolean
+  draggingPackageId: string | null
+  dragOverPackageId: string | null
+  onPackageDragStart: (id: string) => void
+  onPackageDragEnd: () => void
+  onPackageDragOver: (id: string) => void
+  onPackageDragLeave: () => void
+  onPackageDrop: (fromId: string, toId: string) => void
+  // Step 36：套餐內料卡拖曳排序（清單模式才能拖，只允許同一個套餐內部重排）
+  onReorderItems: (packageId: string, fromEquipmentId: string, toEquipmentId: string) => void
 }) {
+  // 套餐內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
+  // 邏輯跟 GroupsPanel.tsx 的 draggingItem/dragOverItem 平行
+  const [draggingItem, setDraggingItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
+  const [dragOverItem, setDragOverItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
+
   if (filteredPackages.length === 0) {
     return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的套餐</p>
   }
@@ -64,13 +84,39 @@ export default function PackageListView({
         const duplicates = duplicateGroups.get(pkg.id)
         const sharedDept = (pkg as SharedEquipmentPackage).source_department_name
         const scopedUnlinkCount = pkg.package_items.filter(i => selectedUnlinkKeys.has(unlinkKey(pkg.id, i.equipment_id))).length
-        const equipmentCards = pkg.package_items
+        const sortedItems = [...pkg.package_items].sort((a, b) => a.sort_order - b.sort_order)
+        const equipmentCards = sortedItems
           .map(i => cardMap.get(i.equipment_id))
           .filter((c): c is EquipmentCard => !!c)
 
+        const isDraggingThisPackage = draggingPackageId === pkg.id
+        const isDragOverThisPackage = !isDraggingThisPackage && dragOverPackageId === pkg.id
+
         return (
-          <div key={pkg.id} className={isBusy ? 'opacity-60' : ''}>
-            <div className="flex items-center gap-2 px-3 py-2 text-xs">
+          <div
+            key={pkg.id}
+            className={`${isBusy ? 'opacity-60' : ''} ${isDraggingThisPackage ? 'opacity-40' : ''} ${isDragOverThisPackage ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+            onDragOver={canReorderPackages ? e => {
+              e.preventDefault()
+              if (draggingPackageId && draggingPackageId !== pkg.id) onPackageDragOver(pkg.id)
+            } : undefined}
+            onDragLeave={canReorderPackages ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) onPackageDragLeave() } : undefined}
+            onDrop={canReorderPackages ? e => {
+              e.preventDefault()
+              if (draggingPackageId) onPackageDrop(draggingPackageId, pkg.id)
+            } : undefined}
+          >
+            <div className="group/header flex items-center gap-2 px-3 py-2 text-xs">
+              {canReorderPackages && (
+                <span
+                  draggable
+                  onDragStart={e => { e.stopPropagation(); onPackageDragStart(pkg.id) }}
+                  onDragEnd={onPackageDragEnd}
+                  className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </span>
+              )}
               {!isShared && (canEdit || canShare) && (
                 <input type="checkbox" checked={selectedPackageIds.has(pkg.id)}
                   onChange={() => togglePackageSelect(pkg.id)} className="accent-[#7a5230]" />
@@ -150,12 +196,44 @@ export default function PackageListView({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1 py-1.5">
-                    {pkg.package_items.map(item => {
+                    {sortedItems.map(item => {
                       const card = cardMap.get(item.equipment_id)
                       const k = unlinkKey(pkg.id, item.equipment_id)
+                      const canDragItem = !isShared && canEdit
+                      const isDraggingThisItem = draggingItem?.packageId === pkg.id && draggingItem.equipmentId === item.equipment_id
+                      const isDragOverThisItem = !isDraggingThisItem && dragOverItem?.packageId === pkg.id && dragOverItem.equipmentId === item.equipment_id
                       return (
-                        <label key={item.equipment_id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
-                          <span className="text-[#4a3422] truncate">{item.equipment_id} {card?.name ?? '（找不到此料卡）'}</span>
+                        <label
+                          key={item.equipment_id}
+                          className={`group/item flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer ${isDraggingThisItem ? 'opacity-40' : ''} ${isDragOverThisItem ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+                          onDragOver={canDragItem ? e => {
+                            e.preventDefault()
+                            if (draggingItem && draggingItem.packageId === pkg.id && draggingItem.equipmentId !== item.equipment_id) {
+                              setDragOverItem({ packageId: pkg.id, equipmentId: item.equipment_id })
+                            }
+                          } : undefined}
+                          onDragLeave={canDragItem ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverItem(null) } : undefined}
+                          onDrop={canDragItem ? e => {
+                            e.preventDefault()
+                            if (draggingItem && draggingItem.packageId === pkg.id) {
+                              onReorderItems(pkg.id, draggingItem.equipmentId, item.equipment_id)
+                            }
+                            setDragOverItem(null)
+                          } : undefined}
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {canDragItem && (
+                              <span
+                                draggable
+                                onDragStart={e => { e.stopPropagation(); setDraggingItem({ packageId: pkg.id, equipmentId: item.equipment_id }) }}
+                                onDragEnd={() => { setDraggingItem(null); setDragOverItem(null) }}
+                                className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
+                              >
+                                <GripVertical className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            <span className="text-[#4a3422] truncate">{item.equipment_id} {card?.name ?? '（找不到此料卡）'}</span>
+                          </span>
                           <span className="flex items-center gap-3 flex-shrink-0">
                             {!isShared && canEdit ? (
                               <QuantityStepper
