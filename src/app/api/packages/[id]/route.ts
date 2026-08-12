@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .from('equipment_packages')
       .update({ name: name.trim(), updated_at: new Date().toISOString() })
       .eq('id', params.id)
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .single()
 
     if (error) {

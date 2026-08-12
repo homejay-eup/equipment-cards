@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
+import QuantityStepper from '@/components/QuantityStepper'
 import EquipmentQuickPick from '@/components/documents/EquipmentQuickPick'
 import { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { unlinkKey } from './unlinkKey'
@@ -18,7 +19,7 @@ export default function PackageListView({
   selectedPackageIds, togglePackageSelect, duplicateGroups, alignmentBadge, sharedDeptLabel, display,
   renamingId, renameValue, setRenameValue, submitRename, startRename, setRenamingId,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
-  handleBatchUnlink, handleAddManyToPackage,
+  handleBatchUnlink, handleAddManyToPackage, onUpdateQuantity,
   setDuplicateTarget, askDeleteSingle,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
@@ -47,6 +48,7 @@ export default function PackageListView({
   running: boolean
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddManyToPackage: (packageId: string, equipmentIds: string[]) => void | Promise<void>
+  onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
   setDuplicateTarget: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
   askDeleteSingle: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
 }) {
@@ -141,6 +143,7 @@ export default function PackageListView({
                           selectMode={!isShared && canEdit}
                           isSelected={selectedUnlinkKeys.has(k)}
                           onSelect={() => toggleUnlinkSelect(pkg.id, card.equipment_id)}
+                          quantity={pkg.package_items.find(i => i.equipment_id === card.equipment_id)?.quantity}
                         />
                       )
                     })}
@@ -153,14 +156,27 @@ export default function PackageListView({
                       return (
                         <label key={item.equipment_id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
                           <span className="text-[#4a3422] truncate">{item.equipment_id} {card?.name ?? '（找不到此料卡）'}</span>
-                          {!isShared && canEdit && (
-                            <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
-                              取消掛載
-                              <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
-                                onChange={() => toggleUnlinkSelect(pkg.id, item.equipment_id)}
-                                disabled={isBusy} className="accent-[#b5451b]" />
-                            </span>
-                          )}
+                          <span className="flex items-center gap-3 flex-shrink-0">
+                            {!isShared && canEdit ? (
+                              <QuantityStepper
+                                value={item.quantity ?? 1}
+                                onChange={v => onUpdateQuantity(pkg.id, item.equipment_id, v)}
+                                disabled={isBusy}
+                              />
+                            ) : (
+                              (item.quantity ?? 1) !== 1 && (
+                                <span className="text-[#a08060]">×{item.quantity}</span>
+                              )
+                            )}
+                            {!isShared && canEdit && (
+                              <span className="flex items-center gap-1.5 text-[#a08060]">
+                                取消掛載
+                                <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
+                                  onChange={() => toggleUnlinkSelect(pkg.id, item.equipment_id)}
+                                  disabled={isBusy} className="accent-[#b5451b]" />
+                              </span>
+                            )}
+                          </span>
                         </label>
                       )
                     })}

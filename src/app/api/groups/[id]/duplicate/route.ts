@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: source } = await admin
     .from('user_groups')
-    .select('user_id, group_items(equipment_id, added_at)')
+    .select('user_id, group_items(equipment_id, added_at, quantity)')
     .eq('id', params.id)
     .single()
 
@@ -44,11 +44,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }
 
-  const items = (source.group_items ?? []) as { equipment_id: string }[]
+  const items = (source.group_items ?? []) as { equipment_id: string; quantity: number }[]
   if (items.length > 0) {
     const { error: itemsError } = await admin
       .from('group_items')
-      .insert(items.map((i) => ({ group_id: newGroup.id, equipment_id: i.equipment_id })))
+      .insert(items.map((i) => ({ group_id: newGroup.id, equipment_id: i.equipment_id, quantity: i.quantity })))
     if (itemsError) {
       return NextResponse.json({ error: itemsError.message }, { status: 500 })
     }
@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: full } = await admin
     .from('user_groups')
-    .select('*, group_items(equipment_id, added_at)')
+    .select('*, group_items(equipment_id, added_at, quantity)')
     .eq('id', newGroup.id)
     .single()
 

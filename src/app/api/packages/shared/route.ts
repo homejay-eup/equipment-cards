@@ -34,7 +34,7 @@ export async function GET() {
 
     const { data: packages, error: packagesError } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at), departments!equipment_packages_department_id_fkey(name)')
+      .select('*, package_items(equipment_id, added_at, quantity), departments!equipment_packages_department_id_fkey(name)')
       .in('id', packageIds)
       // 分享套餐一律只回其他部門的（避免自己部門分享給自己的邊界狀況混入本區塊）
       .neq('department_id', departmentId)

@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .from('user_groups')
     .update({ name: name.trim(), updated_at: new Date().toISOString() })
     .eq('id', params.id)
-    .select('*, group_items(equipment_id, added_at)')
+    .select('*, group_items(equipment_id, added_at, quantity)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

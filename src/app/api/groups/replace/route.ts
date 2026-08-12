@@ -31,13 +31,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized group' }, { status: 403 })
   }
 
+  // 先查這批群組裡舊料卡目前的數量，替換時把數量帶過去（不重置成 1）
+  const { data: oldItems } = await admin
+    .from('group_items')
+    .select('group_id, quantity')
+    .in('group_id', group_ids)
+    .eq('equipment_id', old_equipment_id)
+
+  const quantityByGroupId = new Map<string, number>(
+    (oldItems ?? []).map((i: { group_id: string; quantity: number }) => [i.group_id, i.quantity]),
+  )
+
   // 在每個群組中刪除舊料卡、插入新料卡
   for (const groupId of group_ids) {
     await admin.from('group_items').delete()
       .eq('group_id', groupId).eq('equipment_id', old_equipment_id)
     // ON CONFLICT DO NOTHING：新料卡本來就在群組裡也不報錯
+    const existingQuantity = quantityByGroupId.get(groupId)
+    const insertPayload: { group_id: string; equipment_id: string; quantity?: number } = {
+      group_id: groupId,
+      equipment_id: new_equipment_id,
+    }
+    if (existingQuantity !== undefined) insertPayload.quantity = existingQuantity
     try {
-      await admin.from('group_items').insert({ group_id: groupId, equipment_id: new_equipment_id })
+      await admin.from('group_items').insert(insertPayload)
     } catch {
       // ignore duplicate key error
     }

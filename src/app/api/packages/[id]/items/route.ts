@@ -17,9 +17,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   try {
-    const { equipment_id } = await req.json()
+    const { equipment_id, quantity } = await req.json()
     if (!equipment_id) {
       return NextResponse.json({ error: 'equipment_id 為必填' }, { status: 400 })
+    }
+    if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > 999)) {
+      return NextResponse.json({ error: '數量需為 1–999 的整數' }, { status: 400 })
     }
 
     const supabase = getServiceClient()
@@ -35,9 +38,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const insertPayload: { package_id: string; equipment_id: string; quantity?: number } = {
+      package_id: params.id,
+      equipment_id,
+    }
+    if (quantity !== undefined) insertPayload.quantity = quantity
+
     const { data, error } = await supabase
       .from('package_items')
-      .insert({ package_id: params.id, equipment_id })
+      .insert(insertPayload)
       .select()
       .single()
 

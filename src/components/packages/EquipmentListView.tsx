@@ -2,6 +2,7 @@
 
 import { Folder, Trash2, ChevronRight, ChevronDown } from 'lucide-react'
 import { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
+import QuantityStepper from '@/components/QuantityStepper'
 import PackageQuickPick from './PackageQuickPick'
 import { unlinkKey } from './unlinkKey'
 
@@ -16,7 +17,7 @@ interface EquipmentGroup {
 export default function EquipmentListView({
   filteredEquipmentGroups, packages, expanded, toggleExpand, busyIds, isShared, canEdit,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
-  handleBatchUnlink, handleAddEquipmentToManyPackages,
+  handleBatchUnlink, handleAddEquipmentToManyPackages, onUpdateQuantity,
 }: {
   filteredEquipmentGroups: EquipmentGroup[]
   packages: (EquipmentPackage | SharedEquipmentPackage)[]
@@ -30,6 +31,7 @@ export default function EquipmentListView({
   running: boolean
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddEquipmentToManyPackages: (equipmentId: string, packageIds: string[]) => void | Promise<void>
+  onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
 }) {
   if (filteredEquipmentGroups.length === 0) {
     return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的料卡</p>
@@ -60,6 +62,7 @@ export default function EquipmentListView({
                       const isBusy = busyIds.has(pkg.id)
                       const k = unlinkKey(pkg.id, g.equipment_id)
                       const sharedDept = (pkg as SharedEquipmentPackage).source_department_name
+                      const quantity = pkg.package_items.find(i => i.equipment_id === g.equipment_id)?.quantity ?? 1
                       return (
                         <label key={pkg.id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
                           <span className="flex items-center gap-1.5 text-[#4a3422] truncate">
@@ -69,14 +72,25 @@ export default function EquipmentListView({
                               <span className="text-[10px] text-[#a08060] flex-shrink-0">（來自：{sharedDept}）</span>
                             )}
                           </span>
-                          {!isShared && canEdit && (
-                            <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
-                              取消掛載
-                              <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
-                                onChange={() => toggleUnlinkSelect(pkg.id, g.equipment_id)}
-                                disabled={isBusy} className="accent-[#b5451b]" />
-                            </span>
-                          )}
+                          <span className="flex items-center gap-3 flex-shrink-0">
+                            {!isShared && canEdit ? (
+                              <QuantityStepper
+                                value={quantity}
+                                onChange={v => onUpdateQuantity(pkg.id, g.equipment_id, v)}
+                                disabled={isBusy}
+                              />
+                            ) : (
+                              quantity !== 1 && <span className="text-[#a08060]">×{quantity}</span>
+                            )}
+                            {!isShared && canEdit && (
+                              <span className="flex items-center gap-1.5 text-[#a08060]">
+                                取消掛載
+                                <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
+                                  onChange={() => toggleUnlinkSelect(pkg.id, g.equipment_id)}
+                                  disabled={isBusy} className="accent-[#b5451b]" />
+                              </span>
+                            )}
+                          </span>
                         </label>
                       )
                     })}

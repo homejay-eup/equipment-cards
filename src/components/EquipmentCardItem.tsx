@@ -20,9 +20,12 @@ interface Props {
   onReplace?: () => void
   onRemoveFromGroup?: () => void
   onAddToGroup?: (rect: DOMRect) => void
+  // Step 35：我的關注／設備套餐數量欄位。undefined 或 1 時不顯示徽章，
+  // 沒有傳入這個 prop 的既有呼叫端（如 PhotoWall.tsx）完全不受影響。
+  quantity?: number
 }
 
-export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace, onRemoveFromGroup, onAddToGroup }: Props) {
+export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDelete, activeStatus, selectMode, isSelected, onSelect, isNew, isBookmarked, onToggleBookmark, onReplace, onRemoveFromGroup, onAddToGroup, quantity }: Props) {
   const isInactive = card.status !== activeStatus && card.status !== 'active'
 
   function handleClick() {
@@ -69,6 +72,13 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           {isNew && !isInactive && (
             <span className="badge-new-pulse absolute top-2 left-2 z-[5] text-[10px] font-bold tracking-widest text-white bg-[#b5451b] px-1.5 py-0.5 rounded shadow-sm">
               NEW
+            </span>
+          )}
+          {/* 數量徽章：四個角落都已被其他 hover 按鈕/徽章佔用，改放縮圖正上方置中
+              （唯一完全空著的位置），唯讀不可互動，數量為 1 或未帶入時不顯示 */}
+          {quantity !== undefined && quantity !== 1 && (
+            <span className="absolute top-1.5 left-1/2 -translate-x-1/2 z-[5] bg-[rgba(122,82,48,.85)] text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full shadow-sm pointer-events-none">
+              ×{quantity}
             </span>
           )}
           {card.detail_photos.length > 0 && (

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { data: full } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .eq('id', params.id)
       .single()
 

@@ -28,7 +28,7 @@ export async function GET() {
     const supabase = getServiceClient()
     const { data, error } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .eq('department_id', departmentId)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient()
 
-    let itemsToCopy: string[] = []
+    let itemsToCopy: { equipment_id: string; quantity: number }[] = []
 
     if (sourceGroupId) {
       // 驗證來源群組屬於此使用者
@@ -96,10 +96,10 @@ export async function POST(req: NextRequest) {
 
       const { data: groupItems } = await supabase
         .from('group_items')
-        .select('equipment_id')
+        .select('equipment_id, quantity')
         .eq('group_id', sourceGroupId)
 
-      itemsToCopy = (groupItems ?? []).map((g: { equipment_id: string }) => g.equipment_id)
+      itemsToCopy = (groupItems ?? []) as { equipment_id: string; quantity: number }[]
     }
 
     const now = new Date().toISOString()
@@ -141,13 +141,13 @@ export async function POST(req: NextRequest) {
     if (itemsToCopy.length > 0) {
       const { error: itemsError } = await supabase
         .from('package_items')
-        .insert(itemsToCopy.map((equipment_id) => ({ package_id: pkg.id, equipment_id })))
+        .insert(itemsToCopy.map((i) => ({ package_id: pkg.id, equipment_id: i.equipment_id, quantity: i.quantity })))
       if (itemsError) throw itemsError
     }
 
     const { data: full } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
       .eq('id', pkg.id)
       .single()
 

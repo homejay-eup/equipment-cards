@@ -55,7 +55,7 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
 
   let { data: groups } = await supabase
     .from('user_groups')
-    .select('*, group_items(equipment_id, added_at)')
+    .select('*, group_items(equipment_id, added_at, quantity)')
     .eq('user_id', userId)
     .order('is_default', { ascending: false })
     .order('sort_order')
@@ -85,7 +85,7 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
 
     const { data: fresh } = await supabase
       .from('user_groups')
-      .select('*, group_items(equipment_id, added_at)')
+      .select('*, group_items(equipment_id, added_at, quantity)')
       .eq('user_id', userId)
       .order('is_default', { ascending: false })
       .order('sort_order')
@@ -239,7 +239,7 @@ async function getPackagesData(userEmail: string, permissions: string[]): Promis
     canViewOwn && userDepartmentId
       ? adminClient
           .from('equipment_packages')
-          .select('*, package_items(equipment_id, added_at), package_shared_departments(department_id)')
+          .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
           .eq('department_id', userDepartmentId)
           .order('sort_order', { ascending: true, nullsFirst: false })
           .order('created_at', { ascending: false })
@@ -254,7 +254,7 @@ async function getPackagesData(userEmail: string, permissions: string[]): Promis
           if (packageIds.length === 0) return { data: [] }
           return adminClient
             .from('equipment_packages')
-            .select('*, package_items(equipment_id, added_at), departments!equipment_packages_department_id_fkey(name)')
+            .select('*, package_items(equipment_id, added_at, quantity), departments!equipment_packages_department_id_fkey(name)')
             .in('id', packageIds)
             .neq('department_id', userDepartmentId)
             .order('created_at', { ascending: false })

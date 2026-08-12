@@ -7,6 +7,7 @@ import { useState } from 'react'
 export interface PackageItemRecord {
   equipment_id: string
   added_at: string
+  quantity: number
 }
 
 export interface PackageSharedDepartment {
@@ -115,6 +116,16 @@ export function usePackages() {
     await parseErrorOr<void>(res, '移除料卡失敗')
   }
 
+  // ── 更新單一料卡數量 ──────────────────────────────────────────
+  async function updateItemQuantity(packageId: string, equipmentId: string, quantity: number): Promise<PackageItemRecord> {
+    const res = await fetch(`/api/packages/${packageId}/items/${equipmentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quantity }),
+    })
+    return parseErrorOr<PackageItemRecord>(res, '更新數量失敗')
+  }
+
   // ── 批次加/移料號掛載，回傳更新後的完整套餐 ─────────────────
   async function batchItems(packageId: string, opts: { add?: string[]; remove?: string[] }): Promise<EquipmentPackage> {
     const res = await fetch(`/api/packages/${packageId}/items/batch`, {
@@ -163,7 +174,7 @@ export function usePackages() {
 
   return {
     list, listShared, create, rename, remove,
-    addItem, removeItem, batchItems, duplicate, align,
+    addItem, removeItem, updateItemQuantity, batchItems, duplicate, align,
     batchShare, batchDelete, loading,
   }
 }
