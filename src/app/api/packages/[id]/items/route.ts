@@ -38,9 +38,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const insertPayload: { package_id: string; equipment_id: string; quantity?: number } = {
+    // 新項目插到最後面：目前最大 sort_order + 1000（沒有任何項目時視為 0）
+    const { data: maxRow } = await supabase
+      .from('package_items')
+      .select('sort_order')
+      .eq('package_id', params.id)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const nextSortOrder = ((maxRow as { sort_order: number } | null)?.sort_order ?? 0) + 1000
+
+    const insertPayload: { package_id: string; equipment_id: string; quantity?: number; sort_order: number } = {
       package_id: params.id,
       equipment_id,
+      sort_order: nextSortOrder,
     }
     if (quantity !== undefined) insertPayload.quantity = quantity
 

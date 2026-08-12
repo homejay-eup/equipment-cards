@@ -29,9 +29,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (!group || group.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const insertPayload: { group_id: string; equipment_id: string; quantity?: number } = {
+  // 新項目插到最後面：目前最大 sort_order + 1000（沒有任何項目時視為 0）
+  const { data: maxRow } = await admin
+    .from('group_items')
+    .select('sort_order')
+    .eq('group_id', params.id)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const nextSortOrder = ((maxRow as { sort_order: number } | null)?.sort_order ?? 0) + 1000
+
+  const insertPayload: { group_id: string; equipment_id: string; quantity?: number; sort_order: number } = {
     group_id: params.id,
     equipment_id,
+    sort_order: nextSortOrder,
   }
   if (quantity !== undefined) insertPayload.quantity = quantity
 

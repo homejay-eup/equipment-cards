@@ -41,6 +41,9 @@ interface Props {
   onChanged: () => void | Promise<void>
   // Step 35：數量本地樂觀更新（僅 own 有意義；shared 不可編輯不會用到）
   onOptimisticQuantityChange?: (packageId: string, equipmentId: string, quantity: number) => void
+  // Step 36：拖曳排序的本地樂觀更新（僅 own 有意義；shared 不可編輯不會用到）
+  onOptimisticPackageOrder?: (orderedPackageIds: string[]) => void
+  onOptimisticItemOrder?: (packageId: string, orderedEquipmentIds: string[]) => void
   storageKeyPrefix: string // 依 own/shared 各自獨立記憶顯示偏好
 }
 
@@ -64,7 +67,8 @@ function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v
 // 比照 documents/ExpandableDocumentList.tsx 的拆法與互動模式（依文件/依料號 -> 依套餐/依料號）。
 export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
-  duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange, storageKeyPrefix,
+  duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange,
+  onOptimisticPackageOrder, onOptimisticItemOrder, storageKeyPrefix,
 }: Props) {
   const pkgApi = usePackages()
   const [view, setView] = useLocalStorageState<ViewMode>(`${storageKeyPrefix}_view`, 'byPackage')
@@ -79,6 +83,10 @@ export default function PackageExplorer({
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // Step 36：套餐本身拖曳排序（依套餐視圖、無搜尋關鍵字時才可拖）
+  const [draggingPackageId, setDraggingPackageId] = useState<string | null>(null)
+  const [dragOverPackageId, setDragOverPackageId] = useState<string | null>(null)
 
   const [shareOpen, setShareOpen] = useState(false)
   const [duplicateTarget, setDuplicateTarget] = useState<EquipmentPackage | SharedEquipmentPackage | null>(null)
@@ -139,11 +147,20 @@ export default function PackageExplorer({
     return Array.from(map.values())
   }, [packages, cardMap])
 
+  // 拖曳排序只有在完整清單（無搜尋關鍵字）下才有意義；有搜尋關鍵字時用名稱排序方便掃視，
+  // 沒有搜尋關鍵字時依 sort_order 排序，反映使用者拖曳出來的順序
+  const trimmedQuery = query.trim()
   const filteredPackages = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const base = q ? packages.filter(p => p.name.toLowerCase().includes(q)) : packages
-    return [...base].sort((a, b) => a.name.localeCompare(b.name))
-  }, [packages, query])
+    const q = trimmedQuery.toLowerCase()
+    if (!q) {
+      return [...packages].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    }
+    return packages.filter(p => p.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
+  }, [packages, trimmedQuery])
+
+  // 依套餐視圖、own 模式、有編輯權限、且無搜尋關鍵字時才能拖曳排序套餐本身
+  // （搜尋結果排序不代表真實順序，不應該讓使用者在搜尋狀態下拖曳）
+  const canReorderPackages = mode !== 'shared' && canEdit && trimmedQuery === ''
 
   const filteredEquipmentGroups = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -267,6 +284,63 @@ export default function PackageExplorer({
       await pkgApi.updateItemQuantity(packageId, equipmentId, quantity)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : '更新數量失敗')
+      await onChanged()
+    }
+  }
+
+  // ── 套餐本身拖曳排序（比照 GroupsPanel.tsx 的 handleGroupReorder，但失敗時走
+  // setActionError + onChanged() 重新整理修正，跟這個檔案既有風格一致，不用 alert）───
+  async function handlePackageReorder(fromId: string, toId: string) {
+    if (fromId === toId) return
+    // 用完整的 packages（不是 filteredPackages）計算新順序，拖曳排序只在無搜尋關鍵字時允許，
+    // 但保險起見仍以完整清單為準，避免任何篩選狀態造成順序算錯
+    const sortedPackages = [...packages].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    const fromIdx = sortedPackages.findIndex(p => p.id === fromId)
+    const toIdx = sortedPackages.findIndex(p => p.id === toId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...sortedPackages]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    setDraggingPackageId(null)
+    setDragOverPackageId(null)
+    onOptimisticPackageOrder?.(reordered.map(p => p.id))
+
+    const orders = reordered.map((p, i) => ({ id: p.id, sort_order: (i + 1) * 1000 }))
+    setActionError(null)
+    try {
+      await pkgApi.reorderPackages(orders)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : '套餐排序更新失敗')
+      await onChanged()
+    }
+  }
+
+  // ── 套餐內料卡拖曳排序（邏輯跟 GroupsPanel.tsx 的 handleItemReorder 平行）───────
+  async function handleReorderItems(packageId: string, fromEquipmentId: string, toEquipmentId: string) {
+    if (fromEquipmentId === toEquipmentId) return
+    const pkg = packages.find(p => p.id === packageId)
+    if (!pkg) return
+
+    // 用依 sort_order 排好的順序操作，跟畫面上實際看到的順序一致（理由同 GroupsPanel.handleItemReorder）
+    const items = [...pkg.package_items].sort((a, b) => a.sort_order - b.sort_order)
+    const fromIdx = items.findIndex(i => i.equipment_id === fromEquipmentId)
+    const toIdx = items.findIndex(i => i.equipment_id === toEquipmentId)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const reordered = [...items]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+
+    onOptimisticItemOrder?.(packageId, reordered.map(i => i.equipment_id))
+
+    const orders = reordered.map((item, i) => ({ equipment_id: item.equipment_id, sort_order: (i + 1) * 1000 }))
+    setActionError(null)
+    try {
+      await pkgApi.reorderItems(packageId, orders)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : '料卡排序更新失敗')
       await onChanged()
     }
   }
@@ -438,6 +512,15 @@ export default function PackageExplorer({
           onUpdateQuantity={handleUpdateQuantity}
           setDuplicateTarget={setDuplicateTarget}
           askDeleteSingle={askDeleteSingle}
+          canReorderPackages={canReorderPackages}
+          draggingPackageId={draggingPackageId}
+          dragOverPackageId={dragOverPackageId}
+          onPackageDragStart={setDraggingPackageId}
+          onPackageDragEnd={() => { setDraggingPackageId(null); setDragOverPackageId(null) }}
+          onPackageDragOver={setDragOverPackageId}
+          onPackageDragLeave={() => setDragOverPackageId(null)}
+          onPackageDrop={handlePackageReorder}
+          onReorderItems={handleReorderItems}
         />
       ) : (
         <EquipmentListView

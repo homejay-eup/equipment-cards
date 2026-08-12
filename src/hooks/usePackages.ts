@@ -8,6 +8,7 @@ export interface PackageItemRecord {
   equipment_id: string
   added_at: string
   quantity: number
+  sort_order: number
 }
 
 export interface PackageSharedDepartment {
@@ -172,9 +173,29 @@ export function usePackages() {
     return parseErrorOr<BatchDeleteResult>(res, '批次刪除失敗')
   }
 
+  // ── 套餐內料卡拖曳排序 ──────────────────────────────────────
+  async function reorderItems(packageId: string, orders: { equipment_id: string; sort_order: number }[]): Promise<void> {
+    const res = await fetch(`/api/packages/${packageId}/items/reorder`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orders }),
+    })
+    await parseErrorOr<void>(res, '排序更新失敗')
+  }
+
+  // ── 套餐本身拖曳排序 ────────────────────────────────────────
+  async function reorderPackages(orders: { id: string; sort_order: number }[]): Promise<void> {
+    const res = await fetch('/api/packages/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orders }),
+    })
+    await parseErrorOr<void>(res, '排序更新失敗')
+  }
+
   return {
     list, listShared, create, rename, remove,
     addItem, removeItem, updateItemQuantity, batchItems, duplicate, align,
-    batchShare, batchDelete, loading,
+    batchShare, batchDelete, reorderItems, reorderPackages, loading,
   }
 }

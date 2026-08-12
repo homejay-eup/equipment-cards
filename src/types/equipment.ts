@@ -74,6 +74,7 @@ export interface GroupItem {
   equipment_id: string
   added_at: string
   quantity: number
+  sort_order: number
 }
 
 export interface UserGroup {

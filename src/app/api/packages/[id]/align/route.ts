@@ -50,10 +50,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     const { data: groupItems } = await supabase
       .from('group_items')
-      .select('equipment_id, quantity')
+      .select('equipment_id, quantity, sort_order')
       .eq('group_id', pkg.source_group_id)
 
-    const items = (groupItems ?? []) as { equipment_id: string; quantity: number }[]
+    const items = (groupItems ?? []) as { equipment_id: string; quantity: number; sort_order: number }[]
     const now = new Date().toISOString()
 
     // 整個覆蓋 package_items
@@ -66,7 +66,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     if (items.length > 0) {
       const { error: insertError } = await supabase
         .from('package_items')
-        .insert(items.map((g) => ({ package_id: params.id, equipment_id: g.equipment_id, quantity: g.quantity })))
+        .insert(items.map((g) => ({
+          package_id: params.id,
+          equipment_id: g.equipment_id,
+          quantity: g.quantity,
+          sort_order: g.sort_order,
+        })))
       if (insertError) throw insertError
     }
 
@@ -74,7 +79,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .from('equipment_packages')
       .update({ name: group.name, source_synced_at: now, updated_at: now })
       .eq('id', params.id)
-      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity, sort_order), package_shared_departments(department_id)')
+      .order('sort_order', { foreignTable: 'package_items', ascending: true })
       .single()
 
     if (updateError) {

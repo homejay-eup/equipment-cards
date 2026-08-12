@@ -61,11 +61,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     if (add.length > 0) {
-      // upsert：已存在的料號不報錯，忽略即可
+      // 批次新增的料號插到最後面，且維持這批新增料號彼此間的相對順序：
+      // 目前最大 sort_order + 1000 為起點，依序遞增 1000
+      const { data: maxRow } = await supabase
+        .from('package_items')
+        .select('sort_order')
+        .eq('package_id', params.id)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      let nextSortOrder = ((maxRow as { sort_order: number } | null)?.sort_order ?? 0)
+
+      // upsert：已存在的料號不報錯，忽略即可（ignoreDuplicates 下 sort_order 不會覆蓋既有值）
       const { error: addError } = await supabase
         .from('package_items')
         .upsert(
-          add.map((equipment_id) => ({ package_id: params.id, equipment_id })),
+          add.map((equipment_id) => {
+            nextSortOrder += 1000
+            return { package_id: params.id, equipment_id, sort_order: nextSortOrder }
+          }),
           { onConflict: 'package_id,equipment_id', ignoreDuplicates: true },
         )
       if (addError) throw addError
@@ -80,8 +94,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { data: full } = await supabase
       .from('equipment_packages')
-      .select('*, package_items(equipment_id, added_at, quantity), package_shared_departments(department_id)')
+      .select('*, package_items(equipment_id, added_at, quantity, sort_order), package_shared_departments(department_id)')
       .eq('id', params.id)
+      .order('sort_order', { foreignTable: 'package_items', ascending: true })
       .single()
 
     return NextResponse.json(full)

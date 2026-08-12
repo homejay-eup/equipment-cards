@@ -18,10 +18,11 @@ export async function GET() {
   // 查詢現有群組
   let { data: groups } = await admin
     .from('user_groups')
-    .select('*, group_items(equipment_id, added_at, quantity)')
+    .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
     .eq('user_id', user.id)
     .order('is_default', { ascending: false })
     .order('sort_order')
+    .order('sort_order', { foreignTable: 'group_items', ascending: true })
 
   // 懶遷移：若完全沒有群組，從 user_bookmarks 遷移
   if (!groups || groups.length === 0) {
@@ -37,21 +38,25 @@ export async function GET() {
       .single()
 
     if (newGroup && bookmarks && bookmarks.length > 0) {
+      // 依料號升序給初始排序值，比照 step36 backfill 邏輯
+      const sorted = [...bookmarks].sort((a, b) => a.equipment_id.localeCompare(b.equipment_id))
       await admin.from('group_items').insert(
-        bookmarks.map((b: { equipment_id: string; created_at: string }) => ({
+        sorted.map((b: { equipment_id: string; created_at: string }, idx: number) => ({
           group_id: newGroup.id,
           equipment_id: b.equipment_id,
           added_at: b.created_at,
+          sort_order: (idx + 1) * 1000,
         }))
       )
     }
 
     const { data: fresh } = await admin
       .from('user_groups')
-      .select('*, group_items(equipment_id, added_at, quantity)')
+      .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
       .eq('user_id', user.id)
       .order('is_default', { ascending: false })
       .order('sort_order')
+      .order('sort_order', { foreignTable: 'group_items', ascending: true })
     groups = fresh
   }
 
@@ -70,7 +75,7 @@ export async function POST(request: Request) {
   const { data, error } = await admin
     .from('user_groups')
     .insert({ user_id: user.id, name: name.trim() })
-    .select('*, group_items(equipment_id, added_at, quantity)')
+    .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
     .single()
 
   if (error) {
