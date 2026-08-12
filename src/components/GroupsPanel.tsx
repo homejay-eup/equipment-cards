@@ -827,7 +827,7 @@ export default function GroupsPanel({
               ) : (
                 <button
                   onClick={() => setAddingGroup(true)}
-                  className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors"
+                  className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                   新增群組
@@ -853,17 +853,16 @@ export default function GroupsPanel({
                       <LayoutGrid className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-0.5 text-xs text-[#c0a882]">
+                  <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
                     <button
                       onClick={() => setExpandedIds(new Set(groups.map(g => g.id)))}
-                      className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                      className="px-2.5 py-1.5 text-[#a08060] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230] border-r border-[rgba(122,82,48,.25)] transition-colors"
                     >
                       展開全部
                     </button>
-                    <span className="select-none">|</span>
                     <button
                       onClick={() => setExpandedIds(new Set())}
-                      className="hover:text-[#7a5230] transition-colors px-1.5 py-0.5 rounded hover:bg-[rgba(122,82,48,.06)]"
+                      className="px-2.5 py-1.5 text-[#a08060] hover:bg-[rgba(122,82,48,.06)] hover:text-[#7a5230] transition-colors"
                     >
                       收合全部
                     </button>
