@@ -13,6 +13,7 @@ import PackageListView from './PackageListView'
 import EquipmentListView from './EquipmentListView'
 import { unlinkKey } from './unlinkKey'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
+import { reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 
 type ViewMode = 'byPackage' | 'byEquipment'
 type DisplayMode = 'list' | 'photo'
@@ -87,6 +88,7 @@ export default function PackageExplorer({
   // Step 36：套餐本身拖曳排序（依套餐視圖、無搜尋關鍵字時才可拖）
   const [draggingPackageId, setDraggingPackageId] = useState<string | null>(null)
   const [dragOverPackageId, setDragOverPackageId] = useState<string | null>(null)
+  const [dragOverPackagePosition, setDragOverPackagePosition] = useState<DropPosition | null>(null)
 
   const [shareOpen, setShareOpen] = useState(false)
   const [duplicateTarget, setDuplicateTarget] = useState<EquipmentPackage | SharedEquipmentPackage | null>(null)
@@ -290,21 +292,17 @@ export default function PackageExplorer({
 
   // ── 套餐本身拖曳排序（比照 GroupsPanel.tsx 的 handleGroupReorder，但失敗時走
   // setActionError + onChanged() 重新整理修正，跟這個檔案既有風格一致，不用 alert）───
-  async function handlePackageReorder(fromId: string, toId: string) {
-    if (fromId === toId) return
+  async function handlePackageReorder(fromId: string, toId: string, position: DropPosition) {
     // 用完整的 packages（不是 filteredPackages）計算新順序，拖曳排序只在無搜尋關鍵字時允許，
     // 但保險起見仍以完整清單為準，避免任何篩選狀態造成順序算錯
     const sortedPackages = [...packages].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    const fromIdx = sortedPackages.findIndex(p => p.id === fromId)
-    const toIdx = sortedPackages.findIndex(p => p.id === toId)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...sortedPackages]
-    const [moved] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, moved)
+    // 依游標實際懸停在目標上/下半插入（before/after），取代舊有依 fromIdx/toIdx 大小關係決定方向的 splice
+    const reordered = reorderByPosition(sortedPackages, fromId, toId, position, p => p.id)
+    if (reordered === sortedPackages) return
 
     setDraggingPackageId(null)
     setDragOverPackageId(null)
+    setDragOverPackagePosition(null)
     onOptimisticPackageOrder?.(reordered.map(p => p.id))
 
     const orders = reordered.map((p, i) => ({ id: p.id, sort_order: (i + 1) * 1000 }))
@@ -318,20 +316,15 @@ export default function PackageExplorer({
   }
 
   // ── 套餐內料卡拖曳排序（邏輯跟 GroupsPanel.tsx 的 handleItemReorder 平行）───────
-  async function handleReorderItems(packageId: string, fromEquipmentId: string, toEquipmentId: string) {
-    if (fromEquipmentId === toEquipmentId) return
+  async function handleReorderItems(packageId: string, fromEquipmentId: string, toEquipmentId: string, position: DropPosition) {
     const pkg = packages.find(p => p.id === packageId)
     if (!pkg) return
 
     // 用依 sort_order 排好的順序操作，跟畫面上實際看到的順序一致（理由同 GroupsPanel.handleItemReorder）
     const items = [...pkg.package_items].sort((a, b) => a.sort_order - b.sort_order)
-    const fromIdx = items.findIndex(i => i.equipment_id === fromEquipmentId)
-    const toIdx = items.findIndex(i => i.equipment_id === toEquipmentId)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...items]
-    const [moved] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, moved)
+    // 依游標實際懸停在目標上/下半插入（before/after），取代舊有依 fromIdx/toIdx 大小關係決定方向的 splice
+    const reordered = reorderByPosition(items, fromEquipmentId, toEquipmentId, position, i => i.equipment_id)
+    if (reordered === items) return
 
     onOptimisticItemOrder?.(packageId, reordered.map(i => i.equipment_id))
 
@@ -515,10 +508,11 @@ export default function PackageExplorer({
           canReorderPackages={canReorderPackages}
           draggingPackageId={draggingPackageId}
           dragOverPackageId={dragOverPackageId}
+          dragOverPackagePosition={dragOverPackagePosition}
           onPackageDragStart={setDraggingPackageId}
-          onPackageDragEnd={() => { setDraggingPackageId(null); setDragOverPackageId(null) }}
-          onPackageDragOver={setDragOverPackageId}
-          onPackageDragLeave={() => setDragOverPackageId(null)}
+          onPackageDragEnd={() => { setDraggingPackageId(null); setDragOverPackageId(null); setDragOverPackagePosition(null) }}
+          onPackageDragOver={(id, position) => { setDragOverPackageId(id); setDragOverPackagePosition(position) }}
+          onPackageDragLeave={() => { setDragOverPackageId(null); setDragOverPackagePosition(null) }}
           onPackageDrop={handlePackageReorder}
           onReorderItems={handleReorderItems}
         />

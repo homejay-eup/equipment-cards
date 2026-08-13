@@ -7,6 +7,7 @@ import EquipmentCardItem from '@/components/EquipmentCardItem'
 import QuantityStepper from '@/components/QuantityStepper'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
+import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, Minus } from 'lucide-react'
 
 interface GroupsPanelProps {
@@ -453,10 +454,12 @@ export default function GroupsPanel({
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [dragOverPosition, setDragOverPosition] = useState<DropPosition | null>(null)
 
   // Step 36：群組內料卡拖曳排序（清單模式才能拖；跨群組拖曳不支援，只允許同一個群組內部重排）
   const [draggingItem, setDraggingItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
+  const [dragOverItemPosition, setDragOverItemPosition] = useState<DropPosition | null>(null)
 
   // ── Step 34：設備套餐來源對齊（複製為套餐／重新對齊套餐） ─────────
   const pkgApi = usePackages()
@@ -758,23 +761,19 @@ export default function GroupsPanel({
     setAddTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleGroupReorder(fromId: string, toId: string) {
-    if (fromId === toId) return
+  async function handleGroupReorder(fromId: string, toId: string, position: DropPosition) {
     const defaultGroup = groups.find(g => g.is_default)
     const nonDefault = groups.filter(g => !g.is_default)
-    const fromIdx = nonDefault.findIndex(g => g.id === fromId)
-    const toIdx = nonDefault.findIndex(g => g.id === toId)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...nonDefault]
-    const [moved] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, moved)
+    // 依游標實際懸停在目標上/下半插入（before/after），取代舊有依 fromIdx/toIdx 大小關係決定方向的 splice
+    const reordered = reorderByPosition(nonDefault, fromId, toId, position, g => g.id)
+    if (reordered === nonDefault) return
 
     const newGroups = defaultGroup ? [defaultGroup, ...reordered] : reordered
     const originalGroups = groups
     applyGroups(newGroups)
     setDraggingId(null)
     setDragOverId(null)
+    setDragOverPosition(null)
 
     const orders = reordered.map((g, i) => ({ id: g.id, sort_order: (i + 1) * 1000 }))
     try {
@@ -792,8 +791,7 @@ export default function GroupsPanel({
 
   // Step 36：群組內料卡拖曳排序（清單模式才能拖，照片模式沿用同一份 group_items 順序）。
   // 只允許同一個群組內部重新排序，不支援跨群組拖曳。
-  async function handleItemReorder(groupId: string, fromEquipmentId: string, toEquipmentId: string) {
-    if (fromEquipmentId === toEquipmentId) return
+  async function handleItemReorder(groupId: string, fromEquipmentId: string, toEquipmentId: string, position: DropPosition) {
     const group = groups.find(g => g.id === groupId)
     if (!group) return
 
@@ -801,19 +799,16 @@ export default function GroupsPanel({
     // （group.group_items 這個原始陣列的實際排列順序不一定跟 sort_order 一致，
     // 例如剛新增過料卡的樂觀更新是插在陣列前面，但 sort_order 給的是排在最後的值）
     const items = [...group.group_items].sort((a, b) => a.sort_order - b.sort_order)
-    const fromIdx = items.findIndex(i => i.equipment_id === fromEquipmentId)
-    const toIdx = items.findIndex(i => i.equipment_id === toEquipmentId)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...items]
-    const [moved] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, moved)
+    // 依游標實際懸停在目標上/下半插入（before/after），取代舊有依 fromIdx/toIdx 大小關係決定方向的 splice
+    const reordered = reorderByPosition(items, fromEquipmentId, toEquipmentId, position, i => i.equipment_id)
+    if (reordered === items) return
     const withSortOrder = reordered.map((item, i) => ({ ...item, sort_order: (i + 1) * 1000 }))
 
     const originalGroups = groups
     applyGroups(groups.map(g => g.id === groupId ? { ...g, group_items: withSortOrder } : g))
     setDraggingItem(null)
     setDragOverItem(null)
+    setDragOverItemPosition(null)
 
     const orders = withSortOrder.map(item => ({ equipment_id: item.equipment_id, sort_order: item.sort_order }))
     try {
@@ -935,14 +930,18 @@ export default function GroupsPanel({
                   ? validCards.filter(c => filteredSet.has(c.equipment_id))
                   : validCards
 
+                const isDragOverThisGroup = dragOverId === group.id && draggingId !== group.id
                 return (
                   <div
                     key={group.id}
-                    className={`py-2 rounded-lg transition-all ${draggingId === group.id ? 'opacity-40' : ''} ${dragOverId === group.id && draggingId !== group.id ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
-                    onDragOver={!group.is_default ? e => { e.preventDefault(); if (draggingId && draggingId !== group.id) setDragOverId(group.id) } : undefined}
-                    onDragLeave={!group.is_default ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null) } : undefined}
-                    onDrop={!group.is_default ? e => { e.preventDefault(); if (draggingId) handleGroupReorder(draggingId, group.id); setDragOverId(null) } : undefined}
+                    className={`relative py-2 rounded-lg transition-all ${draggingId === group.id ? 'opacity-40' : ''}`}
+                    onDragOver={!group.is_default ? e => { e.preventDefault(); if (draggingId && draggingId !== group.id) { setDragOverId(group.id); setDragOverPosition(getDropPosition(e, 'vertical')) } } : undefined}
+                    onDragLeave={!group.is_default ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverId(null); setDragOverPosition(null) } } : undefined}
+                    onDrop={!group.is_default ? e => { e.preventDefault(); if (draggingId) handleGroupReorder(draggingId, group.id, dragOverPosition ?? 'before'); setDragOverId(null); setDragOverPosition(null) } : undefined}
                   >
+                    {isDragOverThisGroup && (
+                      <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? '-bottom-1' : '-top-1'}`} />
+                    )}
                     {/* 群組標題列 */}
                     <div className="relative flex items-center group/header">
                       {renamingId === group.id ? (
@@ -987,7 +986,7 @@ export default function GroupsPanel({
                             <span
                               draggable
                               onDragStart={e => { e.stopPropagation(); setDraggingId(group.id) }}
-                              onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
+                              onDragEnd={() => { setDraggingId(null); setDragOverId(null); setDragOverPosition(null) }}
                               className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0 px-0.5"
                             >
                               <GripVertical className="h-4 w-4" />
@@ -1140,26 +1139,31 @@ export default function GroupsPanel({
                             return (
                               <div
                                 key={card.equipment_id}
-                                className={`group/row flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThis ? 'opacity-40' : ''} ${isDragOverThis ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+                                className={`relative group/row flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThis ? 'opacity-40' : ''}`}
                                 onDragOver={e => {
                                   e.preventDefault()
                                   if (draggingItem && draggingItem.groupId === group.id && draggingItem.equipmentId !== card.equipment_id) {
                                     setDragOverItem({ groupId: group.id, equipmentId: card.equipment_id })
+                                    setDragOverItemPosition(getDropPosition(e, 'vertical'))
                                   }
                                 }}
-                                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverItem(null) }}
+                                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverItem(null); setDragOverItemPosition(null) } }}
                                 onDrop={e => {
                                   e.preventDefault()
                                   if (draggingItem && draggingItem.groupId === group.id) {
-                                    handleItemReorder(group.id, draggingItem.equipmentId, card.equipment_id)
+                                    handleItemReorder(group.id, draggingItem.equipmentId, card.equipment_id, dragOverItemPosition ?? 'before')
                                   }
                                   setDragOverItem(null)
+                                  setDragOverItemPosition(null)
                                 }}
                               >
+                                {isDragOverThis && (
+                                  <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverItemPosition === 'after' ? 'bottom-0' : 'top-0'}`} />
+                                )}
                                 <span
                                   draggable
                                   onDragStart={e => { e.stopPropagation(); setDraggingItem({ groupId: group.id, equipmentId: card.equipment_id }) }}
-                                  onDragEnd={() => { setDraggingItem(null); setDragOverItem(null) }}
+                                  onDragEnd={() => { setDraggingItem(null); setDragOverItem(null); setDragOverItemPosition(null) }}
                                   className="opacity-0 group-hover/row:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
                                 >
                                   <GripVertical className="h-3.5 w-3.5" />

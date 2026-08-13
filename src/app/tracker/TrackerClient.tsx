@@ -8,6 +8,7 @@ import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useIssueRealtime } from '@/hooks/useIssueRealtime'
+import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 
 interface Props {
   initialIssues: Issue[]
@@ -101,6 +102,7 @@ export default function TrackerClient({
   const [draggingId,           setDraggingId]           = useState<string | null>(null)
   const [dragOverCol,          setDragOverCol]          = useState<string | null>(null)
   const [dragOverIssueId,      setDragOverIssueId]      = useState<string | null>(null)
+  const [dragOverPosition,     setDragOverPosition]     = useState<DropPosition | null>(null)
   const [confirmClearOpen,     setConfirmClearOpen]     = useState(false)
   const [confirmDeleteIssueId, setConfirmDeleteIssueId] = useState<string | null>(null)
   const [clearingCompleted,    setClearingCompleted]    = useState(false)
@@ -361,9 +363,11 @@ export default function TrackerClient({
 
     const id = draggingId
     const hoverId = dragOverIssueId
+    const hoverPosition = dragOverPosition
     setDraggingId(null)
     setDragOverCol(null)
     setDragOverIssueId(null)
+    setDragOverPosition(null)
 
     // ── 跨欄拖曳（原有邏輯）──
     if (issue.status !== targetStatus) {
@@ -389,15 +393,9 @@ export default function TrackerClient({
       const colItems = issues
         .filter(i => i.status === targetStatus)
         .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity))
-      const draggingIdx = colItems.findIndex(i => i.id === id)
-      const hoverIdx = colItems.findIndex(i => i.id === hoverId)
-      if (draggingIdx === -1 || hoverIdx === -1) return
-
-      // 移除被拖曳的項目，插入到 hover 目標之前
-      const reordered = [...colItems]
-      const [dragged] = reordered.splice(draggingIdx, 1)
-      const insertIdx = reordered.findIndex(i => i.id === hoverId)
-      reordered.splice(insertIdx, 0, dragged)
+      // 依游標實際懸停在目標上/下半插入（before/after），取代舊有「一律插在 hover 目標前面」的邏輯
+      const reordered = reorderByPosition(colItems, id, hoverId, hoverPosition ?? 'before', i => i.id)
+      if (reordered === colItems) return
 
       // 重新分配 sort_order（等差 1000，留空間之後插入）
       const orders = reordered.map((item, idx) => ({ id: item.id, sort_order: (idx + 1) * 1000 }))
@@ -428,7 +426,7 @@ export default function TrackerClient({
         ))
       }
     }
-  }, [draggingId, dragOverIssueId, issues])
+  }, [draggingId, dragOverIssueId, dragOverPosition, issues])
 
   const hasReminders = reminders.overdue.length > 0 || reminders.today.length > 0
 
@@ -659,7 +657,7 @@ export default function TrackerClient({
               className={`bg-[#ede5db] rounded-xl border shadow-sm flex-col transition-colors ${
                 col.key !== activeCol ? 'hidden sm:flex' : 'flex'
               } ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.20)]'}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null) }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null); setDragOverPosition(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
               }}
@@ -699,10 +697,10 @@ export default function TrackerClient({
                     const isSameColDrag = draggedIssue?.status === col.key
                     const isInsertTarget = isSameColDrag && dragOverIssueId === issue.id && draggingId !== issue.id
                     return (
-                      <div key={issue.id}>
-                        {/* 插入位置指示條 */}
+                      <div key={issue.id} className="relative">
+                        {/* 插入位置指示條：依游標懸停在目標上/下半顯示在正上方或正下方，absolute 定位不頂開版面 */}
                         {isInsertTarget && (
-                          <div className="h-0.5 bg-[#c49a72] rounded-full mb-1 mx-0.5" />
+                          <div className={`absolute left-0.5 right-0.5 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? '-bottom-1' : '-top-1'}`} />
                         )}
                         {col.key === '已完成' ? (
                           /* 已完成欄：改用 div（避免 button 巢狀 button） */
@@ -713,7 +711,7 @@ export default function TrackerClient({
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedIssue(issue) } }}
                             draggable={true}
                             onDragStart={() => setDraggingId(issue.id)}
-                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
+                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null); setDragOverPosition(null) }}
                             onDragOver={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
@@ -722,6 +720,7 @@ export default function TrackerClient({
                                 const dragged = issues.find(i => i.id === draggingId)
                                 if (dragged?.status === col.key) {
                                   setDragOverIssueId(issue.id)
+                                  setDragOverPosition(getDropPosition(e, 'vertical'))
                                 }
                               }
                             }}
@@ -769,7 +768,7 @@ export default function TrackerClient({
                             onClick={() => setSelectedIssue(issue)}
                             draggable={true}
                             onDragStart={() => setDraggingId(issue.id)}
-                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null) }}
+                            onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null); setDragOverPosition(null) }}
                             onDragOver={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
@@ -778,6 +777,7 @@ export default function TrackerClient({
                                 const dragged = issues.find(i => i.id === draggingId)
                                 if (dragged?.status === col.key) {
                                   setDragOverIssueId(issue.id)
+                                  setDragOverPosition(getDropPosition(e, 'vertical'))
                                 }
                               }
                             }}
