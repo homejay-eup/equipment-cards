@@ -1,6 +1,6 @@
 'use client'
 
-import { Folder, Trash2, ChevronRight, ChevronDown } from 'lucide-react'
+import { Folder, Trash2, ChevronRight, ChevronDown, ArrowLeftRight } from 'lucide-react'
 import { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import QuantityStepper from '@/components/QuantityStepper'
 import PackageQuickPick from './PackageQuickPick'
@@ -17,7 +17,7 @@ interface EquipmentGroup {
 export default function EquipmentListView({
   filteredEquipmentGroups, packages, expanded, toggleExpand, busyIds, isShared, canEdit,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
-  handleBatchUnlink, handleAddEquipmentToManyPackages, onUpdateQuantity,
+  handleBatchUnlink, handleAddEquipmentToManyPackages, onUpdateQuantity, onReplace,
 }: {
   filteredEquipmentGroups: EquipmentGroup[]
   packages: (EquipmentPackage | SharedEquipmentPackage)[]
@@ -32,6 +32,8 @@ export default function EquipmentListView({
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddEquipmentToManyPackages: (equipmentId: string, packageIds: string[]) => void | Promise<void>
   onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
+  // Step 37：跨套餐批次替換料卡，開啟 ReplacePackageItemDialog，預設帶出該料號所在的全部套餐
+  onReplace: (equipmentId: string, equipmentName: string) => void
 }) {
   if (filteredEquipmentGroups.length === 0) {
     return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的料卡</p>
@@ -51,6 +53,18 @@ export default function EquipmentListView({
               <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
               <span className="text-[#6b4f38] truncate flex-1">{g.name}</span>
               <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份套餐</span>
+              {/* 這裡的標題列不是 <label>，點擊不會誤觸其他 checkbox，不需要 stopPropagation */}
+              {!isShared && canEdit && (
+                <button
+                  type="button"
+                  onClick={() => onReplace(g.equipment_id, g.name)}
+                  title="替換料卡"
+                  className="flex items-center gap-1 text-[10px] font-medium text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                  替換料卡
+                </button>
+              )}
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">

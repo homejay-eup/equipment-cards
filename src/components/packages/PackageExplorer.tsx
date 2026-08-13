@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   Loader2, Search, LayoutGrid, List as ListIcon, Check, RefreshCw,
 } from 'lucide-react'
@@ -8,6 +8,7 @@ import { EquipmentCard } from '@/types/equipment'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import ShareDepartmentsDialog from './ShareDepartmentsDialog'
 import DuplicatePackageDialog from './DuplicatePackageDialog'
+import ReplacePackageItemDialog from './ReplacePackageItemDialog'
 import PackageBatchActionsBar from './PackageBatchActionsBar'
 import PackageListView from './PackageListView'
 import EquipmentListView from './EquipmentListView'
@@ -92,6 +93,9 @@ export default function PackageExplorer({
   const [duplicateTarget, setDuplicateTarget] = useState<EquipmentPackage | SharedEquipmentPackage | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; names: string[] } | null>(null)
   const [running, setRunning] = useState(false)
+
+  // Step 37：跨套餐批次替換料卡
+  const [replaceTarget, setReplaceTarget] = useState<{ equipmentId: string; equipmentName: string } | null>(null)
 
   // 分享成功提示：範圍侷限套餐分享情境的輕量 toast，2.5 秒後自動消失（無全站共用元件）
   const [shareToast, setShareToast] = useState<string | null>(null)
@@ -273,6 +277,25 @@ export default function PackageExplorer({
     if (failed.length > 0) setActionError('部分取消掛載失敗，請重試')
     await onChanged()
   }
+
+  // ── 跨套餐批次替換料卡（Step 37，比照 GroupsPanel.tsx 的 handleReplace，
+  // 但這裡 packages 是外部傳入的 prop，不像 GroupsPanel 自己管理 state，
+  // 走跟 handleAddManyToPackage/handleBatchUnlink 一致的 onChanged() 整包重抓模式，不做本地樂觀更新）───
+  // reviewer 註記：即使 API 回錯誤也要 onChanged() 重新整理（用 finally，不只在成功時做）——
+  // API 端 insert/delete 是兩個分開的陳述式，若 insert 成功但 delete 失敗，DB 內容其實已經
+  // 局部變動（新舊料卡暫時並存），只在 catch 裡設錯誤訊息而不重抓會讓畫面停在過期的舊狀態
+  const handleReplace = useCallback(async (newCard: EquipmentCard, targetPackageIds: string[]) => {
+    if (!replaceTarget) return
+    setActionError(null)
+    try {
+      await pkgApi.replaceItem(replaceTarget.equipmentId, newCard.equipment_id, targetPackageIds)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : '替換料卡失敗')
+    } finally {
+      await onChanged()
+    }
+    setReplaceTarget(null)
+  }, [replaceTarget, pkgApi, onChanged])
 
   // ── 更新單一料卡數量 ────────────────────────────────────────
   // 先本地樂觀更新（比照 GroupsPanel），連續點擊 +/- 時每次都算在最新值上；
@@ -510,6 +533,7 @@ export default function PackageExplorer({
           handleBatchUnlink={handleBatchUnlink}
           handleAddManyToPackage={handleAddManyToPackage}
           onUpdateQuantity={handleUpdateQuantity}
+          onReplace={(equipmentId, equipmentName) => setReplaceTarget({ equipmentId, equipmentName })}
           setDuplicateTarget={setDuplicateTarget}
           askDeleteSingle={askDeleteSingle}
           canReorderPackages={canReorderPackages}
@@ -537,6 +561,7 @@ export default function PackageExplorer({
           handleBatchUnlink={handleBatchUnlink}
           handleAddEquipmentToManyPackages={handleAddEquipmentToManyPackages}
           onUpdateQuantity={handleUpdateQuantity}
+          onReplace={(equipmentId, equipmentName) => setReplaceTarget({ equipmentId, equipmentName })}
         />
       )}
 
@@ -573,6 +598,17 @@ export default function PackageExplorer({
           sourceName={duplicateTarget.name}
           onConfirm={handleConfirmDuplicate}
           onCancel={() => setDuplicateTarget(null)}
+        />
+      )}
+
+      {replaceTarget && (
+        <ReplacePackageItemDialog
+          equipmentId={replaceTarget.equipmentId}
+          equipmentName={replaceTarget.equipmentName}
+          allPackages={packages}
+          allCards={allCards}
+          onConfirm={handleReplace}
+          onCancel={() => setReplaceTarget(null)}
         />
       )}
 

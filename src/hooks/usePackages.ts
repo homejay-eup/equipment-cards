@@ -193,9 +193,22 @@ export function usePackages() {
     await parseErrorOr<void>(res, '排序更新失敗')
   }
 
+  // ── 跨套餐批次替換料卡（Step 37，比照 /api/groups/replace） ──────
+  // reviewer 註記：API 端已改成批次一次處理全部套餐（insert/delete/update 各一個
+  // SQL 陳述式），任何一步失敗直接回錯誤狀態碼，不會有「部分套餐成功、部分失敗」
+  // 卻仍回 success: true 的情況，呼叫端維持單純的 throw-on-error 語意即可
+  async function replaceItem(oldEquipmentId: string, newEquipmentId: string, packageIds: string[]): Promise<void> {
+    const res = await fetch('/api/packages/replace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_equipment_id: oldEquipmentId, new_equipment_id: newEquipmentId, package_ids: packageIds }),
+    })
+    await parseErrorOr<void>(res, '替換料卡失敗')
+  }
+
   return {
     list, listShared, create, rename, remove,
     addItem, removeItem, updateItemQuantity, batchItems, duplicate, align,
-    batchShare, batchDelete, reorderItems, reorderPackages, loading,
+    batchShare, batchDelete, reorderItems, reorderPackages, replaceItem, loading,
   }
 }
