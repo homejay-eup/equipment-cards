@@ -58,8 +58,9 @@ export async function GET(req: NextRequest) {
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
-        created_by, created_at, updated_at, sort_order,
-        issue_assignees(user_email)
+        created_by, created_at, updated_at, sort_order, is_pinned,
+        issue_assignees(user_email),
+        issue_updates(id, content, created_by, created_at)
       `)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -86,11 +87,15 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // 轉換 assignees 為 email 前綴陣列
+    // 轉換 assignees 為 email 前綴陣列，並補上完整 email 陣列
     const formatted = result.map((issue) => ({
       ...issue,
+      sort_order: issue.sort_order ?? undefined,
       assignees: (issue.issue_assignees as { user_email: string }[]).map(
         (a) => a.user_email.split('@')[0],
+      ),
+      assignee_emails: (issue.issue_assignees as { user_email: string }[]).map(
+        (a) => a.user_email,
       ),
       issue_assignees: undefined,
     }))
