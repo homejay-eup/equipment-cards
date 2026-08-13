@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical,
+  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight,
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
@@ -21,7 +21,7 @@ export default function PackageListView({
   selectedPackageIds, togglePackageSelect, duplicateGroups, alignmentBadge, sharedDeptLabel, display,
   renamingId, renameValue, setRenameValue, submitRename, startRename, setRenamingId,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
-  handleBatchUnlink, handleAddManyToPackage, onUpdateQuantity,
+  handleBatchUnlink, handleAddManyToPackage, onUpdateQuantity, onReplace,
   setDuplicateTarget, askDeleteSingle,
   canReorderPackages, draggingPackageId, dragOverPackageId, dragOverPackagePosition,
   onPackageDragStart, onPackageDragEnd, onPackageDragOver, onPackageDragLeave, onPackageDrop,
@@ -54,6 +54,8 @@ export default function PackageListView({
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddManyToPackage: (packageId: string, equipmentIds: string[]) => void | Promise<void>
   onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
+  // Step 37：跨套餐批次替換料卡，開啟 ReplacePackageItemDialog
+  onReplace: (equipmentId: string, equipmentName: string) => void
   setDuplicateTarget: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
   askDeleteSingle: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
   // Step 36：套餐本身拖曳排序（只在無搜尋關鍵字、!isShared && canEdit 時才允許，由 PackageExplorer 算好傳入）
@@ -256,6 +258,19 @@ export default function PackageListView({
                               (item.quantity ?? 1) !== 1 && (
                                 <span className="text-[#a08060]">×{item.quantity}</span>
                               )
+                            )}
+                            {!isShared && canEdit && (
+                              // ⚠️ 整列是 <label>（尾端綁定取消掛載 checkbox），點擊按鈕務必 stopPropagation，
+                              // 避免點擊冒泡到 <label> 觸發瀏覽器預設行為誤切換 checkbox（比照 QuantityStepper.tsx 的防呆模式）
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); onReplace(item.equipment_id, card?.name ?? item.equipment_id) }}
+                                disabled={isBusy}
+                                title="替換料卡"
+                                className="p-1 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors"
+                              >
+                                <ArrowLeftRight className="h-3.5 w-3.5" />
+                              </button>
                             )}
                             {!isShared && canEdit && (
                               <span className="flex items-center gap-1.5 text-[#a08060]">
