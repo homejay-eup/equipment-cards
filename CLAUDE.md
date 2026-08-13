@@ -111,7 +111,8 @@
   - **2026-07-20 第三輪優化：主搜尋精確度＋次級篩選拖拉排序——已執行完成**：使用者實機測試後再回報 2 點（跟套餐無關的既有系統）：① 主搜尋列模糊搜尋範圍太寬（例如「MDVR-4G-4鏡」誤搜出「HS 4G-DVR」），先列 3 個方案（精確優先+模糊備援／多詞 AND／單純調緊參數）讓使用者選，選定「精確比對優先，模糊當備援」——`PhotoWall.tsx` 的 `filtered` 非數字查詢分支改成兩階段：先用 `includes()` 比對料號/品名/標籤/廠商/分類，有結果就只用精確結果，完全沒結果才 fallback 回 Fuse；② 次級篩選標籤編輯區塊新增拖拉排序（比照 `QuotesClient.tsx` 現成的分類拖拉排序寫法，原生 HTML5 drag events，`category_subfilter_tags` 表已有 `sort_order` 欄位、PUT API 本就整包覆蓋儲存，不需改資料庫/API）。`tester` 驗證通過，`reviewer` 抓到 2 個非阻塞建議（搜尋結果文案仍寫死「模糊搜尋」跟精確命中不符、拖拉排序用 `indexOf(tag)` 若有重複標籤字串會抓錯位置）皆由主 session 直接修正（文案改中性用詞、拖拉排序改用 index 記錄來源/目標而非標籤字串本身）。commit/merge/push main（`c507d9b`）。
 - **Step 32（新增，與 Step 30 並行、互不觸碰對方檔案）**：報價查詢功能，規格見 `_管理/01_equipment-cards/specs/step32-quote-lookup.md`。程式碼已完成、`npm run build` 通過、已補一次獨立安全審查並修正發現的問題，正式 Supabase 已執行 `_開發檔案/sql/step32-quote-items.sql`、`step32b-quote-items-sort-order.sql`（建表、預設分類、管理員權限授予、拖拉排序欄位），並匯入 88 筆初始報價資料（來源：配件報價2023-08.pdf），功能已由使用者本機實測確認（含一般人員視角、拖拉排序、分類管理）。
 - **Step 16 補充說明**：曾誤認為「Phase 2 批次淨重照片待照片提供」仍卡著，經查 commit（`9ba80cb`）與資料快照確認，淨重欄位/照片/批次匯入功能皆已完成，淨重數值也已批次回填 770/786 筆，非阻塞待辦
-- **目前 git HEAD**：`a919074`（合併 Step 30 Drive 刪除修正與 Step 32 報價查詢的 merge commit，已 push main，Vercel 應已自動部署，Step 30 待使用者再次實測移除文件確認）
+- **2026-08-13 拖曳排序指示線改為真上/下判斷——已執行完成**：人為配件報價／我的關注／設備套餐三頁面＋任務板共 6 個拖曳排序互動點，從整圈 ring 高亮或永遠插在目標上方，改成依游標懸停上/下半（或左/右半）動態顯示插入指示線；新增共用 `src/lib/dragReorder.ts`，底層排序邏輯也改成明確依 before/after 插入（取代原本依 fromIdx/toIdx 大小關係決定方向的隱性行為）。`frontend`→`tester`→`reviewer` 皆通過，無阻塞問題。詳見 `_管理/00_執行紀錄.md`「拖曳排序指示線改為真上/下判斷」條目。commit/merge/push main（`d99e619`／`d9e1dda`）。
+- **目前 git HEAD**：`d9e1dda`（merge 拖曳排序指示線改動 + 另一 session 並行推送的 Step 37 跨套餐批次替換，已 push main，Vercel 應已自動部署）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
