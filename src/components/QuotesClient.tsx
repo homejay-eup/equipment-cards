@@ -6,6 +6,7 @@ import { Search, X, Plus, Pencil, Trash2, Loader2, GripVertical, Info } from 'lu
 import { QuoteItem } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 
 interface Props {
   initialItems: QuoteItem[]
@@ -44,10 +45,12 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [dragOverPosition, setDragOverPosition] = useState<DropPosition | null>(null)
   const canReorder = canEdit && !query.trim()
 
   const [draggingCategory, setDraggingCategory] = useState<string | null>(null)
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null)
+  const [dragOverCategoryPosition, setDragOverCategoryPosition] = useState<DropPosition | null>(null)
 
   const fuse = useMemo(
     () => new Fuse(items, { keys: ['name'], threshold: 0.35 }),
@@ -194,16 +197,11 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
     }
   }
 
-  async function handleReorder(category: string, fromId: string, toId: string) {
-    if (fromId === toId) return
+  async function handleReorder(category: string, fromId: string, toId: string, position: DropPosition) {
     const catItems = items.filter(i => i.category === category)
-    const fromIdx = catItems.findIndex(i => i.id === fromId)
-    const toIdx = catItems.findIndex(i => i.id === toId)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...catItems]
-    const [dragged] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, dragged)
+    // 依游標實際懸停在目標上/下半插入（before/after），取代舊有依 fromIdx/toIdx 大小關係決定方向的 splice
+    const reordered = reorderByPosition(catItems, fromId, toId, position, i => i.id)
+    if (reordered === catItems) return
     const orders = reordered.map((it, i) => ({ id: it.id, sort_order: (i + 1) * 1000 }))
     const sortMap = Object.fromEntries(orders.map(o => [o.id, o.sort_order]))
 
@@ -216,6 +214,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
     setItems(newItems)
     setDraggingId(null)
     setDragOverId(null)
+    setDragOverPosition(null)
 
     try {
       const res = await fetch('/api/quotes/reorder', {
@@ -229,20 +228,15 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
     }
   }
 
-  async function handleCategoryReorder(fromCat: string, toCat: string) {
-    if (fromCat === toCat) return
-    const fromIdx = localCategories.indexOf(fromCat)
-    const toIdx = localCategories.indexOf(toCat)
-    if (fromIdx === -1 || toIdx === -1) return
-
-    const reordered = [...localCategories]
-    const [dragged] = reordered.splice(fromIdx, 1)
-    reordered.splice(toIdx, 0, dragged)
+  async function handleCategoryReorder(fromCat: string, toCat: string, position: DropPosition) {
+    const reordered = reorderByPosition(localCategories, fromCat, toCat, position, c => c)
+    if (reordered === localCategories) return
 
     const original = localCategories
     setLocalCategories(reordered)
     setDraggingCategory(null)
     setDragOverCategory(null)
+    setDragOverCategoryPosition(null)
 
     try {
       const res = await fetch('/api/settings', {
@@ -302,26 +296,32 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
         >
           全部
         </button>
-        {localCategories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            draggable={canEdit}
-            onDragStart={() => canEdit && setDraggingCategory(cat)}
-            onDragOver={(e) => { if (canEdit) { e.preventDefault(); setDragOverCategory(cat) } }}
-            onDrop={() => canEdit && draggingCategory && handleCategoryReorder(draggingCategory, cat)}
-            onDragEnd={() => { setDraggingCategory(null); setDragOverCategory(null) }}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${canEdit ? 'cursor-grab' : ''} ${
-              draggingCategory && dragOverCategory === cat ? 'ring-2 ring-[#c49a72]' : ''
-            } ${
-              selectedCategory === cat
-                ? 'bg-[#7a5230] text-white border-[#7a5230]'
-                : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)]'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+        {localCategories.map(cat => {
+          const isDraggingThis = draggingCategory === cat
+          const isDragOverThis = !isDraggingThis && draggingCategory && dragOverCategory === cat
+          return (
+            <div key={cat} className="relative">
+              {isDragOverThis && (
+                <div className={`absolute top-0.5 bottom-0.5 w-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverCategoryPosition === 'after' ? '-right-1' : '-left-1'}`} />
+              )}
+              <button
+                onClick={() => setSelectedCategory(cat)}
+                draggable={canEdit}
+                onDragStart={() => canEdit && setDraggingCategory(cat)}
+                onDragOver={(e) => { if (canEdit) { e.preventDefault(); setDragOverCategory(cat); setDragOverCategoryPosition(getDropPosition(e, 'horizontal')) } }}
+                onDrop={() => canEdit && draggingCategory && handleCategoryReorder(draggingCategory, cat, dragOverCategoryPosition ?? 'before')}
+                onDragEnd={() => { setDraggingCategory(null); setDragOverCategory(null); setDragOverCategoryPosition(null) }}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${canEdit ? 'cursor-grab' : ''} ${
+                  selectedCategory === cat
+                    ? 'bg-[#7a5230] text-white border-[#7a5230]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)]'
+                }`}
+              >
+                {cat}
+              </button>
+            </div>
+          )
+        })}
         {canEdit && (
           <SettingsPopover
             settingKey="quoteCategories"
@@ -369,16 +369,22 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                   ))}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2">
-                  {groupItems.map((item, idx) => (
+                  {groupItems.map((item, idx) => {
+                    const isDraggingThis = draggingId === item.id
+                    const isDragOverThis = !isDraggingThis && draggingId && dragOverId === item.id
+                    return (
                     <div
                       key={item.id}
                       draggable={canReorder}
                       onDragStart={() => canReorder && setDraggingId(item.id)}
-                      onDragOver={(e) => { if (canReorder) { e.preventDefault(); setDragOverId(item.id) } }}
-                      onDrop={() => canReorder && draggingId && handleReorder(item.category, draggingId, item.id)}
-                      onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
-                      className={`group flex items-center gap-3 px-4 py-1.5 transition-colors ${idx >= 2 ? 'border-t border-[#f0e8dc]' : ''} ${idx % 2 === 1 ? 'sm:border-l border-[#f0e8dc]' : ''} ${draggingId && dragOverId === item.id ? 'bg-[rgba(196,154,114,.15)]' : ''}`}
+                      onDragOver={(e) => { if (canReorder) { e.preventDefault(); setDragOverId(item.id); setDragOverPosition(getDropPosition(e, 'vertical')) } }}
+                      onDrop={() => canReorder && draggingId && handleReorder(item.category, draggingId, item.id, dragOverPosition ?? 'before')}
+                      onDragEnd={() => { setDraggingId(null); setDragOverId(null); setDragOverPosition(null) }}
+                      className={`relative group flex items-center gap-3 px-4 py-1.5 transition-colors ${idx >= 2 ? 'border-t border-[#f0e8dc]' : ''} ${idx % 2 === 1 ? 'sm:border-l border-[#f0e8dc]' : ''}`}
                     >
+                      {isDragOverThis && (
+                        <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? 'bottom-0' : 'top-0'}`} />
+                      )}
                       {canEdit && (
                         <GripVertical className={`h-4 w-4 text-[#d4bda0] flex-shrink-0 ${canReorder ? 'cursor-grab opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity`} />
                       )}
@@ -398,7 +404,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                         </div>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             </div>

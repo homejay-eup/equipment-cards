@@ -10,6 +10,7 @@ import QuantityStepper from '@/components/QuantityStepper'
 import EquipmentQuickPick from '@/components/documents/EquipmentQuickPick'
 import { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { unlinkKey } from './unlinkKey'
+import { getDropPosition, type DropPosition } from '@/lib/dragReorder'
 
 type DisplayMode = 'list' | 'photo'
 
@@ -22,7 +23,7 @@ export default function PackageListView({
   selectedUnlinkKeys, toggleUnlinkSelect, running,
   handleBatchUnlink, handleAddManyToPackage, onUpdateQuantity,
   setDuplicateTarget, askDeleteSingle,
-  canReorderPackages, draggingPackageId, dragOverPackageId,
+  canReorderPackages, draggingPackageId, dragOverPackageId, dragOverPackagePosition,
   onPackageDragStart, onPackageDragEnd, onPackageDragOver, onPackageDragLeave, onPackageDrop,
   onReorderItems,
 }: {
@@ -59,18 +60,20 @@ export default function PackageListView({
   canReorderPackages: boolean
   draggingPackageId: string | null
   dragOverPackageId: string | null
+  dragOverPackagePosition: DropPosition | null
   onPackageDragStart: (id: string) => void
   onPackageDragEnd: () => void
-  onPackageDragOver: (id: string) => void
+  onPackageDragOver: (id: string, position: DropPosition) => void
   onPackageDragLeave: () => void
-  onPackageDrop: (fromId: string, toId: string) => void
+  onPackageDrop: (fromId: string, toId: string, position: DropPosition) => void
   // Step 36：套餐內料卡拖曳排序（清單模式才能拖，只允許同一個套餐內部重排）
-  onReorderItems: (packageId: string, fromEquipmentId: string, toEquipmentId: string) => void
+  onReorderItems: (packageId: string, fromEquipmentId: string, toEquipmentId: string, position: DropPosition) => void
 }) {
   // 套餐內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
   // 邏輯跟 GroupsPanel.tsx 的 draggingItem/dragOverItem 平行
   const [draggingItem, setDraggingItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
+  const [dragOverItemPosition, setDragOverItemPosition] = useState<DropPosition | null>(null)
 
   if (filteredPackages.length === 0) {
     return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的套餐</p>
@@ -95,17 +98,20 @@ export default function PackageListView({
         return (
           <div
             key={pkg.id}
-            className={`${isBusy ? 'opacity-60' : ''} ${isDraggingThisPackage ? 'opacity-40' : ''} ${isDragOverThisPackage ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+            className={`relative ${isBusy ? 'opacity-60' : ''} ${isDraggingThisPackage ? 'opacity-40' : ''}`}
             onDragOver={canReorderPackages ? e => {
               e.preventDefault()
-              if (draggingPackageId && draggingPackageId !== pkg.id) onPackageDragOver(pkg.id)
+              if (draggingPackageId && draggingPackageId !== pkg.id) onPackageDragOver(pkg.id, getDropPosition(e, 'vertical'))
             } : undefined}
             onDragLeave={canReorderPackages ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) onPackageDragLeave() } : undefined}
             onDrop={canReorderPackages ? e => {
               e.preventDefault()
-              if (draggingPackageId) onPackageDrop(draggingPackageId, pkg.id)
+              if (draggingPackageId) onPackageDrop(draggingPackageId, pkg.id, dragOverPackagePosition ?? 'before')
             } : undefined}
           >
+            {isDragOverThisPackage && (
+              <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPackagePosition === 'after' ? '-bottom-1' : '-top-1'}`} />
+            )}
             <div className="group/header flex items-center gap-2 px-3 py-2 text-xs">
               {canReorderPackages && (
                 <span
@@ -205,28 +211,33 @@ export default function PackageListView({
                       return (
                         <label
                           key={item.equipment_id}
-                          className={`group/item flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer ${isDraggingThisItem ? 'opacity-40' : ''} ${isDragOverThisItem ? 'ring-2 ring-[#c49a72] ring-inset' : ''}`}
+                          className={`relative group/item flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer ${isDraggingThisItem ? 'opacity-40' : ''}`}
                           onDragOver={canDragItem ? e => {
                             e.preventDefault()
                             if (draggingItem && draggingItem.packageId === pkg.id && draggingItem.equipmentId !== item.equipment_id) {
                               setDragOverItem({ packageId: pkg.id, equipmentId: item.equipment_id })
+                              setDragOverItemPosition(getDropPosition(e, 'vertical'))
                             }
                           } : undefined}
-                          onDragLeave={canDragItem ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverItem(null) } : undefined}
+                          onDragLeave={canDragItem ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverItem(null); setDragOverItemPosition(null) } } : undefined}
                           onDrop={canDragItem ? e => {
                             e.preventDefault()
                             if (draggingItem && draggingItem.packageId === pkg.id) {
-                              onReorderItems(pkg.id, draggingItem.equipmentId, item.equipment_id)
+                              onReorderItems(pkg.id, draggingItem.equipmentId, item.equipment_id, dragOverItemPosition ?? 'before')
                             }
                             setDragOverItem(null)
+                            setDragOverItemPosition(null)
                           } : undefined}
                         >
+                          {isDragOverThisItem && (
+                            <div className={`absolute left-0 right-0 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverItemPosition === 'after' ? 'bottom-0' : 'top-0'}`} />
+                          )}
                           <span className="flex items-center gap-1.5 min-w-0">
                             {canDragItem && (
                               <span
                                 draggable
                                 onDragStart={e => { e.stopPropagation(); setDraggingItem({ packageId: pkg.id, equipmentId: item.equipment_id }) }}
-                                onDragEnd={() => { setDraggingItem(null); setDragOverItem(null) }}
+                                onDragEnd={() => { setDraggingItem(null); setDragOverItem(null); setDragOverItemPosition(null) }}
                                 className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
                               >
                                 <GripVertical className="h-3.5 w-3.5" />
