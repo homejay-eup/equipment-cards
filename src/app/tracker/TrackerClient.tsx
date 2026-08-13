@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone, SlidersHorizontal, X } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
@@ -19,6 +19,9 @@ interface Props {
   issueTags: string[]
   onMyTasksCountChange?: (count: number) => void
   userDepartmentId?: string | null
+  // 分頁內嵌情境下由 PhotoWall 傳入（切到這個分頁才是 true）；
+  // 獨立路由 /tracker 沒有「分頁」概念，維持預設 true 即可
+  isActive?: boolean
 }
 
 const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
@@ -69,8 +72,8 @@ export default function TrackerClient({
   issueTags,
   onMyTasksCountChange,
   userDepartmentId,
+  isActive = true,
 }: Props) {
-  const router = useRouter()
   const hasMutatedRef = useRef(false)
   const recentMutationIdsRef = useRef<Map<string, number>>(new Map())
   const searchParams = useSearchParams()
@@ -117,11 +120,44 @@ export default function TrackerClient({
     onMyTasksCountChange?.(myPendingCount)
   }, [myPendingCount, onMyTasksCountChange])
 
-  // 每次掛載時強制重取 server 資料，確保切頁返回後看到最新狀態
+  // 直接 client-side fetch 最新資料並合併進 state，取代原本靠 router.refresh() 讓
+  // initialIssues prop 變新再同步的機制（router.refresh() 會讓外層 server component
+  // 重新 suspend，導致整個 PhotoWall 重新掛載、activeTab 被重置）
+  // 合併規則：hasMutatedRef 有操作進行中時，仍同步 is_pinned（避免舊資料封鎖公佈欄顯示）
+  // 其他欄位在 hasMutated 期間保持本地狀態，防止樂觀更新被 server 資料覆蓋
+  // 依 isActive 變化重新抓取（比照 PackagesClient 的作法），涵蓋「切回這個分頁」的情境，
+  // 不只在第一次掛載時抓一次——避免那次 fetch 失敗或錯過 Realtime 事件後就再也沒有補救機會
   useEffect(() => {
-    router.refresh()
+    if (!isActive) return
+    let cancelled = false
+    fetch('/api/issues')
+      .then(res => {
+        if (!res.ok) throw new Error('fetch /api/issues failed')
+        return res.json()
+      })
+      .then((freshIssues: Issue[]) => {
+        if (cancelled) return
+        setIssues(prev => {
+          const prevPinMap = new Map(prev.map(i => [i.id, i.is_pinned]))
+          if (hasMutatedRef.current) {
+            const serverPinMap = new Map(freshIssues.map(i => [i.id, i.is_pinned]))
+            return prev.map(i => ({
+              ...i,
+              is_pinned: prevPinMap.get(i.id) || serverPinMap.get(i.id),
+            }))
+          }
+          return freshIssues.map(i => ({
+            ...i,
+            is_pinned: prevPinMap.get(i.id) || i.is_pinned,
+          }))
+        })
+      })
+      .catch(() => {
+        // 靜默失敗：這只是讓資料更即時的加強，保留現有 state 即可
+      })
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isActive])
 
   useEffect(() => {
     try { localStorage.setItem('trackerShowFilters', String(showFilters)) } catch {}
@@ -129,26 +165,6 @@ export default function TrackerClient({
 
   const hasActiveFilters = !!(filterPriority || filterAssignee)
   const activeFilterCount = (filterPriority ? 1 : 0) + (filterAssignee ? 1 : 0)
-
-  // router.refresh() 完成後 initialIssues prop 更新，同步至 state
-  // hasMutatedRef 有操作進行中時，仍同步 is_pinned（避免 Router Cache 舊值封鎖公佈欄顯示）
-  // 其他欄位在 hasMutated 期間保持本地狀態，防止樂觀更新被 server 資料覆蓋
-  useEffect(() => {
-    setIssues(prev => {
-      const prevPinMap = new Map(prev.map(i => [i.id, i.is_pinned]))
-      if (hasMutatedRef.current) {
-        const serverPinMap = new Map(initialIssues.map(i => [i.id, i.is_pinned]))
-        return prev.map(i => ({
-          ...i,
-          is_pinned: prevPinMap.get(i.id) || serverPinMap.get(i.id),
-        }))
-      }
-      return initialIssues.map(i => ({
-        ...i,
-        is_pinned: prevPinMap.get(i.id) || i.is_pinned,
-      }))
-    })
-  }, [initialIssues])
 
   useIssueRealtime({
     userDepartmentId: userDepartmentId ?? null,

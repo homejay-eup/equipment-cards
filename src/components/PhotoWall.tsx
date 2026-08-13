@@ -636,7 +636,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             )}
             {permissions.includes('view_tracker') && (
               <button
-                onClick={() => { setActiveTab('tracker'); router.refresh() }}
+                onClick={() => setActiveTab('tracker')}
                 title="任務板"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'tracker'
@@ -1009,6 +1009,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             issueTags={trackerData.issueTags}
             onMyTasksCountChange={setTrackerPendingCount}
             userDepartmentId={trackerData.userDepartmentId ?? null}
+            isActive={activeTab === 'tracker'}
           />
         </div>
       )}
