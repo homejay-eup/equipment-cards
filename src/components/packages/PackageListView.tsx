@@ -82,7 +82,7 @@ export default function PackageListView({
   }
 
   return (
-    <div className="border border-[#e8ddd0] rounded-lg divide-y divide-[#f0e8dc]">
+    <div className="border border-[#e8ddd0] rounded-lg divide-y divide-[#f0e8dc] overflow-hidden">
       {filteredPackages.map(pkg => {
         const isExpanded = expanded.has(pkg.id)
         const isBusy = busyIds.has(pkg.id)
@@ -114,7 +114,7 @@ export default function PackageListView({
             {isDragOverThisPackage && (
               <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPackagePosition === 'after' ? '-bottom-1' : '-top-1'}`} />
             )}
-            <div className="group/header flex items-center gap-2 px-3 py-2 text-xs">
+            <div className="group/header flex items-center gap-2 px-3 py-2 text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
               {canReorderPackages && (
                 <span
                   draggable
@@ -213,7 +213,7 @@ export default function PackageListView({
                       return (
                         <label
                           key={item.equipment_id}
-                          className={`relative group/item flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer ${isDraggingThisItem ? 'opacity-40' : ''}`}
+                          className={`relative group/item flex items-center justify-between gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThisItem ? 'opacity-40' : ''}`}
                           onDragOver={canDragItem ? e => {
                             e.preventDefault()
                             if (draggingItem && draggingItem.packageId === pkg.id && draggingItem.equipmentId !== item.equipment_id) {
