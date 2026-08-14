@@ -8,7 +8,7 @@ import QuantityStepper from '@/components/QuantityStepper'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
 import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
-import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, Minus } from 'lucide-react'
+import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, CheckSquare } from 'lucide-react'
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -470,6 +470,20 @@ export default function GroupsPanel({
   const [aligningGroupId, setAligningGroupId] = useState<string | null>(null)
   const [alignConfirmGroup, setAlignConfirmGroup] = useState<UserGroup | null>(null)
 
+  // 群組內單筆移除確認（垃圾桶按鈕，取代原本一點就直接移除的 Minus 按鈕）
+  const [removeTarget, setRemoveTarget] = useState<{ card: EquipmentCard; groupId: string } | null>(null)
+
+  // 群組內批次選取移除：比照全部料卡的批次選取模式，一次只允許一個群組進入批次模式
+  const [batchGroupId, setBatchGroupId] = useState<string | null>(null)
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+  const [batchRemoving, setBatchRemoving] = useState(false)
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
+
+  // 批次選取只支援清單模式；切到照片模式時清掉，避免殘留看不見的選取狀態
+  useEffect(() => {
+    if (display !== 'list') { setBatchGroupId(null); setSelectedItemIds(new Set()) }
+  }, [display])
+
   useEffect(() => {
     if (!canManagePackages) return
     let cancelled = false
@@ -709,6 +723,63 @@ export default function GroupsPanel({
       g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id), updated_at: new Date().toISOString() }
     ))
     await fetch(`/api/groups/${groupId}/items/${card.equipment_id}`, { method: 'DELETE' })
+  }
+
+  function askRemoveCard(card: EquipmentCard, groupId: string) {
+    setRemoveTarget({ card, groupId })
+  }
+
+  async function handleRemoveConfirm() {
+    if (!removeTarget) return
+    const { card, groupId } = removeTarget
+    setRemoveTarget(null)
+    await handleRemoveCard(card, groupId)
+  }
+
+  function toggleBatchMode(groupId: string) {
+    setBatchGroupId(prev => prev === groupId ? null : groupId)
+    setSelectedItemIds(new Set())
+  }
+
+  function exitBatchMode() {
+    setBatchGroupId(null)
+    setSelectedItemIds(new Set())
+  }
+
+  function toggleSelectItem(equipmentId: string) {
+    setSelectedItemIds(prev => {
+      const next = new Set(prev)
+      if (next.has(equipmentId)) next.delete(equipmentId)
+      else next.add(equipmentId)
+      return next
+    })
+  }
+
+  function toggleSelectAllItems(equipmentIds: string[]) {
+    setSelectedItemIds(prev =>
+      prev.size === equipmentIds.length ? new Set() : new Set(equipmentIds)
+    )
+  }
+
+  async function handleBatchRemoveConfirm() {
+    if (!batchGroupId) return
+    setBatchConfirmOpen(false)
+    setBatchRemoving(true)
+    const groupId = batchGroupId
+    const ids = Array.from(selectedItemIds)
+    // 樂觀更新：立即從 UI 移除，不等 API 回應（比照 handleRemoveCard 的寫法）
+    applyGroups(groups.map(g =>
+      g.id !== groupId ? g : {
+        ...g,
+        group_items: g.group_items.filter(i => !ids.includes(i.equipment_id)),
+        updated_at: new Date().toISOString(),
+      }
+    ))
+    await Promise.allSettled(
+      ids.map(id => fetch(`/api/groups/${groupId}/items/${id}`, { method: 'DELETE' }))
+    )
+    setBatchRemoving(false)
+    exitBatchMode()
   }
 
   // Step 35：更新單一料卡數量。樂觀更新+同步 bump updated_at，比照 handleRemoveCard/handleAddCards 的寫法
@@ -1029,11 +1100,9 @@ export default function GroupsPanel({
                         </>
                       )}
 
-                      {/* 編輯按鈕：重命名時隱藏。改為佔用 flex 版面空間（非 absolute），
-                          避免覆蓋在筆數／對齊徽章上方——hover 前用 opacity-0 + pointer-events-none
-                          隱藏但保留版面寬度，hover 後才淡入並可點擊 */}
+                      {/* 編輯按鈕：重命名時隱藏，常駐顯示（不用滑鼠移過去才看得到有哪些操作） */}
                       {!group.is_default && renamingId !== group.id && (
-                        <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 pointer-events-none group-hover/header:opacity-100 group-hover/header:pointer-events-auto transition-opacity">
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           {canManagePackages && (
                             packagesByGroupId[group.id] ? (
                               <button
@@ -1056,7 +1125,7 @@ export default function GroupsPanel({
                               >
                                 {copyingGroupId === group.id
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <Copy className="h-3.5 w-3.5" />
+                                  : <FolderPlus className="h-3.5 w-3.5" />
                                 }
                               </button>
                             )
@@ -1066,7 +1135,7 @@ export default function GroupsPanel({
                             className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
                             title="複製群組"
                           >
-                            <FolderPlus className="h-3.5 w-3.5" />
+                            <Copy className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
@@ -1075,6 +1144,17 @@ export default function GroupsPanel({
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
+                          {itemCount > 0 && display === 'list' && (
+                            <button
+                              onClick={e => { e.stopPropagation(); toggleBatchMode(group.id) }}
+                              className={`p-1.5 transition-colors rounded ${
+                                batchGroupId === group.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
+                              }`}
+                              title={batchGroupId === group.id ? '取消批次選取' : '批次選取'}
+                            >
+                              <CheckSquare className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={e => { e.stopPropagation(); startRename(group) }}
                             className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
@@ -1190,6 +1270,14 @@ export default function GroupsPanel({
                                         </button>
                                       )}
                                     </>
+                                  ) : batchGroupId === group.id ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedItemIds.has(card.equipment_id)}
+                                      onChange={() => toggleSelectItem(card.equipment_id)}
+                                      disabled={batchRemoving}
+                                      className="accent-[#b5451b] h-3.5 w-3.5"
+                                    />
                                   ) : (
                                     <>
                                       <button
@@ -1200,11 +1288,11 @@ export default function GroupsPanel({
                                         <ArrowLeftRight className="h-3.5 w-3.5" />
                                       </button>
                                       <button
-                                        onClick={() => handleRemoveCard(card, group.id)}
+                                        onClick={() => askRemoveCard(card, group.id)}
                                         title="從群組移除"
                                         className="p-1 text-[#a08060] group-hover/row:text-[#b5451b] rounded transition-colors"
                                       >
-                                        <Minus className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-3.5 w-3.5" />
                                       </button>
                                     </>
                                   )}
@@ -1225,6 +1313,44 @@ export default function GroupsPanel({
                           })}
                         </div>
                       )
+                    )}
+                    {/* 批次選取工具列：跟全部料卡不同，這裡用行內工具列而非固定在畫面最下面，
+                        因為同時可能有多個群組展開，固定在螢幕底部會分不清是對哪個群組生效 */}
+                    {!group.is_default && batchGroupId === group.id && display === 'list' && (
+                      <div className="flex items-center gap-3 pt-2 mt-1 border-t border-[#f0e8dc] text-xs">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelectAllItems(displayCards.map(c => c.equipment_id))}
+                          className="flex items-center gap-1.5 text-[#6b4f38] hover:text-[#7a5230] transition-colors"
+                        >
+                          {selectedItemIds.size === displayCards.length && displayCards.length > 0
+                            ? <CheckSquare className="h-3.5 w-3.5 text-[#7a5230]" />
+                            : <CheckSquare className="h-3.5 w-3.5 opacity-50" />
+                          }
+                          {selectedItemIds.size === displayCards.length && displayCards.length > 0 ? '取消全選' : '全選'}
+                        </button>
+                        <span className="flex-1 font-semibold text-[#7a5230]">已選 {selectedItemIds.size} 筆</span>
+                        <button
+                          type="button"
+                          onClick={exitBatchMode}
+                          disabled={batchRemoving}
+                          className="px-2.5 py-1 text-[#a08060] border border-[rgba(122,82,48,.25)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-40 transition-colors"
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBatchConfirmOpen(true)}
+                          disabled={batchRemoving || selectedItemIds.size === 0}
+                          className="flex items-center gap-1.5 px-3 py-1 bg-[#b5451b] hover:bg-[#9a3a16] text-white font-semibold rounded-lg disabled:opacity-40 transition-colors"
+                        >
+                          {batchRemoving
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Trash2 className="h-3.5 w-3.5" />
+                          }
+                          移除（{selectedItemIds.size}）
+                        </button>
+                      </div>
                     )}
                   </div>
                 )
@@ -1252,6 +1378,26 @@ export default function GroupsPanel({
         danger
         onConfirm={handleConfirmAlign}
         onCancel={() => setAlignConfirmGroup(null)}
+      />
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        title={`從群組移除「${removeTarget?.card.name ?? ''}」？`}
+        message="只是從這個群組移除，料卡本身不會被刪除。"
+        confirmLabel="移除"
+        danger
+        onConfirm={handleRemoveConfirm}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={batchConfirmOpen}
+        title={`確定移除 ${selectedItemIds.size} 筆料卡？`}
+        message="只是從這個群組移除，料卡本身不會被刪除，此操作無法復原。"
+        confirmLabel="移除"
+        danger
+        onConfirm={handleBatchRemoveConfirm}
+        onCancel={() => setBatchConfirmOpen(false)}
       />
 
       {replaceTarget && (
