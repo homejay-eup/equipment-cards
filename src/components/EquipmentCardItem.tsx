@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, Minus, FolderPlus } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, FolderPlus } from 'lucide-react'
 
 interface Props {
   card: EquipmentCard
@@ -173,7 +173,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
           title="從群組移除"
         >
-          <Minus className="h-3.5 w-3.5" />
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       )}
     </div>

@@ -479,11 +479,6 @@ export default function GroupsPanel({
   const [batchRemoving, setBatchRemoving] = useState(false)
   const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
 
-  // 批次選取只支援清單模式；切到照片模式時清掉，避免殘留看不見的選取狀態
-  useEffect(() => {
-    if (display !== 'list') { setBatchGroupId(null); setSelectedItemIds(new Set()) }
-  }, [display])
-
   useEffect(() => {
     if (!canManagePackages) return
     let cancelled = false
@@ -1144,7 +1139,7 @@ export default function GroupsPanel({
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
-                          {itemCount > 0 && display === 'list' && (
+                          {itemCount > 0 && (
                             <button
                               onClick={e => { e.stopPropagation(); toggleBatchMode(group.id) }}
                               className={`p-1.5 transition-colors rounded ${
@@ -1200,10 +1195,13 @@ export default function GroupsPanel({
                               activeStatus={activeStatus}
                               isNew={card.is_new}
                               onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
-                              onRemoveFromGroup={!group.is_default ? () => handleRemoveCard(card, group.id) : undefined}
+                              onRemoveFromGroup={!group.is_default ? () => askRemoveCard(card, group.id) : undefined}
                               isBookmarked={group.is_default ? bookmarkedIds?.has(card.equipment_id) : undefined}
                               onToggleBookmark={group.is_default && onToggleBookmark ? () => onToggleBookmark(card) : undefined}
                               quantity={group.group_items.find(i => i.equipment_id === card.equipment_id)?.quantity}
+                              selectMode={!group.is_default && batchGroupId === group.id}
+                              isSelected={selectedItemIds.has(card.equipment_id)}
+                              onSelect={() => toggleSelectItem(card.equipment_id)}
                             />
                           ))}
                         </div>
@@ -1315,8 +1313,9 @@ export default function GroupsPanel({
                       )
                     )}
                     {/* 批次選取工具列：跟全部料卡不同，這裡用行內工具列而非固定在畫面最下面，
-                        因為同時可能有多個群組展開，固定在螢幕底部會分不清是對哪個群組生效 */}
-                    {!group.is_default && batchGroupId === group.id && display === 'list' && (
+                        因為同時可能有多個群組展開，固定在螢幕底部會分不清是對哪個群組生效。
+                        照片／清單模式共用（batchGroupId 不受 display 影響） */}
+                    {!group.is_default && batchGroupId === group.id && (
                       <div className="flex items-center gap-3 pt-2 mt-1 border-t border-[#f0e8dc] text-xs">
                         <button
                           type="button"
