@@ -100,6 +100,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)
+  const fabRef = useRef<HTMLDivElement>(null)
   const [showFilters, setShowFilters] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -203,6 +205,15 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [sortOpen])
+
+  useEffect(() => {
+    if (!fabOpen) return
+    const close = (e: MouseEvent) => {
+      if (fabRef.current && !fabRef.current.contains(e.target as Node)) setFabOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [fabOpen])
 
   useEffect(() => {
     const params = new URLSearchParams()
@@ -1106,38 +1117,52 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             </div>
           )}
 
-          {/* 批次選取 + 批次匯入 + 新增料卡（僅限有 CRUD 權限者） */}
+          {/* 批次選取 + 批次匯入 + 匯出 CSV + 新增料卡（僅限有 CRUD 權限者）：收合成 speed dial，
+              收合時只有一顆圓形按鈕，展開才往上彈出 4 個操作項目 */}
           {canEditCard && (
-            <div className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 flex items-center gap-2 sm:gap-3 z-40 transition-all duration-200`}>
+            <div ref={fabRef} className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 z-40 transition-all duration-200`}>
+              {fabOpen && (
+                <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2">
+                  <button onClick={() => { setFabOpen(false); window.location.href = '/api/cards/export' }}
+                    title="匯出 CSV"
+                    className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)] whitespace-nowrap">
+                    <FileDown className="h-5 w-5" />
+                    <span>匯出 CSV</span>
+                  </button>
+                  <button onClick={() => { setFabOpen(false); setImportOpen(true) }}
+                    title="批次匯入"
+                    className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)] whitespace-nowrap">
+                    <FileUp className="h-5 w-5" />
+                    <span>批次匯入</span>
+                  </button>
+                  <button
+                    onClick={() => { setFabOpen(false); if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
+                    title={selectMode ? '取消選取' : '批次選取'}
+                    className={`flex items-center gap-2 font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none whitespace-nowrap ${
+                      selectMode
+                        ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
+                        : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
+                    }`}
+                  >
+                    <CheckSquare className="h-5 w-5" />
+                    <span>{selectMode ? '取消選取' : '批次選取'}</span>
+                  </button>
+                  <button onClick={() => { setFabOpen(false); openCreate() }}
+                    title="新增料卡"
+                    className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)] whitespace-nowrap">
+                    <Plus className="h-5 w-5" />
+                    <span>新增料卡</span>
+                  </button>
+                </div>
+              )}
               <button
-                onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
-                title={selectMode ? '取消選取' : '批次選取'}
-                className={`flex items-center gap-2 font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none ${
-                  selectMode
-                    ? 'bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-[0_0_10px_rgba(122,82,48,.45)]'
-                    : 'bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] hover:shadow-[0_0_10px_rgba(122,82,48,.3)]'
-                }`}
+                onClick={() => setFabOpen(prev => !prev)}
+                title={fabOpen ? '收合操作選單' : '更多操作'}
+                aria-label={fabOpen ? '收合操作選單' : '更多操作'}
+                aria-expanded={fabOpen}
+                className="flex items-center justify-center h-14 w-14 rounded-full bg-[#7a5230] hover:bg-[#9c6b42] text-white shadow-lg shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)] transition-all duration-200 focus:outline-none"
               >
-                <CheckSquare className="h-5 w-5" />
-                <span className="hidden sm:inline">{selectMode ? '取消選取' : '批次選取'}</span>
-              </button>
-              <button onClick={() => setImportOpen(true)}
-                title="批次匯入"
-                className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
-                <FileUp className="h-5 w-5" />
-                <span className="hidden sm:inline">批次匯入</span>
-              </button>
-              <button onClick={() => { window.location.href = '/api/cards/export' }}
-                title="匯出 CSV"
-                className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)]">
-                <FileDown className="h-5 w-5" />
-                <span className="hidden sm:inline">匯出 CSV</span>
-              </button>
-              <button onClick={openCreate}
-                title="新增料卡"
-                className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-3 py-3 sm:px-4 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)]">
-                <Plus className="h-5 w-5" />
-                <span className="hidden sm:inline">新增料卡</span>
+                <Plus className={`h-6 w-6 transition-transform duration-200 ${fabOpen ? 'rotate-45' : ''}`} />
               </button>
             </div>
           )}
