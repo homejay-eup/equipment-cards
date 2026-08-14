@@ -38,13 +38,13 @@ export default function EquipmentListView({
   }
 
   return (
-    <div className="border border-[#e8ddd0] rounded-lg divide-y divide-[#f0e8dc]">
+    <div className="border border-[#e8ddd0] rounded-lg divide-y divide-[#f0e8dc] overflow-hidden">
       {filteredEquipmentGroups.map(g => {
         const isExpanded = expanded.has(g.equipment_id)
         const scopedUnlinkCount = g.packages.filter(p => selectedUnlinkKeys.has(unlinkKey(p.id, g.equipment_id))).length
         return (
           <div key={g.equipment_id}>
-            <div className="flex items-center gap-2 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 px-3 py-2 text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
               <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0">
                 {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               </button>
@@ -64,7 +64,7 @@ export default function EquipmentListView({
                       const sharedDept = (pkg as SharedEquipmentPackage).source_department_name
                       const quantity = pkg.package_items.find(i => i.equipment_id === g.equipment_id)?.quantity ?? 1
                       return (
-                        <label key={pkg.id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
+                        <label key={pkg.id} className="flex items-center justify-between gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
                           <span className="flex items-center gap-1.5 text-[#4a3422] truncate">
                             <Folder className="h-3 w-3 text-[#c49a72] flex-shrink-0" />
                             <span className="truncate">{pkg.name}</span>

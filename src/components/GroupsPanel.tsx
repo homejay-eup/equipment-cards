@@ -943,7 +943,7 @@ export default function GroupsPanel({
                       <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? '-bottom-1' : '-top-1'}`} />
                     )}
                     {/* 群組標題列 */}
-                    <div className="relative flex items-center group/header">
+                    <div className="relative flex items-center group/header rounded-lg -mx-2 px-2 transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
                       {renamingId === group.id ? (
                         /* 重命名模式：flat div，不巢狀在 button 內，有 ✓ / ✗ 按鈕 */
                         <div className="flex items-center gap-1.5 w-full min-w-0 py-1">
