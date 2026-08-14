@@ -44,10 +44,18 @@ export default function EquipmentListView({
         const scopedUnlinkCount = g.packages.filter(p => selectedUnlinkKeys.has(unlinkKey(p.id, g.equipment_id))).length
         return (
           <div key={g.equipment_id}>
-            <div className="flex items-center gap-2 px-3 py-2 text-xs">
-              <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => toggleExpand(g.equipment_id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(g.equipment_id) }
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-[rgba(122,82,48,.04)] transition-colors"
+            >
+              <span className="text-[#a08060] flex-shrink-0">
                 {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              </button>
+              </span>
               <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
               <span className="text-[#6b4f38] truncate flex-1">{g.name}</span>
               <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份套餐</span>
