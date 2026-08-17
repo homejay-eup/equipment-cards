@@ -1,6 +1,6 @@
 'use client'
 
-// Step 35：數量欄位共用元件（我的關注／設備套餐清單模式共用），
+// Step 35：數量欄位共用元件（我的關注／設備組合清單模式共用），
 // -/數字/+ 三顆一組，範圍 1–999。點擊時 stopPropagation，避免被外層
 // <label>/<button> 的點擊事件（如展開/收合、切換 checkbox）誤觸。
 interface QuantityStepperProps {

@@ -12,7 +12,7 @@ interface EquipmentGroup {
   packages: (EquipmentPackage | SharedEquipmentPackage)[]
 }
 
-// 依料號列表：展開/摺疊、批次取消掛載、掛載到其他套餐。
+// 依料號列表：展開/摺疊、批次取消掛載、掛載到其他組合。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function EquipmentListView({
   filteredEquipmentGroups, packages, expanded, toggleExpand, busyIds, isShared, canEdit,
@@ -58,12 +58,12 @@ export default function EquipmentListView({
               </span>
               <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
               <span className="text-[#6b4f38] truncate flex-1">{g.name}</span>
-              <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份套餐</span>
+              <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份組合</span>
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">
                 {g.packages.length === 0 ? (
-                  <p className="text-xs text-[#a08060] py-1.5">尚未掛載任何套餐</p>
+                  <p className="text-xs text-[#a08060] py-1.5">尚未掛載任何組合</p>
                 ) : (
                   <div className="flex flex-col gap-1 py-1.5">
                     {g.packages.map(pkg => {

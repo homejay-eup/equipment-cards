@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── DELETE /api/packages/batch ─────────────────────────────────
-// 批次刪除套餐（package_items / package_shared_departments 由既有 ON DELETE CASCADE 自動清除）
+// 批次刪除組合（package_items / package_shared_departments 由既有 ON DELETE CASCADE 自動清除）
 // body: { package_ids: string[] }
 // 權限：edit_own_packages，且所有 package_ids 必須屬於呼叫者的部門，否則整批拒絕（不部分刪除）
 export async function DELETE(req: NextRequest) {
@@ -32,7 +32,7 @@ export async function DELETE(req: NextRequest) {
 
     const supabase = getServiceClient()
 
-    // 驗證所有套餐皆存在且屬於呼叫者的部門，不信任前端傳來的 id 就代表有權限
+    // 驗證所有組合皆存在且屬於呼叫者的部門，不信任前端傳來的 id 就代表有權限
     const { data: packages, error: fetchError } = await supabase
       .from('equipment_packages')
       .select('id, department_id')
@@ -42,7 +42,7 @@ export async function DELETE(req: NextRequest) {
 
     if (!packages || packages.length !== packageIds.length) {
       // 有 id 不存在：整批拒絕，不部分刪除
-      return NextResponse.json({ error: '部分套餐不存在' }, { status: 400 })
+      return NextResponse.json({ error: '部分組合不存在' }, { status: 400 })
     }
     const foreign = packages.filter((p: { department_id: string }) => p.department_id !== departmentId)
     if (foreign.length > 0) {

@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── PATCH /api/packages/batch/share ────────────────────────────
-// 批次設定分享部門（全量覆蓋每個套餐的 package_shared_departments）
+// 批次設定分享部門（全量覆蓋每個組合的 package_shared_departments）
 // body: { package_ids: string[], department_ids: string[] }
 // 權限：share_own_packages，且所有 package_ids 必須屬於呼叫者的部門
 export async function PATCH(req: NextRequest) {
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = getServiceClient()
 
-    // 驗證所有套餐皆屬於呼叫者的部門，不允許跨部門操作他人套餐的分享設定
+    // 驗證所有組合皆屬於呼叫者的部門，不允許跨部門操作他人組合的分享設定
     const { data: packages, error: fetchError } = await supabase
       .from('equipment_packages')
       .select('id, department_id')
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
     if (fetchError) throw fetchError
 
     if (!packages || packages.length !== packageIds.length) {
-      return NextResponse.json({ error: '部分套餐不存在' }, { status: 404 })
+      return NextResponse.json({ error: '部分組合不存在' }, { status: 404 })
     }
     const foreign = packages.filter((p: { department_id: string }) => p.department_id !== departmentId)
     if (foreign.length > 0) {
@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // 全量覆蓋：先清空這批套餐的分享設定，再依新清單插入
+    // 全量覆蓋：先清空這批組合的分享設定，再依新清單插入
     const { error: deleteError } = await supabase
       .from('package_shared_departments')
       .delete()

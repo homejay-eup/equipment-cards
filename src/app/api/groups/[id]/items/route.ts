@@ -53,11 +53,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single()
 
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: '已在群組中' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: '已在組合中' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // 供「設備套餐」來源對齊機制比對：加卡也算群組內容變動
+  // 供「設備組合」來源對齊機制比對：加卡也算組合內容變動
   await admin.from('user_groups').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
 
   return NextResponse.json(data, { status: 201 })

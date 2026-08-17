@@ -12,13 +12,13 @@ interface Props {
   packageCount: number
   departments: Department[]
   currentDepartmentId: string | null
-  // 目前這批套餐已分享的部門交集（全部相同才預先勾選，避免誤導）
+  // 目前這批組合已分享的部門交集（全部相同才預先勾選，避免誤導）
   initialSelected: string[]
   onConfirm: (departmentIds: string[]) => Promise<void>
   onCancel: () => void
 }
 
-// 批次「分享至部門」彈窗：部門多選 + 全選 checkbox，一次套用到所有勾選的套餐（全量覆蓋）
+// 批次「分享至部門」彈窗：部門多選 + 全選 checkbox，一次套用到所有勾選的組合（全量覆蓋）
 export default function ShareDepartmentsDialog({
   packageCount, departments, currentDepartmentId, initialSelected, onConfirm, onCancel,
 }: Props) {
@@ -52,7 +52,7 @@ export default function ShareDepartmentsDialog({
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-sm mx-4 bg-[#faf6f0] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="px-4 py-3 border-b border-[rgba(122,82,48,.15)] flex items-center justify-between flex-shrink-0">
-          <p className="text-sm font-semibold text-[#5a3820]">分享至部門（{packageCount} 份套餐）</p>
+          <p className="text-sm font-semibold text-[#5a3820]">分享至部門（{packageCount} 份組合）</p>
           <button onClick={onCancel} className="text-[#a08060] hover:text-[#7a5230]">
             <X className="h-4 w-4" />
           </button>

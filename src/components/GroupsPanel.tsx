@@ -19,7 +19,7 @@ interface GroupsPanelProps {
   filteredCards?: EquipmentCard[]
   bookmarkedIds?: Set<string>
   onToggleBookmark?: (card: EquipmentCard) => void
-  // Step 34：設備套餐來源對齊機制。預設 false 不影響既有呼叫端（未給此 prop 時完全不出現套餐相關按鈕/API 呼叫）
+  // Step 34：設備組合來源對齊機制。預設 false 不影響既有呼叫端（未給此 prop 時完全不出現組合相關按鈕/API 呼叫）
   canManagePackages?: boolean
 }
 
@@ -315,14 +315,14 @@ function AddCardDialog({ group, allCards, onConfirm, onCancel }: AddCardDialogPr
   )
 }
 
-// ── 複製群組彈窗 ────────────────────────────────────────────────
+// ── 複製組合彈窗 ────────────────────────────────────────────────
 interface DuplicateGroupDialogProps {
   sourceName: string
   onConfirm: (newName: string) => Promise<void>
   onCancel: () => void
 }
 
-// 複製群組彈窗：強制輸入新名稱（預設帶「原名稱（副本）」）才能建立，不與來源做任何關聯
+// 複製組合彈窗：強制輸入新名稱（預設帶「原名稱（副本）」）才能建立，不與來源做任何關聯
 function DuplicateGroupDialog({ sourceName, onConfirm, onCancel }: DuplicateGroupDialogProps) {
   const [name, setName] = useState(`${sourceName}（副本）`)
   const [saving, setSaving] = useState(false)
@@ -331,7 +331,7 @@ function DuplicateGroupDialog({ sourceName, onConfirm, onCancel }: DuplicateGrou
   async function handleConfirm() {
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('新群組名稱為必填')
+      setError('新組合名稱為必填')
       return
     }
     setSaving(true)
@@ -350,13 +350,13 @@ function DuplicateGroupDialog({ sourceName, onConfirm, onCancel }: DuplicateGrou
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
       <div className="relative z-10 w-full max-w-sm mx-4 bg-[#faf6f0] rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-[rgba(122,82,48,.15)] flex items-center justify-between">
-          <p className="text-sm font-semibold text-[#5a3820]">複製群組「{sourceName}」</p>
+          <p className="text-sm font-semibold text-[#5a3820]">複製組合「{sourceName}」</p>
           <button onClick={onCancel} className="text-[#a08060] hover:text-[#7a5230]">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="p-4 space-y-2">
-          <p className="text-xs text-[#a08060]">新群組名稱</p>
+          <p className="text-xs text-[#a08060]">新組合名稱</p>
           <input
             autoFocus
             type="text"
@@ -391,7 +391,7 @@ function DuplicateGroupDialog({ sourceName, onConfirm, onCancel }: DuplicateGrou
 }
 
 // ── 清單/照片顯示模式：比照 packages/PackageExplorer.tsx 的 useLocalStorageState 寫法，
-// 各自維護一份、不共用檔案，避免跨檔案耦合。storage key 用 groups_display 跟套餐那邊
+// 各自維護一份、不共用檔案，避免跨檔案耦合。storage key 用 groups_display 跟組合那邊
 // `${storageKeyPrefix}_display` 不會衝突。
 function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(initial)
@@ -426,10 +426,10 @@ export default function GroupsPanel({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
     new Set(initialGroups.map(g => g.id)))
 
-  // 全域清單/照片顯示模式（套用到全部群組，非各自切換），localStorage 記住偏好
+  // 全域清單/照片顯示模式（套用到全部組合，非各自切換），localStorage 記住偏好
   const [display, setDisplay] = useLocalStorageState<'list' | 'photo'>('groups_display', 'photo')
 
-  // 同步外部 groups 變更（例如從全部料卡的加入群組 popup 更新）
+  // 同步外部 groups 變更（例如從全部料卡的加入組合 popup 更新）
   // 當 initialGroups 參考改變時才更新（即 PhotoWall setGroups 被呼叫時）
   useEffect(() => {
     setGroups(initialGroups)
@@ -454,11 +454,11 @@ export default function GroupsPanel({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
-  // Step 36：群組內料卡拖曳排序（清單模式才能拖；跨群組拖曳不支援，只允許同一個群組內部重排）
+  // Step 36：組合內料卡拖曳排序（清單模式才能拖；跨組合拖曳不支援，只允許同一個組合內部重排）
   const [draggingItem, setDraggingItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<{ groupId: string; equipmentId: string } | null>(null)
 
-  // ── Step 34：設備套餐來源對齊（複製為套餐／重新對齊套餐） ─────────
+  // ── Step 34：設備組合來源對齊（複製為組合／重新對齊組合） ─────────
   const pkgApi = usePackages()
   // 只在有 canManagePackages 時才打 /api/packages，避免沒有此權限的一般使用者也發出請求
   const [packagesByGroupId, setPackagesByGroupId] = useState<Record<string, EquipmentPackage>>({})
@@ -467,10 +467,10 @@ export default function GroupsPanel({
   const [aligningGroupId, setAligningGroupId] = useState<string | null>(null)
   const [alignConfirmGroup, setAlignConfirmGroup] = useState<UserGroup | null>(null)
 
-  // 群組內單筆移除確認（垃圾桶按鈕，取代原本一點就直接移除的 Minus 按鈕）
+  // 組合內單筆移除確認（垃圾桶按鈕，取代原本一點就直接移除的 Minus 按鈕）
   const [removeTarget, setRemoveTarget] = useState<{ card: EquipmentCard; groupId: string } | null>(null)
 
-  // 群組內批次選取移除：比照全部料卡的批次選取模式，一次只允許一個群組進入批次模式
+  // 組合內批次選取移除：比照全部料卡的批次選取模式，一次只允許一個組合進入批次模式
   const [batchGroupId, setBatchGroupId] = useState<string | null>(null)
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
   const [batchRemoving, setBatchRemoving] = useState(false)
@@ -486,7 +486,7 @@ export default function GroupsPanel({
         if (p.source_group_id) map[p.source_group_id] = p
       }
       setPackagesByGroupId(map)
-    }).catch(() => { /* 靜默失敗：僅是輔助資訊，不影響群組本身功能 */ })
+    }).catch(() => { /* 靜默失敗：僅是輔助資訊，不影響組合本身功能 */ })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManagePackages])
@@ -498,7 +498,7 @@ export default function GroupsPanel({
       const pkg = await pkgApi.create(group.name, group.id)
       setPackagesByGroupId(prev => ({ ...prev, [group.id]: pkg }))
     } catch (e) {
-      setPackageActionError(e instanceof Error ? e.message : '複製為套餐失敗')
+      setPackageActionError(e instanceof Error ? e.message : '複製為組合失敗')
     } finally {
       setCopyingGroupId(null)
     }
@@ -526,10 +526,10 @@ export default function GroupsPanel({
     }
   }
 
-  // 對齊狀態：雙向比對，群組或套餐任一邊晚於 source_synced_at 就算「來源已更新」
-  // - group.updated_at 晚於 source_synced_at → 群組內容變了，需要重新對齊
-  // - linked.updated_at 晚於 source_synced_at → 套餐被直接編輯過，已跟來源群組不一致
-  // （group.updated_at 在 SQL migration 執行前可能為 undefined，視為群組這邊未過期）
+  // 對齊狀態：雙向比對，來源（這個組合）或已建立的設備組合任一邊晚於 source_synced_at 就算「來源已更新」
+  // - group.updated_at 晚於 source_synced_at → 來源組合內容變了，需要重新對齊
+  // - linked.updated_at 晚於 source_synced_at → 設備組合被直接編輯過，已跟來源不一致
+  // （group.updated_at 在 SQL migration 執行前可能為 undefined，視為來源這邊未過期）
   function isSourceStale(group: UserGroup, linked: EquipmentPackage): boolean {
     if (!linked.source_synced_at) return true
     const syncedAt = new Date(linked.source_synced_at).getTime()
@@ -586,7 +586,7 @@ export default function GroupsPanel({
     const name = newGroupName.trim()
     if (!name) { setAddingGroup(false); return }
 
-    // Optimistic: 立即關閉輸入框並顯示群組
+    // Optimistic: 立即關閉輸入框並顯示組合
     setAddingGroup(false)
     setNewGroupName('')
     const tempId = `temp-${Date.now()}`
@@ -631,7 +631,7 @@ export default function GroupsPanel({
       setExpandedIds(prev => { const next = new Set(prev); next.add(newGroup.id); return next })
       setDuplicateTarget(null)
     } else {
-      let message = '複製群組失敗'
+      let message = '複製組合失敗'
       try {
         const data = await res.json()
         if (data?.error) message = data.error
@@ -856,8 +856,8 @@ export default function GroupsPanel({
     }
   }
 
-  // Step 36：群組內料卡拖曳排序（清單模式才能拖，照片模式沿用同一份 group_items 順序）。
-  // 只允許同一個群組內部重新排序，不支援跨群組拖曳。
+  // Step 36：組合內料卡拖曳排序（清單模式才能拖，照片模式沿用同一份 group_items 順序）。
+  // 只允許同一個組合內部重新排序，不支援跨組合拖曳。
   async function handleItemReorder(groupId: string, fromEquipmentId: string, toEquipmentId: string) {
     if (fromEquipmentId === toEquipmentId) return
     const group = groups.find(g => g.id === groupId)
@@ -907,7 +907,7 @@ export default function GroupsPanel({
           </div>
         ) : (
           <div>
-            {/* 頂端工具列：新增群組 + 私人說明 */}
+            {/* 頂端工具列：新增組合 + 私人說明 */}
             <div className="flex items-center justify-between pb-3 mb-1 border-b border-[rgba(122,82,48,.1)]">
               {addingGroup ? (
                 <div className="flex items-center gap-2 flex-1">
@@ -920,7 +920,7 @@ export default function GroupsPanel({
                       if (e.key === 'Enter') handleAddGroup()
                       if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName('') }
                     }}
-                    placeholder="群組名稱…"
+                    placeholder="組合名稱…"
                     className="flex-1 text-sm border border-[#c49a72] rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a]"
                   />
                   <button
@@ -942,7 +942,7 @@ export default function GroupsPanel({
                   className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <Plus className="h-4 w-4" />
-                  新增群組
+                  新增組合
                 </button>
               )}
               {groups.length > 0 && (
@@ -987,7 +987,7 @@ export default function GroupsPanel({
               <p className="text-xs text-[#b5451b] pt-2">{packageActionError}</p>
             )}
 
-            {/* 群組列表 */}
+            {/* 組合列表 */}
             <div className="divide-y divide-[rgba(122,82,48,.08)]">
               {groups.map(group => {
                 const isExpanded = expandedIds.has(group.id)
@@ -1009,7 +1009,7 @@ export default function GroupsPanel({
                     onDragLeave={!group.is_default ? e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null) } : undefined}
                     onDrop={!group.is_default ? e => { e.preventDefault(); if (draggingId) handleGroupReorder(draggingId, group.id); setDragOverId(null) } : undefined}
                   >
-                    {/* 群組標題列 */}
+                    {/* 組合標題列 */}
                     <div className="relative flex items-center group/header">
                       {renamingId === group.id ? (
                         /* 重命名模式：flat div，不巢狀在 button 內，有 ✓ / ✗ 按鈕 */
@@ -1105,7 +1105,7 @@ export default function GroupsPanel({
                                 onClick={e => { e.stopPropagation(); askAlign(group) }}
                                 disabled={aligningGroupId === group.id}
                                 className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
-                                title="重新對齊套餐（會覆蓋套餐目前內容）"
+                                title="重新對齊組合（會覆蓋組合目前內容）"
                               >
                                 {aligningGroupId === group.id
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1117,7 +1117,7 @@ export default function GroupsPanel({
                                 onClick={e => { e.stopPropagation(); handleCopyToPackage(group) }}
                                 disabled={copyingGroupId === group.id}
                                 className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
-                                title="複製為套餐"
+                                title="複製為組合"
                               >
                                 {copyingGroupId === group.id
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1129,7 +1129,7 @@ export default function GroupsPanel({
                           <button
                             onClick={e => { e.stopPropagation(); setDuplicateTarget(group) }}
                             className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
-                            title="複製群組"
+                            title="複製組合"
                           >
                             <Copy className="h-3.5 w-3.5" />
                           </button>
@@ -1161,7 +1161,7 @@ export default function GroupsPanel({
                           <button
                             onClick={e => { e.stopPropagation(); askDelete(group) }}
                             className="p-1.5 text-[#a08060] hover:text-red-500 transition-colors rounded"
-                            title="刪除群組"
+                            title="刪除組合"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1173,7 +1173,7 @@ export default function GroupsPanel({
                     {isExpanded && (
                       itemCount === 0 ? (
                         <div className="pt-2 pb-1 flex items-center gap-3">
-                          <p className="text-sm text-[#b0967a] italic">此群組尚無料卡</p>
+                          <p className="text-sm text-[#b0967a] italic">此組合尚無料卡</p>
                           <button
                             onClick={() => setAddTarget({ groupId: group.id })}
                             className="flex items-center gap-1 text-xs text-[#a08060] hover:text-[#7a5230] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] px-2 py-1 rounded-lg transition-colors"
@@ -1283,7 +1283,7 @@ export default function GroupsPanel({
                                       </button>
                                       <button
                                         onClick={() => askRemoveCard(card, group.id)}
-                                        title="從群組移除"
+                                        title="從組合移除"
                                         className="p-1 text-[#a08060] group-hover/row:text-[#b5451b] rounded transition-colors"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -1309,7 +1309,7 @@ export default function GroupsPanel({
                       )
                     )}
                     {/* 批次選取工具列：跟全部料卡不同，這裡用行內工具列而非固定在畫面最下面，
-                        因為同時可能有多個群組展開，固定在螢幕底部會分不清是對哪個群組生效。
+                        因為同時可能有多個組合展開，固定在螢幕底部會分不清是對哪個組合生效。
                         照片／清單模式共用（batchGroupId 不受 display 影響） */}
                     {!group.is_default && batchGroupId === group.id && (
                       <div className="flex items-center gap-3 pt-2 mt-1 border-t border-[#f0e8dc] text-xs">
@@ -1357,8 +1357,8 @@ export default function GroupsPanel({
 
       <ConfirmDialog
         open={confirmOpen}
-        title={`刪除「${confirmTarget?.name ?? ''}」群組？`}
-        message="群組內的料卡不會被刪除，只是移除群組本身。"
+        title={`刪除「${confirmTarget?.name ?? ''}」組合？`}
+        message="組合內的料卡不會被刪除，只是移除組合本身。"
         confirmLabel="刪除"
         danger
         onConfirm={handleDeleteConfirm}
@@ -1367,8 +1367,8 @@ export default function GroupsPanel({
 
       <ConfirmDialog
         open={!!alignConfirmGroup}
-        title={`重新對齊套餐「${alignConfirmGroup ? (packagesByGroupId[alignConfirmGroup.id]?.name ?? alignConfirmGroup.name) : ''}」？`}
-        message="會用此群組目前的名稱與料卡清單，整個覆蓋套餐目前的內容，無法復原。"
+        title={`重新對齊組合「${alignConfirmGroup ? (packagesByGroupId[alignConfirmGroup.id]?.name ?? alignConfirmGroup.name) : ''}」？`}
+        message="會用此清單目前的名稱與料卡，整個覆蓋設備組合目前的內容，無法復原。"
         confirmLabel="確定對齊"
         danger
         onConfirm={handleConfirmAlign}
@@ -1377,8 +1377,8 @@ export default function GroupsPanel({
 
       <ConfirmDialog
         open={!!removeTarget}
-        title={`從群組移除「${removeTarget?.card.name ?? ''}」？`}
-        message="只是從這個群組移除，料卡本身不會被刪除。"
+        title={`從組合移除「${removeTarget?.card.name ?? ''}」？`}
+        message="只是從這個組合移除，料卡本身不會被刪除。"
         confirmLabel="移除"
         danger
         onConfirm={handleRemoveConfirm}
@@ -1388,7 +1388,7 @@ export default function GroupsPanel({
       <ConfirmDialog
         open={batchConfirmOpen}
         title={`確定移除 ${selectedItemIds.size} 筆料卡？`}
-        message="只是從這個群組移除，料卡本身不會被刪除，此操作無法復原。"
+        message="只是從這個組合移除，料卡本身不會被刪除，此操作無法復原。"
         confirmLabel="移除"
         danger
         onConfirm={handleBatchRemoveConfirm}

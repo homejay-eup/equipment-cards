@@ -20,7 +20,7 @@ interface Props {
   onReplace?: () => void
   onRemoveFromGroup?: () => void
   onAddToGroup?: (rect: DOMRect) => void
-  // Step 35：我的關注／設備套餐數量欄位。undefined 或 1 時不顯示徽章，
+  // Step 35：我的關注／設備組合數量欄位。undefined 或 1 時不顯示徽章，
   // 沒有傳入這個 prop 的既有呼叫端（如 PhotoWall.tsx）完全不受影響。
   quantity?: number
 }
@@ -86,12 +86,12 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
               +{card.detail_photos.length}
             </span>
           )}
-          {/* 加入群組：與 +N 同在圖片 div 內，位置完全對稱 */}
+          {/* 加入組合：與 +N 同在圖片 div 內，位置完全對稱 */}
           {onAddToGroup && !selectMode && (
             <button
               onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
               className="absolute bottom-1.5 left-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#7a5230] hover:bg-white transition-colors z-10"
-              title="加入群組"
+              title="加入組合"
             >
               <FolderPlus className="h-3.5 w-3.5" />
             </button>
@@ -105,7 +105,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       </div>
 
-      {/* 替換按鈕：群組視圖，照片左上角 */}
+      {/* 替換按鈕：組合視圖，照片左上角 */}
       {onReplace && !selectMode && (
         <div className="absolute top-0 left-0 w-full aspect-square pointer-events-none">
           <button
@@ -144,7 +144,7 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </div>
       )}
 
-      {/* 管理員：編輯（左上）、刪除料卡（右上，群組內不顯示以免誤刪） */}
+      {/* 管理員：編輯（左上）、刪除料卡（右上，組合內不顯示以免誤刪） */}
       {isAdmin && !selectMode && (
         <>
           <button
@@ -166,12 +166,12 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
         </>
       )}
 
-      {/* 從群組移除（右上），對所有使用者顯示，與刪除按鈕位置相同但語義不同 */}
+      {/* 從組合移除（右上），對所有使用者顯示，與刪除按鈕位置相同但語義不同 */}
       {onRemoveFromGroup && !selectMode && (
         <button
           onClick={e => { e.stopPropagation(); onRemoveFromGroup() }}
           className="absolute top-1.5 right-1.5 hidden group-hover:flex bg-white/90 backdrop-blur-sm p-1.5 rounded-md shadow text-[#a08060] hover:text-[#b5451b] hover:bg-white transition-colors z-10"
-          title="從群組移除"
+          title="從組合移除"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

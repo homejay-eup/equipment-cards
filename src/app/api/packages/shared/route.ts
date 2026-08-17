@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── GET /api/packages/shared ───────────────────────────────────
-// 查詢其他部門有分享給「我的部門」的套餐（永遠唯讀），每筆帶來源部門名稱
+// 查詢其他部門有分享給「我的部門」的組合（永遠唯讀），每筆帶來源部門名稱
 // 權限：view_shared_packages
 export async function GET() {
   const user = await requirePermission('view_shared_packages')
@@ -36,7 +36,7 @@ export async function GET() {
       .from('equipment_packages')
       .select('*, package_items(equipment_id, added_at, quantity, sort_order), departments!equipment_packages_department_id_fkey(name)')
       .in('id', packageIds)
-      // 分享套餐一律只回其他部門的（避免自己部門分享給自己的邊界狀況混入本區塊）
+      // 分享組合一律只回其他部門的（避免自己部門分享給自己的邊界狀況混入本區塊）
       .neq('department_id', departmentId)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })

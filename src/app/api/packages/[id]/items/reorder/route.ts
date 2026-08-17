@@ -3,9 +3,9 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── PATCH /api/packages/[id]/items/reorder ──────────────────────
-// 套餐內料卡拖曳排序
+// 組合內料卡拖曳排序
 // body: { orders: [{ equipment_id: string, sort_order: number }] }
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

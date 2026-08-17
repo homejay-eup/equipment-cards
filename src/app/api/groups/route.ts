@@ -15,7 +15,7 @@ export async function GET() {
 
   const admin = adminClient()
 
-  // 查詢現有群組
+  // 查詢現有組合
   let { data: groups } = await admin
     .from('user_groups')
     .select('*, group_items(equipment_id, added_at, quantity, sort_order)')
@@ -24,7 +24,7 @@ export async function GET() {
     .order('sort_order')
     .order('sort_order', { foreignTable: 'group_items', ascending: true })
 
-  // 懶遷移：若完全沒有群組，從 user_bookmarks 遷移
+  // 懶遷移：若完全沒有組合，從 user_bookmarks 遷移
   if (!groups || groups.length === 0) {
     const { data: bookmarks } = await admin
       .from('user_bookmarks')
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: '群組名稱已存在' }, { status: 409 })
+    if (error.code === '23505') return NextResponse.json({ error: '組合名稱已存在' }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json(data, { status: 201 })

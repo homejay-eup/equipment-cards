@@ -36,8 +36,8 @@ interface Props {
   canShare: boolean
   departments: Department[]
   currentDepartmentId: string | null
-  duplicateGroups: Map<string, string[]> // packageId -> 內容完全相同的其他套餐名稱（僅 own 有意義）
-  sourceGroupUpdatedAt: Record<string, string> // source_group_id -> 群組目前 updated_at（僅 own 有意義）
+  duplicateGroups: Map<string, string[]> // packageId -> 內容完全相同的其他組合名稱（僅 own 有意義）
+  sourceGroupUpdatedAt: Record<string, string> // source_group_id -> 組合目前 updated_at（僅 own 有意義）
   onChanged: () => void | Promise<void>
   // Step 35：數量本地樂觀更新（僅 own 有意義；shared 不可編輯不會用到）
   onOptimisticQuantityChange?: (packageId: string, equipmentId: string, quantity: number) => void
@@ -63,8 +63,8 @@ function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v
   return [value, update]
 }
 
-// 設備套餐：依套餐／依料號雙視圖 + 清單/照片顯示切換 + 批次操作。
-// 比照 documents/ExpandableDocumentList.tsx 的拆法與互動模式（依文件/依料號 -> 依套餐/依料號）。
+// 設備組合：依組合／依料號雙視圖 + 清單/照片顯示切換 + 批次操作。
+// 比照 documents/ExpandableDocumentList.tsx 的拆法與互動模式（依文件/依料號 -> 依組合/依料號）。
 export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
   duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange,
@@ -84,7 +84,7 @@ export default function PackageExplorer({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
-  // Step 36：套餐本身拖曳排序（依套餐視圖、無搜尋關鍵字時才可拖）
+  // Step 36：組合本身拖曳排序（依組合視圖、無搜尋關鍵字時才可拖）
   const [draggingPackageId, setDraggingPackageId] = useState<string | null>(null)
   const [dragOverPackageId, setDragOverPackageId] = useState<string | null>(null)
 
@@ -93,7 +93,7 @@ export default function PackageExplorer({
   const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; names: string[] } | null>(null)
   const [running, setRunning] = useState(false)
 
-  // 分享成功提示：範圍侷限套餐分享情境的輕量 toast，2.5 秒後自動消失（無全站共用元件）
+  // 分享成功提示：範圍侷限組合分享情境的輕量 toast，2.5 秒後自動消失（無全站共用元件）
   const [shareToast, setShareToast] = useState<string | null>(null)
   const shareToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current) }, [])
@@ -158,7 +158,7 @@ export default function PackageExplorer({
     return packages.filter(p => p.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name))
   }, [packages, trimmedQuery])
 
-  // 依套餐視圖、own 模式、有編輯權限、且無搜尋關鍵字時才能拖曳排序套餐本身
+  // 依組合視圖、own 模式、有編輯權限、且無搜尋關鍵字時才能拖曳排序組合本身
   // （搜尋結果排序不代表真實順序，不應該讓使用者在搜尋狀態下拖曳）
   const canReorderPackages = mode !== 'shared' && canEdit && trimmedQuery === ''
 
@@ -174,7 +174,7 @@ export default function PackageExplorer({
     if (!pkg.source_group_id) return null
     const groupUpdatedAt = sourceGroupUpdatedAt[pkg.source_group_id]
     if (!groupUpdatedAt) return null
-    // 雙向比對：群組內容變了，或套餐本身被直接編輯過（跟來源群組不一致），都算「來源已更新」
+    // 雙向比對：來源內容變了，或這份設備組合本身被直接編輯過（跟來源不一致），都算「來源已更新」
     const syncedAt = pkg.source_synced_at ? new Date(pkg.source_synced_at).getTime() : null
     const stale = syncedAt === null
       || new Date(groupUpdatedAt).getTime() > syncedAt
@@ -192,7 +192,7 @@ export default function PackageExplorer({
     )
   }
 
-  // 本部門套餐已分享部門標籤（僅 own 有意義；shared 視圖用 source_department_name 顯示「來自」）
+  // 本部門組合已分享部門標籤（僅 own 有意義；shared 視圖用 source_department_name 顯示「來自」）
   function sharedDeptLabel(pkg: EquipmentPackage | SharedEquipmentPackage) {
     const shares = pkg.package_shared_departments
     if (!shares || shares.length === 0) return null
@@ -220,8 +220,8 @@ export default function PackageExplorer({
     if (packageIds.length === 0) return
     setActionError(null)
     const failed: string[] = []
-    // 每個套餐是獨立資源，仍需逐一呼叫，但改用批次端點（add: [equipmentId]）
-    // 取代單筆 addItem，跟依套餐視圖的新增掛載走同一支 API。
+    // 每個組合是獨立資源，仍需逐一呼叫，但改用批次端點（add: [equipmentId]）
+    // 取代單筆 addItem，跟依組合視圖的新增掛載走同一支 API。
     for (const packageId of packageIds) {
       try {
         // eslint-disable-next-line no-await-in-loop
@@ -232,11 +232,11 @@ export default function PackageExplorer({
         console.error('[PackageExplorer] add equipment to package failed', packageId, equipmentId, e)
       }
     }
-    if (failed.length > 0) setActionError(`部分套餐掛載失敗：${failed.join('、')}`)
+    if (failed.length > 0) setActionError(`部分組合掛載失敗：${failed.join('、')}`)
     await onChanged()
   }
 
-  // ── 批次取消掛載（複選，依 packageId 分組後每個套餐只呼叫一次批次 API，全部處理完只重新整理一次）───
+  // ── 批次取消掛載（複選，依 packageId 分組後每個組合只呼叫一次批次 API，全部處理完只重新整理一次）───
   async function handleBatchUnlink(targets: { packageId: string; equipmentId: string }[]) {
     if (targets.length === 0) return
     setActionError(null)
@@ -288,7 +288,7 @@ export default function PackageExplorer({
     }
   }
 
-  // ── 套餐本身拖曳排序（比照 GroupsPanel.tsx 的 handleGroupReorder，但失敗時走
+  // ── 組合本身拖曳排序（比照 GroupsPanel.tsx 的 handleGroupReorder，但失敗時走
   // setActionError + onChanged() 重新整理修正，跟這個檔案既有風格一致，不用 alert）───
   async function handlePackageReorder(fromId: string, toId: string) {
     if (fromId === toId) return
@@ -312,12 +312,12 @@ export default function PackageExplorer({
     try {
       await pkgApi.reorderPackages(orders)
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : '套餐排序更新失敗')
+      setActionError(e instanceof Error ? e.message : '組合排序更新失敗')
       await onChanged()
     }
   }
 
-  // ── 套餐內料卡拖曳排序（邏輯跟 GroupsPanel.tsx 的 handleItemReorder 平行）───────
+  // ── 組合內料卡拖曳排序（邏輯跟 GroupsPanel.tsx 的 handleItemReorder 平行）───────
   async function handleReorderItems(packageId: string, fromEquipmentId: string, toEquipmentId: string) {
     if (fromEquipmentId === toEquipmentId) return
     const pkg = packages.find(p => p.id === packageId)
@@ -362,7 +362,7 @@ export default function PackageExplorer({
     }
   }
 
-  // ── 批次刪除套餐 ───────────────────────────────────────────
+  // ── 批次刪除組合 ───────────────────────────────────────────
   function askDeleteSelected() {
     const targets = packages.filter(p => selectedPackageIds.has(p.id))
     if (targets.length === 0) return
@@ -397,7 +397,7 @@ export default function PackageExplorer({
     try {
       await pkgApi.batchShare(ids, departmentIds)
       setShareOpen(false)
-      await onChanged() // 重新整理套餐清單，列表上的「分享給：OO部門」標籤即刻反映最新結果
+      await onChanged() // 重新整理組合清單，列表上的「分享給：OO部門」標籤即刻反映最新結果
       if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current)
       setShareToast(
         departmentIds.length > 0
@@ -410,7 +410,7 @@ export default function PackageExplorer({
     }
   }
 
-  // ── 複製套餐 ───────────────────────────────────────────────
+  // ── 複製組合 ───────────────────────────────────────────────
   async function handleConfirmDuplicate(newName: string) {
     if (!duplicateTarget) return
     await pkgApi.duplicate(duplicateTarget.id, newName)
@@ -420,7 +420,7 @@ export default function PackageExplorer({
 
   const isShared = mode === 'shared'
 
-  // 批次分享彈窗初始勾選：目前選取套餐已分享部門的交集
+  // 批次分享彈窗初始勾選：目前選取組合已分享部門的交集
   const shareInitialSelected = useMemo(() => {
     const selectedPkgs = packages.filter(p => selectedPackageIds.has(p.id))
     if (selectedPkgs.length === 0) return []
@@ -434,12 +434,12 @@ export default function PackageExplorer({
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-[#6b4f38]">
-            共 {packages.length} 份套餐，掛載 {equipmentGroups.length} 張料卡
+            共 {packages.length} 份組合，掛載 {equipmentGroups.length} 張料卡
           </h3>
           <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
             <button type="button" onClick={() => setView('byPackage')}
               className={`px-2.5 py-1 transition-colors ${view === 'byPackage' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
-              依套餐
+              依組合
             </button>
             <button type="button" onClick={() => setView('byEquipment')}
               className={`px-2.5 py-1 transition-colors ${view === 'byEquipment' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
@@ -460,14 +460,14 @@ export default function PackageExplorer({
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
           <input value={query} onChange={e => setQuery(e.target.value)}
-            placeholder={view === 'byPackage' ? '搜尋套餐名稱…' : '搜尋料號、品名…'}
+            placeholder={view === 'byPackage' ? '搜尋組合名稱…' : '搜尋料號、品名…'}
             className="pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
         </div>
       </div>
 
       {actionError && <p className="text-xs text-[#b5451b] mb-2 whitespace-pre-wrap">{actionError}</p>}
 
-      {/* 批次動作列（僅 own 且有權限時顯示，依套餐視圖才有整份套餐可選） */}
+      {/* 批次動作列（僅 own 且有權限時顯示，依組合視圖才有整份組合可選） */}
       {!isShared && view === 'byPackage' && (canEdit || canShare) && (
         <PackageBatchActionsBar
           filteredPackageIds={filteredPackages.map(p => p.id)}
@@ -548,8 +548,8 @@ export default function PackageExplorer({
 
       <ConfirmDialog
         open={!!deleteConfirm}
-        title={`確定刪除 ${deleteConfirm?.ids.length ?? 0} 份套餐？`}
-        message="刪除後套餐內容與分享設定都會一併移除，無法復原。"
+        title={`確定刪除 ${deleteConfirm?.ids.length ?? 0} 份組合？`}
+        message="刪除後組合內容與分享設定都會一併移除，無法復原。"
         detail={deleteConfirm?.names.join('\n')}
         confirmLabel="確定刪除"
         danger
@@ -576,7 +576,7 @@ export default function PackageExplorer({
         />
       )}
 
-      {/* 分享成功提示：輕量 toast，侷限套餐分享情境，2.5 秒後自動消失 */}
+      {/* 分享成功提示：輕量 toast，侷限組合分享情境，2.5 秒後自動消失 */}
       {shareToast && (
         <div
           role="status"

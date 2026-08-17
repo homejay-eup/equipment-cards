@@ -61,7 +61,7 @@ async function getUserGroups(userId: string): Promise<UserGroup[]> {
     .order('sort_order')
     .order('sort_order', { foreignTable: 'group_items', ascending: true })
 
-  // 懶遷移：若完全沒有群組，從 user_bookmarks 建立預設群組並遷移
+  // 懶遷移：若完全沒有組合，從 user_bookmarks 建立預設組合並遷移
   if (!groups || groups.length === 0) {
     const { data: bookmarks } = await supabase
       .from('user_bookmarks')

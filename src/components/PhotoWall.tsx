@@ -117,7 +117,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     title: string; message?: string; detail?: string; onConfirm: () => void
   }>({ title: '', onConfirm: () => {} })
 
-  // 群組 state
+  // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
@@ -142,7 +142,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [activeTab])
   // 文件管理批次動作背景執行中時，即使切走分頁也要在分頁按鈕上維持提示
   const [documentsBusy, setDocumentsBusy] = useState(false)
-  // 首次切到「設備套餐」才 mount PackagesClient，之後保持常駐（CSS hide/show）保留 state
+  // 首次切到「設備組合」才 mount PackagesClient，之後保持常駐（CSS hide/show）保留 state
   const [packagesMounted, setPackagesMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'packages') setPackagesMounted(true)
@@ -161,7 +161,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     }
   }, [permissions]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 加入群組 popup
+  // 加入組合 popup
   const [addToGroupPopup, setAddToGroupPopup] = useState<{ card: EquipmentCard; rect: DOMRect } | null>(null)
   const addToGroupPopupRef = useRef<HTMLDivElement>(null)
   const [popupPendingIds, setPopupPendingIds] = useState<Set<string>>(new Set())
@@ -185,7 +185,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     new Set(defaultGroup?.group_items.map(i => i.equipment_id) ?? []),
   [defaultGroup])
 
-  // 非預設群組（用於加入群組 popup）
+  // 非預設組合（用於加入組合 popup）
   const nonDefaultGroups = useMemo(() => groups.filter(g => !g.is_default), [groups])
 
   function askConfirm(cfg: typeof confirmConfig) {
@@ -346,7 +346,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     })
   }
 
-  // toggleDefaultGroup：Optimistic Update 操作預設群組書籤
+  // toggleDefaultGroup：Optimistic Update 操作預設組合書籤
   const toggleDefaultGroup = useCallback(async (card: EquipmentCard) => {
     const dg = groups.find(g => g.is_default)
     if (!dg) {
@@ -683,7 +683,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               || permissions.includes('share_own_packages') || permissions.includes('view_shared_packages')) && (
               <button
                 onClick={() => setActiveTab('packages')}
-                title="設備套餐"
+                title="設備組合"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'packages'
                     ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
@@ -691,7 +691,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 }`}
               >
                 <Package className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">設備套餐</span>
+                <span className="hidden sm:inline">設備組合</span>
               </button>
             )}
           </div>
@@ -1047,7 +1047,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
       )}
 
-      {/* 設備套餐：首次進入後保持常駐（CSS hide/show），資料由 page.tsx 一次 fetch 好往下傳 */}
+      {/* 設備組合：首次進入後保持常駐（CSS hide/show），資料由 page.tsx 一次 fetch 好往下傳 */}
       {packagesMounted && packagesData && (
         <div className={activeTab !== 'packages' ? 'hidden' : ''}>
           <PackagesClient
@@ -1183,7 +1183,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </>
       )}
 
-      {/* 加入群組 popup（fixed，定位在按鈕上方） */}
+      {/* 加入組合 popup（fixed，定位在按鈕上方） */}
       {addToGroupPopup && (
         <div
           ref={addToGroupPopupRef}
@@ -1197,10 +1197,10 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-xl overflow-hidden min-w-[11rem] max-w-[15rem]"
         >
           <div className="px-3 py-2 border-b border-[rgba(122,82,48,.08)]">
-            <p className="text-[10px] font-semibold text-[#a08060] uppercase tracking-wider">加入群組</p>
+            <p className="text-[10px] font-semibold text-[#a08060] uppercase tracking-wider">加入組合</p>
           </div>
           {nonDefaultGroups.length === 0 ? (
-            <p className="px-3 py-3 text-xs text-[#a08060]">尚無群組，請至「我的關注」建立</p>
+            <p className="px-3 py-3 text-xs text-[#a08060]">尚無組合，請至「我的關注」建立</p>
           ) : (
             <>
               <div className="max-h-48 overflow-y-auto">

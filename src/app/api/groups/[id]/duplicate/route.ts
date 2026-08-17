@@ -9,7 +9,7 @@ const adminClient = () => createClient(
 )
 
 // ── POST /api/groups/[id]/duplicate ──────────────────────────
-// 複製個人群組（A -> B），複製 group_items，不建立任何來源關聯
+// 複製個人組合（A -> B），複製 group_items，不建立任何來源關聯
 // body: { name: string }
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient()
@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (insertError) {
     if (insertError.code === '23505') {
-      return NextResponse.json({ error: '群組名稱已存在' }, { status: 409 })
+      return NextResponse.json({ error: '組合名稱已存在' }, { status: 409 })
     }
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }

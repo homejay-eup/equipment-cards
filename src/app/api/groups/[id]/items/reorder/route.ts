@@ -9,7 +9,7 @@ const adminClient = () => createClient(
 )
 
 // ── PATCH /api/groups/[id]/items/reorder ────────────────────────
-// 群組內料卡拖曳排序
+// 組合內料卡拖曳排序
 // body: { orders: [{ equipment_id: string, sort_order: number }] }
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient()
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const admin = adminClient()
 
-  // 驗證此群組屬於當前使用者
+  // 驗證此組合屬於當前使用者
   const { data: group } = await admin
     .from('user_groups')
     .select('user_id')
@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const failed = updates.filter(r => r.status === 'rejected').length
   if (failed > 0) return NextResponse.json({ error: 'Partial update failed' }, { status: 500 })
 
-  // 供「設備套餐」來源對齊機制比對：內部排序異動也算群組內容變動
+  // 供「設備組合」來源對齊機制比對：內部排序異動也算組合內容變動
   await admin.from('user_groups').update({ updated_at: new Date().toISOString() }).eq('id', params.id)
 
   return NextResponse.json({ ok: true })

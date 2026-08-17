@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── GET /api/packages ──────────────────────────────────────────
-// 查詢「本部門套餐」清單（含內含料卡）
+// 查詢「本部門組合」清單（含內含料卡）
 // 權限：view_own_packages 或 edit_own_packages（edit 隱含 view）
 export async function GET() {
   const supabase = createSupabaseServerClient()
@@ -43,7 +43,7 @@ export async function GET() {
 }
 
 // ── POST /api/packages ─────────────────────────────────────────
-// 建立套餐（可帶 source_group_id 做「複製為套餐」）
+// 建立組合（可帶 source_group_id 做「複製為組合」）
 // 權限：edit_own_packages
 export async function POST(req: NextRequest) {
   const user = await requirePermission('edit_own_packages')
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const departmentId = await getCallerDepartmentId(user.email!)
   if (!departmentId) {
-    return NextResponse.json({ error: '您目前未歸屬任何部門，無法建立套餐' }, { status: 403 })
+    return NextResponse.json({ error: '您目前未歸屬任何部門，無法建立組合' }, { status: 403 })
   }
 
   try {
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     const sourceGroupId: string | undefined = body?.source_group_id
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: '套餐名稱為必填' }, { status: 400 })
+      return NextResponse.json({ error: '組合名稱為必填' }, { status: 400 })
     }
 
     const supabase = getServiceClient()
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     let itemsToCopy: { equipment_id: string; quantity: number; sort_order: number }[] = []
 
     if (sourceGroupId) {
-      // 驗證來源群組屬於此使用者
+      // 驗證來源組合屬於此使用者
       const { data: group } = await supabase
         .from('user_groups')
         .select('id, user_id')
@@ -78,10 +78,10 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (!group || group.user_id !== user.id) {
-        return NextResponse.json({ error: '找不到來源群組' }, { status: 404 })
+        return NextResponse.json({ error: '找不到來源組合' }, { status: 404 })
       }
 
-      // 一個群組最多只能連結一份套餐：若已連結，回 409 並附現有套餐 id，前端改叫 align
+      // 一個來源最多只能連結一份設備組合：若已連結，回 409 並附現有組合 id，前端改叫 align
       const { data: existingPackage } = await supabase
         .from('equipment_packages')
         .select('id')
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
       if (existingPackage) {
         return NextResponse.json(
-          { error: '此群組已連結套餐，請改用「重新對齊套餐」', existing_package_id: existingPackage.id },
+          { error: '此來源已連結設備組合，請改用「重新對齊組合」', existing_package_id: existingPackage.id },
           { status: 409 },
         )
       }
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        // 併發窗口：兩個請求同時通過「群組是否已連結套餐」的應用層檢查，
+        // 併發窗口：兩個請求同時通過「來源是否已連結設備組合」的應用層檢查，
         // DB 的 partial unique index（equipment_packages_source_group_id_unique）擋下第二筆。
         // 判斷是哪種衝突：source_group_id 唯一約束 vs (department_id, name) 唯一約束。
         if (sourceGroupId) {
@@ -129,12 +129,12 @@ export async function POST(req: NextRequest) {
             .maybeSingle()
           if (existingPackage) {
             return NextResponse.json(
-              { error: '此群組已連結套餐，請改用「重新對齊套餐」', existing_package_id: existingPackage.id },
+              { error: '此來源已連結設備組合，請改用「重新對齊組合」', existing_package_id: existingPackage.id },
               { status: 409 },
             )
           }
         }
-        return NextResponse.json({ error: '套餐名稱已存在' }, { status: 409 })
+        return NextResponse.json({ error: '組合名稱已存在' }, { status: 409 })
       }
       throw insertError
     }

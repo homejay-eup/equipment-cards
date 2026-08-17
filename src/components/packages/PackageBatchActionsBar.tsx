@@ -2,7 +2,7 @@
 
 import { Share2, Trash2 } from 'lucide-react'
 
-// 依套餐視圖的批次動作列：全選、分享至部門、批次刪除。
+// 依組合視圖的批次動作列：全選、分享至部門、批次刪除。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function PackageBatchActionsBar({
   filteredPackageIds, selectedPackageIds, onToggleAll,
