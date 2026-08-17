@@ -5,7 +5,7 @@ import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 // ── POST /api/packages/[id]/items/batch ────────────────────────
 // 批次加/移料號掛載，供「依料號檢視」的批次維護使用
 // body: { add?: string[], remove?: string[] }
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -37,13 +37,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // 先查目前實際內容，算出 add/remove 是否會造成淨變動——
-    // 供「設備套餐」來源對齊機制比對：no-op（加已存在的料號、移不存在的料號）不算內容異動，不 bump updated_at
+    // 供「設備組合」來源對齊機制比對：no-op（加已存在的料號、移不存在的料號）不算內容異動，不 bump updated_at
     const { data: existingItems } = await supabase
       .from('package_items')
       .select('equipment_id')

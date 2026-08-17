@@ -8,7 +8,7 @@ interface PickablePackage {
   name: string
 }
 
-// 複選版套餐挑選器：依料號檢視展開列裡「+ 掛載到其他套餐」用。
+// 複選版組合挑選器：依料號檢視展開列裡「+ 掛載到其他組合」用。
 // 比照 documents/EquipmentQuickPick.tsx 的打勾＋批次送出模式。
 export default function PackageQuickPick({
   packages, excludeIds = [], onPickMany, disabled,
@@ -74,20 +74,20 @@ export default function PackageQuickPick({
       <button type="button" onClick={() => !disabled && setOpen(v => !v)} disabled={disabled}
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
         <Search className="h-3 w-3" />
-        + 掛載到其他套餐
+        + 掛載到其他組合
       </button>
       {open && (
         <div className="absolute z-50 mt-1 left-0 w-64 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
           <div className="p-2 border-b border-[rgba(122,82,48,.1)]">
             <input
               type="text" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="搜尋套餐名稱…" autoFocus disabled={submitting}
+              placeholder="搜尋組合名稱…" autoFocus disabled={submitting}
               className="w-full border border-[#e8ddd0] rounded-lg px-2 py-1 text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
             />
           </div>
           <div className="max-h-48 overflow-y-auto">
             {results.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-[#a08060]">沒有可掛載的套餐</p>
+              <p className="px-3 py-2 text-xs text-[#a08060]">沒有可掛載的組合</p>
             ) : results.map(p => {
               const checked = selectedIds.has(p.id)
               return (

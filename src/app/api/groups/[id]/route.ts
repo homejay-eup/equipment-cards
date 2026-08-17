@@ -24,7 +24,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .single()
 
   if (!group || group.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (group.is_default) return NextResponse.json({ error: '預設群組不可重命名' }, { status: 400 })
+  if (group.is_default) return NextResponse.json({ error: '預設組合不可重命名' }, { status: 400 })
 
   const { data, error } = await admin
     .from('user_groups')
@@ -51,7 +51,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     .single()
 
   if (!group || group.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (group.is_default) return NextResponse.json({ error: '預設群組不可刪除' }, { status: 400 })
+  if (group.is_default) return NextResponse.json({ error: '預設組合不可刪除' }, { status: 400 })
 
   await admin.from('user_groups').delete().eq('id', params.id)
   return new NextResponse(null, { status: 204 })

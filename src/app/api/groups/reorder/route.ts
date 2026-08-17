@@ -19,7 +19,7 @@ export async function PATCH(request: Request) {
   const admin = adminClient()
   const ids = orders.map((o: { id: string }) => o.id)
 
-  // 驗證所有群組都屬於當前使用者，且不是預設群組
+  // 驗證所有組合都屬於當前使用者，且不是預設組合
   const { data: groups, error } = await admin
     .from('user_groups')
     .select('id, is_default')

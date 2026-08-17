@@ -4,7 +4,7 @@ import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── DELETE /api/packages/[id]/items/[equipmentId] ──────────────
 // 移除單一料卡
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string; equipmentId: string } },
@@ -28,7 +28,7 @@ export async function DELETE(
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -55,7 +55,7 @@ export async function DELETE(
 
 // ── PATCH /api/packages/[id]/items/[equipmentId] ───────────────
 // 更新單一料卡的數量
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string; equipmentId: string } },
@@ -84,7 +84,7 @@ export async function PATCH(
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

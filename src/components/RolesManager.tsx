@@ -84,11 +84,11 @@ const PERM_LABELS: Record<string, string> = {
   edit_quotes:                '新增/編輯報價品項與價格',
   // 使用統計
   view_analytics:             '可看使用統計',
-  // 設備套餐
-  view_own_packages:          '看得到本部門套餐（唯讀）',
-  edit_own_packages:          '編輯本部門套餐（新增/改名/加移料卡/刪除/複製/批次維護，隱含可看）',
-  share_own_packages:         '分享套餐至其他部門',
-  view_shared_packages:       '看得到其他部門分享給我的套餐（唯讀）',
+  // 設備組合
+  view_own_packages:          '看得到本部門組合（唯讀）',
+  edit_own_packages:          '編輯本部門組合（新增/改名/加移料卡/刪除/複製/批次維護，隱含可看）',
+  share_own_packages:         '分享組合至其他部門',
+  view_shared_packages:       '看得到其他部門分享給我的組合（唯讀）',
 }
 
 const VISIBILITY_PERMS = ['read_all_cards', 'read_active_only'] as const
@@ -141,7 +141,7 @@ const QUOTE_PERMS = [
 // 使用統計分組：獨立單一權限，不需父子連動
 const ANALYTICS_PERMS = ['view_analytics'] as const
 
-// 設備套餐分組：4 個獨立 key 互不隱含（edit_own_packages 在邏輯上隱含可看，
+// 設備組合分組：4 個獨立 key 互不隱含（edit_own_packages 在邏輯上隱含可看，
 // 但存的 permission_key 本身沒有從屬關係，UI 上一樣扁平列出，比照 QUOTE_PERMS）
 const PACKAGE_PERMS = [
   'view_own_packages',
@@ -772,7 +772,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
               {[
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
                 { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
-                { label: '設備套餐', keys: PACKAGE_PERMS, radio: false },
+                { label: '設備組合', keys: PACKAGE_PERMS, radio: false },
                 { label: '使用統計', keys: ANALYTICS_PERMS, radio: false },
               ].map(section => renderNewRolePermSection(section))}
             </div>
@@ -1159,9 +1159,9 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   </div>
                 </div>
 
-                {/* 設備套餐 */}
+                {/* 設備組合 */}
                 <div>
-                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">設備套餐</p>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">設備組合</p>
                   <div className="space-y-1.5">
                     {PACKAGE_PERMS.map(key => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">

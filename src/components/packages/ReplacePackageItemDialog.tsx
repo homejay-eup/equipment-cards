@@ -15,9 +15,10 @@ interface ReplacePackageItemDialogProps {
   onCancel: () => void
 }
 
-// 跨套餐批次替換料卡彈窗（Step 37）：比照 GroupsPanel.tsx 的 ReplaceDialog
+// 跨組合批次替換料卡彈窗（Step 37）：比照 GroupsPanel.tsx 的 ReplaceDialog
 // （樣式、Fuse 搜尋設定、版面配置盡量一致，維持視覺統一）。
-// 差異：勾選清單是「同時存在於哪些套餐」而非群組，預設全部勾選。
+// 差異：勾選清單顯示的是「這個料號同時掛載在哪些設備組合」
+// （GroupsPanel.tsx 版本顯示的則是「我的關注」裡的清單），預設全部勾選。
 export default function ReplacePackageItemDialog({
   equipmentId,
   equipmentName,

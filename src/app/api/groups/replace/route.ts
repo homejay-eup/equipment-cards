@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized group' }, { status: 403 })
   }
 
-  // 先查這批群組裡舊料卡目前的數量與排序位置，替換時把兩者都帶過去
+  // 先查這批組合裡舊料卡目前的數量與排序位置，替換時把兩者都帶過去
   // （數量不重置成 1；排序位置沿用同一個位置，不讓替換後的料卡跑到清單最後面）
   const { data: oldItems } = await admin
     .from('group_items')
@@ -46,11 +46,11 @@ export async function POST(request: Request) {
     ]),
   )
 
-  // 在每個群組中刪除舊料卡、插入新料卡
+  // 在每個組合中刪除舊料卡、插入新料卡
   for (const groupId of group_ids) {
     await admin.from('group_items').delete()
       .eq('group_id', groupId).eq('equipment_id', old_equipment_id)
-    // ON CONFLICT DO NOTHING：新料卡本來就在群組裡也不報錯
+    // ON CONFLICT DO NOTHING：新料卡本來就在組合裡也不報錯
     const oldItem = oldItemByGroupId.get(groupId)
     const insertPayload: { group_id: string; equipment_id: string; quantity?: number; sort_order?: number } = {
       group_id: groupId,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     } catch {
       // ignore duplicate key error
     }
-    // 供「設備套餐」來源對齊機制比對：替換卡片也算群組內容變動
+    // 供「設備組合」來源對齊機制比對：替換卡片也算組合內容變動
     await admin.from('user_groups').update({ updated_at: new Date().toISOString() }).eq('id', groupId)
   }
 

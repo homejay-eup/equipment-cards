@@ -4,7 +4,7 @@ import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── POST /api/packages/[id]/items ──────────────────────────────
 // 加入單一料卡
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json({ error: '已在套餐中' }, { status: 409 })
+        return NextResponse.json({ error: '已在組合中' }, { status: 409 })
       }
       throw error
     }

@@ -1,7 +1,7 @@
 // 拖曳排序共用工具：依游標實際懸停在目標上/下半（或左/右半）判斷插入位置（before/after），
 // 取代舊有「一律插在目標前面」或「依 fromIdx/toIdx 大小關係決定插入方向」的 splice pattern。
 // 用於：TrackerClient.tsx（任務板）、QuotesClient.tsx（報價分類籤＋品項）、
-// GroupsPanel.tsx（我的關注群組＋群組內料卡）、PackageExplorer.tsx／PackageListView.tsx（設備套餐＋套餐內料卡）。
+// GroupsPanel.tsx（我的關注組合＋組合內料卡）、PackageExplorer.tsx／PackageListView.tsx（設備組合＋組合內料卡）。
 
 import type { DragEvent } from 'react'
 

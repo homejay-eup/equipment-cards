@@ -3,9 +3,9 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── POST /api/packages/[id]/duplicate ──────────────────────────
-// 複製套餐（A -> B），複製 package_items，不建立任何來源關聯
+// 複製組合（A -> B），複製 package_items，不建立任何來源關聯
 // body: { name: string }
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const body = await req.json()
     const name: string | undefined = body?.name
     if (!name?.trim()) {
-      return NextResponse.json({ error: '新套餐名稱為必填' }, { status: 400 })
+      return NextResponse.json({ error: '新組合名稱為必填' }, { status: 400 })
     }
 
     const supabase = getServiceClient()
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq('id', params.id)
       .single()
 
-    if (!source) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!source) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (source.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return NextResponse.json({ error: '套餐名稱已存在' }, { status: 409 })
+        return NextResponse.json({ error: '組合名稱已存在' }, { status: 409 })
       }
       throw insertError
     }

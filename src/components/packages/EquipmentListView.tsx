@@ -12,7 +12,7 @@ interface EquipmentGroup {
   packages: (EquipmentPackage | SharedEquipmentPackage)[]
 }
 
-// 依料號列表：展開/摺疊、批次取消掛載、掛載到其他套餐。
+// 依料號列表：展開/摺疊、批次取消掛載、掛載到其他組合。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function EquipmentListView({
   filteredEquipmentGroups, packages, expanded, toggleExpand, busyIds, isShared, canEdit,
@@ -32,7 +32,7 @@ export default function EquipmentListView({
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddEquipmentToManyPackages: (equipmentId: string, packageIds: string[]) => void | Promise<void>
   onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
-  // Step 37：跨套餐批次替換料卡，開啟 ReplacePackageItemDialog，預設帶出該料號所在的全部套餐
+  // Step 37：跨組合批次替換料卡，開啟 ReplacePackageItemDialog，預設帶出該料號所在的全部組合
   onReplace: (equipmentId: string, equipmentName: string) => void
 }) {
   if (filteredEquipmentGroups.length === 0) {
@@ -60,7 +60,7 @@ export default function EquipmentListView({
               </span>
               <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
               <span className="text-[#6b4f38] truncate flex-1">{g.name}</span>
-              <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份套餐</span>
+              <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份組合</span>
               {/* 整列會觸發展開/收合，這顆按鈕要 stopPropagation 避免點擊時誤觸展開 */}
               {!isShared && canEdit && (
                 <button
@@ -77,7 +77,7 @@ export default function EquipmentListView({
             {isExpanded && (
               <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">
                 {g.packages.length === 0 ? (
-                  <p className="text-xs text-[#a08060] py-1.5">尚未掛載任何套餐</p>
+                  <p className="text-xs text-[#a08060] py-1.5">尚未掛載任何組合</p>
                 ) : (
                   <div className="flex flex-col gap-1 py-1.5">
                     {g.packages.map(pkg => {

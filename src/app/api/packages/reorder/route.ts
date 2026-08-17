@@ -3,9 +3,9 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── PATCH /api/packages/reorder ──────────────────────────────────
-// 「設備套餐」頁面套餐本身（不同套餐資料夾）拖曳排序
+// 「設備組合」頁面組合本身（不同組合資料夾）拖曳排序
 // body: { orders: [{ id: string, sort_order: number }] }
-// 權限：edit_own_packages，且僅限呼叫者部門自己的套餐
+// 權限：edit_own_packages，且僅限呼叫者部門自己的組合
 export async function PATCH(req: NextRequest) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -32,7 +32,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = getServiceClient()
     const ids = (orders as { id: string; sort_order: number }[]).map((o) => o.id)
 
-    // 驗證所有套餐都屬於呼叫者的部門
+    // 驗證所有組合都屬於呼叫者的部門
     const { data: packages, error } = await supabase
       .from('equipment_packages')
       .select('id, department_id')

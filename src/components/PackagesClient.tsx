@@ -22,7 +22,7 @@ interface Props {
   isActive: boolean
 }
 
-// 純前端比對：同部門套餐是否有兩個以上料號組合完全相同（排序後 set 比較）
+// 純前端比對：同部門的組合之間是否有兩個以上的料號內容完全相同（排序後 set 比較）
 function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, string[]> {
   // Step 35：數量也納入「內容是否相同」的比對，同樣料號但數量不同不算內容完全相同
   const signatureOf = (p: EquipmentPackage) =>
@@ -31,7 +31,7 @@ function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, strin
   const bySignature = new Map<string, EquipmentPackage[]>()
   for (const p of packages) {
     const sig = signatureOf(p)
-    if (!sig) continue // 空套餐不算「內容相同」
+    if (!sig) continue // 空組合不算「內容相同」
     const arr = bySignature.get(sig) ?? []
     arr.push(p)
     bySignature.set(sig, arr)
@@ -84,7 +84,7 @@ export default function PackagesClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Step 35 補：本部門套餐數量的樂觀更新——比照 GroupsPanel 的 handleUpdateQuantity，
+  // Step 35 補：本部門組合數量的樂觀更新——比照 GroupsPanel 的 handleUpdateQuantity，
   // 讓連續點擊 QuantityStepper 時每次都算在最新的本地值上，不會因為等 API 回應而送出過期值
   const applyOwnQuantity = useCallback((packageId: string, equipmentId: string, quantity: number) => {
     setOwnPackages(prev => prev.map(p =>
@@ -95,7 +95,7 @@ export default function PackagesClient({
     ))
   }, [])
 
-  // Step 36：套餐本身／套餐內料卡拖曳排序的本地樂觀更新，比照 applyOwnQuantity 的寫法
+  // Step 36：組合本身／組合內料卡拖曳排序的本地樂觀更新，比照 applyOwnQuantity 的寫法
   const applyOwnPackageOrder = useCallback((orderedPackageIds: string[]) => {
     setOwnPackages(prev => {
       const byId = new Map(prev.map(p => [p.id, p]))
@@ -118,7 +118,7 @@ export default function PackagesClient({
   }, [])
 
   // 這個分頁是「首次切入才 mount，之後 CSS 隱藏保留 state」，不會每次切換都重新 mount，
-  // 所以資料只在第一次進入時抓過一次；例如在「我的關注」複製/對齊套餐後切回這個分頁，
+  // 所以資料只在第一次進入時抓過一次；例如在「我的關注」複製/對齊組合後切回這個分頁，
   // 不會自動知道要重抓。改成每次「切回」這個分頁都重新拿一次最新清單。
   useEffect(() => {
     if (!isActive) return
@@ -129,7 +129,7 @@ export default function PackagesClient({
 
   const duplicateGroups = useMemo(() => computeDuplicateGroups(ownPackages), [ownPackages])
 
-  // ── 新增套餐（inline，比照 GroupsPanel 的新增群組互動） ──────────
+  // ── 新增組合（inline，比照 GroupsPanel 的新增組合互動） ──────────
   const [addingOpen, setAddingOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -160,7 +160,7 @@ export default function PackagesClient({
   if (!canViewOwn && !canViewShared) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center text-sm text-[#a08060]">
-        您沒有檢視設備套餐的權限。
+        您沒有檢視設備組合的權限。
       </div>
     )
   }
@@ -172,7 +172,7 @@ export default function PackagesClient({
       {canViewOwn && (
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#6b4f38]">本部門套餐</h2>
+            <h2 className="text-sm font-semibold text-[#6b4f38]">本部門組合</h2>
             {canEdit && (
               addingOpen ? (
                 <div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ export default function PackagesClient({
                       if (e.key === 'Enter') handleCreate()
                       if (e.key === 'Escape') { setAddingOpen(false); setNewName('') }
                     }}
-                    placeholder="套餐名稱…"
+                    placeholder="組合名稱…"
                     disabled={creating}
                     className="text-sm border border-[#c49a72] rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] text-[#2c1e12] placeholder:text-[#b0967a] disabled:opacity-50"
                   />
@@ -202,14 +202,14 @@ export default function PackagesClient({
                 <button onClick={() => setAddingOpen(true)}
                   className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors">
                   <Plus className="h-4 w-4" />
-                  新增套餐
+                  新增組合
                 </button>
               )
             )}
           </div>
           {createError && <p className="text-xs text-[#b5451b]">{createError}</p>}
           {!userDepartmentId ? (
-            <p className="text-xs text-[#a08060] py-4">您目前未歸屬任何部門，無法檢視或建立套餐。</p>
+            <p className="text-xs text-[#a08060] py-4">您目前未歸屬任何部門，無法檢視或建立組合。</p>
           ) : (
             <PackageExplorer
               mode="own"
@@ -233,7 +233,7 @@ export default function PackagesClient({
 
       {canViewShared && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-[#6b4f38]">其他部門分享給我的套餐</h2>
+          <h2 className="text-sm font-semibold text-[#6b4f38]">其他部門分享給我的組合</h2>
           <PackageExplorer
             mode="shared"
             packages={sharedPackages}

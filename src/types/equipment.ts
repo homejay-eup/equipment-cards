@@ -77,13 +77,16 @@ export interface GroupItem {
   sort_order: number
 }
 
+// UI 上顯示為「組合」（跟「設備套餐」/EquipmentPackage 統一用字），
+// 但程式碼識別字、API 路由（/api/groups/*）、資料庫資料表（user_groups）沿用原本的
+// 「群組」/Group 命名，未跟著改名。要找「我的關注」相關程式碼時認這個型別/前綴。
 export interface UserGroup {
   id: string
   name: string
   is_default: boolean
   sort_order: number
   created_at: string
-  updated_at?: string  // Step 34：供「設備套餐」來源對齊機制比對，SQL migration 執行前可能為 undefined
+  updated_at?: string  // Step 34：供「設備組合」來源對齊機制比對，SQL migration 執行前可能為 undefined
   group_items: GroupItem[]
 }
 

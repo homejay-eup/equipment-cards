@@ -3,9 +3,9 @@ import { requirePermission } from '@/lib/admin'
 import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── POST /api/packages/replace ─────────────────────────────────
-// 跨套餐批次替換料卡：刪舊料卡、插新料卡、保留原數量與排序位置
+// 跨組合批次替換料卡：刪舊料卡、插新料卡、保留原數量與排序位置
 // body: { old_equipment_id: string, new_equipment_id: string, package_ids: string[] }
-// 權限：edit_own_packages，且僅限呼叫者部門所屬的套餐
+// 權限：edit_own_packages，且僅限呼叫者部門所屬的組合
 export async function POST(req: NextRequest) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient()
 
-    // 確認所有 package_ids 都屬於呼叫者部門，防止跨部門亂改別人套餐
+    // 確認所有 package_ids 都屬於呼叫者部門，防止跨部門亂改別人組合
     const { data: pkgs } = await supabase
       .from('equipment_packages')
       .select('id')
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // 先查這批套餐裡舊料卡目前的數量與排序位置，替換時把兩者都帶過去
+    // 先查這批組合裡舊料卡目前的數量與排序位置，替換時把兩者都帶過去
     // （數量不重置成 1；排序位置沿用同一個位置，不讓替換後的料卡跑到清單最後面）
     const { data: oldItems } = await supabase
       .from('package_items')
@@ -66,15 +66,15 @@ export async function POST(req: NextRequest) {
       ]),
     )
 
-    // reviewer 註記：原寫法是「逐一套餐 delete 舊料卡→insert 新料卡」的迴圈，且沒檢查
+    // reviewer 註記：原寫法是「逐一組合 delete 舊料卡→insert 新料卡」的迴圈，且沒檢查
     // supabase-js 回傳的 error（DB 層錯誤不會拋例外，try/catch 抓不到），會有兩個問題：
-    // ① 若某個套餐 insert 失敗，該套餐的舊料卡已經被 delete 掉，料卡整個從套餐消失
-    //    （比「沒替換成功」更嚴重的資料遺失，且套餐可能分享給其他部門，波及範圍比
-    //    「我的關注」群組更大）；② 迴圈中途失敗不會中斷，最終仍無條件回 success: true，
-    //    前端無從得知只有部分套餐真的替換成功。
-    // 改為批次一次處理全部套餐：insert/delete/update 各自只送一個 SQL 陳述式，
-    // Postgres 對單一陳述式本身是原子的（要嘛全部套餐都套用、要嘛都不套用，不會有
-    // 「只有部分套餐被改到」的中間狀態），同時檢查每一步的 error，任何一步失敗就
+    // ① 若某個組合 insert 失敗，該組合的舊料卡已經被 delete 掉，料卡整個從組合消失
+    //    （比「沒替換成功」更嚴重的資料遺失，且組合可能分享給其他部門，波及範圍比
+    //    「我的關注」這種個人專屬的清單更大）；② 迴圈中途失敗不會中斷，最終仍無條件回 success: true，
+    //    前端無從得知只有部分組合真的替換成功。
+    // 改為批次一次處理全部組合：insert/delete/update 各自只送一個 SQL 陳述式，
+    // Postgres 對單一陳述式本身是原子的（要嘛全部組合都套用、要嘛都不套用，不會有
+    // 「只有部分組合被改到」的中間狀態），同時檢查每一步的 error，任何一步失敗就
     // 回 500 並保留在原始狀態或最保守的中間狀態（insert 已成功但 delete 失敗，
     // 頂多是舊料卡還留著沒被移除，不會有料卡消失的情況）。
     // 每個 row 都給齊全部欄位（不像原本單筆 insert 時可以省略 quantity/sort_order 讓 DB 補預設值）：
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    // Step 1：先把新料卡插入所有套餐（新料卡本來就在套餐裡時 ignoreDuplicates 視為無害 no-op，
+    // Step 1：先把新料卡插入所有組合（新料卡本來就在組合裡時 ignoreDuplicates 視為無害 no-op，
     // 比照 items/batch route 的既有寫法）。先插入、後刪除舊料卡，確保插入失敗時舊料卡還在原地，
     // 不會出現「刪了卻沒插入」的資料遺失情境。
     const { error: insertError } = await supabase
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '替換料卡失敗' }, { status: 500 })
     }
 
-    // Step 2：插入成功後才刪除所有套餐裡的舊料卡
+    // Step 2：插入成功後才刪除所有組合裡的舊料卡
     const { error: deleteError } = await supabase
       .from('package_items')
       .delete()
@@ -113,11 +113,11 @@ export async function POST(req: NextRequest) {
 
     if (deleteError) {
       console.error('[packages/replace] delete old item failed', deleteError)
-      // 新料卡已插入成功，只是舊料卡沒移除——套餐內容變多不是資料遺失，回錯誤讓使用者知道要重試即可
+      // 新料卡已插入成功，只是舊料卡沒移除——組合內容變多不是資料遺失，回錯誤讓使用者知道要重試即可
       return NextResponse.json({ error: '替換料卡失敗（新料卡已加入，但舊料卡尚未移除，請重新整理後再試一次）' }, { status: 500 })
     }
 
-    // Step 3：供「設備套餐」來源對齊機制比對，一次 bump 所有套餐的 updated_at。
+    // Step 3：供「設備組合」來源對齊機制比對，一次 bump 所有組合的 updated_at。
     // 這一步失敗不影響料卡內容是否替換成功（頂多對齊徽章沒即時反映），只記 log 不視為整體失敗。
     const { error: updateError } = await supabase
       .from('equipment_packages')

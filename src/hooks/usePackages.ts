@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Step 34：設備套餐（部門共享群組）。封裝 /api/packages/* 呼叫，
+// Step 34：設備組合（部門共享組合）。封裝 /api/packages/* 呼叫，
 // 風格比照 useDocumentUpload：失敗時 throw Error（訊息取自 API 回應的 error 欄位），
 // 由呼叫端 try/catch 處理，不在 hook 內部吞掉錯誤。
 
@@ -15,6 +15,9 @@ export interface PackageSharedDepartment {
   department_id: string
 }
 
+// UI 上顯示為「組合」（跟「我的關注」/UserGroup 統一用字），
+// 但程式碼識別字、API 路由（/api/packages/*）、資料庫資料表（equipment_packages）沿用原本的
+// 「套餐」/Package 命名，未跟著改名。要找「設備套餐」相關程式碼時認這個型別/前綴。
 export interface EquipmentPackage {
   id: string
   name: string
@@ -58,19 +61,19 @@ async function parseErrorOr<T>(res: Response, fallback: string): Promise<T> {
 export function usePackages() {
   const [loading, setLoading] = useState(false)
 
-  // ── 本部門套餐清單 ──────────────────────────────────────────
+  // ── 本部門組合清單 ──────────────────────────────────────────
   async function list(): Promise<EquipmentPackage[]> {
     const res = await fetch('/api/packages')
-    return parseErrorOr<EquipmentPackage[]>(res, '查詢套餐失敗')
+    return parseErrorOr<EquipmentPackage[]>(res, '查詢組合失敗')
   }
 
-  // ── 其他部門分享給我的套餐 ──────────────────────────────────
+  // ── 其他部門分享給我的組合 ──────────────────────────────────
   async function listShared(): Promise<SharedEquipmentPackage[]> {
     const res = await fetch('/api/packages/shared')
-    return parseErrorOr<SharedEquipmentPackage[]>(res, '查詢分享套餐失敗')
+    return parseErrorOr<SharedEquipmentPackage[]>(res, '查詢分享組合失敗')
   }
 
-  // ── 建立套餐（可帶 source_group_id 做「複製為套餐」） ──────────
+  // ── 建立組合（可帶 source_group_id 做「複製為組合」） ──────────
   async function create(name: string, sourceGroupId?: string): Promise<EquipmentPackage> {
     setLoading(true)
     try {
@@ -79,7 +82,7 @@ export function usePackages() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, source_group_id: sourceGroupId }),
       })
-      return await parseErrorOr<EquipmentPackage>(res, '建立套餐失敗')
+      return await parseErrorOr<EquipmentPackage>(res, '建立組合失敗')
     } finally {
       setLoading(false)
     }
@@ -95,7 +98,7 @@ export function usePackages() {
     return parseErrorOr<EquipmentPackage>(res, '改名失敗')
   }
 
-  // ── 刪除單一套餐 ────────────────────────────────────────────
+  // ── 刪除單一組合 ────────────────────────────────────────────
   async function remove(id: string): Promise<void> {
     const res = await fetch(`/api/packages/${id}`, { method: 'DELETE' })
     await parseErrorOr<void>(res, '刪除失敗')
@@ -127,7 +130,7 @@ export function usePackages() {
     return parseErrorOr<PackageItemRecord>(res, '更新數量失敗')
   }
 
-  // ── 批次加/移料號掛載，回傳更新後的完整套餐 ─────────────────
+  // ── 批次加/移料號掛載，回傳更新後的完整組合 ─────────────────
   async function batchItems(packageId: string, opts: { add?: string[]; remove?: string[] }): Promise<EquipmentPackage> {
     const res = await fetch(`/api/packages/${packageId}/items/batch`, {
       method: 'POST',
@@ -137,17 +140,17 @@ export function usePackages() {
     return parseErrorOr<EquipmentPackage>(res, '批次更新料號失敗')
   }
 
-  // ── 複製套餐（A -> B） ──────────────────────────────────────
+  // ── 複製組合（A -> B） ──────────────────────────────────────
   async function duplicate(packageId: string, name: string): Promise<EquipmentPackage> {
     const res = await fetch(`/api/packages/${packageId}/duplicate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
-    return parseErrorOr<EquipmentPackage>(res, '複製套餐失敗')
+    return parseErrorOr<EquipmentPackage>(res, '複製組合失敗')
   }
 
-  // ── 從來源群組重新對齊 ──────────────────────────────────────
+  // ── 從來源組合重新對齊 ──────────────────────────────────────
   async function align(packageId: string): Promise<EquipmentPackage> {
     const res = await fetch(`/api/packages/${packageId}/align`, { method: 'POST' })
     return parseErrorOr<EquipmentPackage>(res, '重新對齊失敗')
@@ -163,7 +166,7 @@ export function usePackages() {
     return parseErrorOr<BatchShareResult>(res, '批次分享設定失敗')
   }
 
-  // ── 批次刪除套餐 ────────────────────────────────────────────
+  // ── 批次刪除組合 ────────────────────────────────────────────
   async function batchDelete(packageIds: string[]): Promise<BatchDeleteResult> {
     const res = await fetch('/api/packages/batch', {
       method: 'DELETE',
@@ -173,7 +176,7 @@ export function usePackages() {
     return parseErrorOr<BatchDeleteResult>(res, '批次刪除失敗')
   }
 
-  // ── 套餐內料卡拖曳排序 ──────────────────────────────────────
+  // ── 組合內料卡拖曳排序 ──────────────────────────────────────
   async function reorderItems(packageId: string, orders: { equipment_id: string; sort_order: number }[]): Promise<void> {
     const res = await fetch(`/api/packages/${packageId}/items/reorder`, {
       method: 'PATCH',
@@ -183,7 +186,7 @@ export function usePackages() {
     await parseErrorOr<void>(res, '排序更新失敗')
   }
 
-  // ── 套餐本身拖曳排序 ────────────────────────────────────────
+  // ── 組合本身拖曳排序 ────────────────────────────────────────
   async function reorderPackages(orders: { id: string; sort_order: number }[]): Promise<void> {
     const res = await fetch('/api/packages/reorder', {
       method: 'PATCH',

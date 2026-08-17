@@ -4,7 +4,7 @@ import { getServiceClient, getCallerDepartmentId } from '@/lib/departments'
 
 // ── PATCH /api/packages/[id] ───────────────────────────────────
 // 改名（同部門唯一）
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json()
     const name: string | undefined = body?.name
     if (!name?.trim()) {
-      return NextResponse.json({ error: '套餐名稱為必填' }, { status: 400 })
+      return NextResponse.json({ error: '組合名稱為必填' }, { status: 400 })
     }
 
     const supabase = getServiceClient()
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json({ error: '套餐名稱已存在' }, { status: 409 })
+        return NextResponse.json({ error: '組合名稱已存在' }, { status: 409 })
       }
       throw error
     }
@@ -59,8 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // ── DELETE /api/packages/[id] ──────────────────────────────────
-// 刪除套餐（cascade 刪除 package_items / package_shared_departments）
-// 權限：edit_own_packages，且僅限套餐所屬部門
+// 刪除組合（cascade 刪除 package_items / package_shared_departments）
+// 權限：edit_own_packages，且僅限組合所屬部門
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requirePermission('edit_own_packages')
   if (!user) {
@@ -81,7 +81,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
       .eq('id', params.id)
       .single()
 
-    if (!pkg) return NextResponse.json({ error: '找不到套餐' }, { status: 404 })
+    if (!pkg) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
     if (pkg.department_id !== departmentId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

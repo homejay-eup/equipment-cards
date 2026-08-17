@@ -14,7 +14,7 @@ import { getDropPosition, type DropPosition } from '@/lib/dragReorder'
 
 type DisplayMode = 'list' | 'photo'
 
-// 依套餐列表：展開/摺疊、重命名、複製、刪除、批次取消掛載、新增掛載、拖曳排序（套餐本身＋套餐內料卡）。
+// 依組合列表：展開/摺疊、重命名、複製、刪除、批次取消掛載、新增掛載、拖曳排序（組合本身＋組合內料卡）。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function PackageListView({
   filteredPackages, allCards, cardMap, expanded, toggleExpand, busyIds, isShared, canEdit, canShare,
@@ -54,11 +54,11 @@ export default function PackageListView({
   handleBatchUnlink: (targets: { packageId: string; equipmentId: string }[]) => void | Promise<void>
   handleAddManyToPackage: (packageId: string, equipmentIds: string[]) => void | Promise<void>
   onUpdateQuantity: (packageId: string, equipmentId: string, quantity: number) => void | Promise<void>
-  // Step 37：跨套餐批次替換料卡，開啟 ReplacePackageItemDialog
+  // Step 37：跨組合批次替換料卡，開啟 ReplacePackageItemDialog
   onReplace: (equipmentId: string, equipmentName: string) => void
   setDuplicateTarget: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
   askDeleteSingle: (pkg: EquipmentPackage | SharedEquipmentPackage) => void
-  // Step 36：套餐本身拖曳排序（只在無搜尋關鍵字、!isShared && canEdit 時才允許，由 PackageExplorer 算好傳入）
+  // Step 36：組合本身拖曳排序（只在無搜尋關鍵字、!isShared && canEdit 時才允許，由 PackageExplorer 算好傳入）
   canReorderPackages: boolean
   draggingPackageId: string | null
   dragOverPackageId: string | null
@@ -68,17 +68,17 @@ export default function PackageListView({
   onPackageDragOver: (id: string, position: DropPosition) => void
   onPackageDragLeave: () => void
   onPackageDrop: (fromId: string, toId: string, position: DropPosition) => void
-  // Step 36：套餐內料卡拖曳排序（清單模式才能拖，只允許同一個套餐內部重排）
+  // Step 36：組合內料卡拖曳排序（清單模式才能拖，只允許同一個組合內部重排）
   onReorderItems: (packageId: string, fromEquipmentId: string, toEquipmentId: string, position: DropPosition) => void
 }) {
-  // 套餐內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
+  // 組合內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
   // 邏輯跟 GroupsPanel.tsx 的 draggingItem/dragOverItem 平行
   const [draggingItem, setDraggingItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<{ packageId: string; equipmentId: string } | null>(null)
   const [dragOverItemPosition, setDragOverItemPosition] = useState<DropPosition | null>(null)
 
   if (filteredPackages.length === 0) {
-    return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的套餐</p>
+    return <p className="text-xs text-[#a08060] py-6 text-center">沒有符合的組合</p>
   }
 
   return (
@@ -167,10 +167,10 @@ export default function PackageListView({
                   <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
                     <span className="text-[10px]">改名</span>
                   </button>
-                  <button onClick={() => setDuplicateTarget(pkg)} title="複製套餐" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+                  <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
                     <Copy className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => askDeleteSingle(pkg)} title="刪除套餐" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
+                  <button onClick={() => askDeleteSingle(pkg)} title="刪除組合" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -180,7 +180,7 @@ export default function PackageListView({
             {isExpanded && (
               <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">
                 {pkg.package_items.length === 0 ? (
-                  <p className="text-xs text-[#a08060] py-1.5">此套餐尚無料卡</p>
+                  <p className="text-xs text-[#a08060] py-1.5">此組合尚無料卡</p>
                 ) : display === 'photo' ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 py-2">
                     {equipmentCards.map(card => {
