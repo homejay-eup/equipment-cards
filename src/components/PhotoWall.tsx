@@ -17,7 +17,8 @@ import SubfilterTagBar from '@/components/SubfilterTagBar'
 import QuotesClient from '@/components/QuotesClient'
 import DocumentsClient from '@/components/DocumentsClient'
 import PackagesClient from '@/components/PackagesClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package } from 'lucide-react'
+import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -119,7 +120,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 群組 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -147,6 +148,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   useEffect(() => {
     if (activeTab === 'packages') setPackagesMounted(true)
   }, [activeTab])
+  // 首次切到「維修資訊」才 mount MaintenanceInfoClient，之後保持常駐（CSS hide/show）保留 state
+  const [maintenanceMounted, setMaintenanceMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'maintenance') setMaintenanceMounted(true)
+  }, [activeTab])
+  // 供 CardDetailDialog「查看維修資訊」入口設定：跳轉維修資訊分頁時自動篩選出與該料號相關的規則
+  const [maintenanceFilter, setMaintenanceFilter] = useState<{ equipmentId: string } | null>(null)
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
     if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
@@ -694,10 +702,22 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">設備套餐</span>
               </button>
             )}
+            <button
+              onClick={() => setActiveTab('maintenance')}
+              title="維修資訊"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                activeTab === 'maintenance'
+                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+              }`}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">維修資訊</span>
+            </button>
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1063,6 +1083,18 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
       )}
 
+      {/* 維修資訊：首次進入後保持常駐（CSS hide/show） */}
+      {maintenanceMounted && (
+        <div className={activeTab !== 'maintenance' ? 'hidden' : ''}>
+          <MaintenanceInfoClient
+            isActive={activeTab === 'maintenance'}
+            filter={maintenanceFilter}
+            permissions={permissions}
+            allCards={initialCards}
+          />
+        </div>
+      )}
+
       {/* 細節 Dialog（在兩個 view 都可開啟） */}
       {selected && (
         <CardDetailDialog
@@ -1075,6 +1107,11 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           permissions={permissions}
           bookmarkNotes={activeTab === 'bookmarks' ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
           onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}
+          onViewMaintenanceInfo={(equipmentId) => {
+            setActiveTab('maintenance')
+            setMaintenanceFilter({ equipmentId })
+            setSelected(null)
+          }}
         />
       )}
 

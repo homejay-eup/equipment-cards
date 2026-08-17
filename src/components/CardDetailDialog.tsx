@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink, Wrench } from 'lucide-react'
 import { logUsageEvent } from '@/lib/analyticsClient'
 
 interface Props {
@@ -17,6 +17,7 @@ interface Props {
   permissions?: string[]
   bookmarkNotes?: string
   onBookmarkNotesChange?: (notes: string) => void
+  onViewMaintenanceInfo?: (equipmentId: string) => void
 }
 
 const SWIPE_THRESHOLD = 50
@@ -38,7 +39,7 @@ function emailPrefix(email: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange, onViewMaintenanceInfo }: Props) {
   const canEditCard = permissions.includes('create_delete_cards')
     || permissions.some(p => p.startsWith('edit_card_'))
   const allPhotos = [
@@ -54,6 +55,21 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     if (open) {
       logUsageEvent('card_detail_view', { equipment_id: card.equipment_id })
     }
+  }, [open, card.equipment_id])
+
+  // Step 38：Dialog 開啟時查詢與此料號相關的維修資訊筆數，供「查看維修資訊」入口顯示/隱藏
+  const [maintenanceRuleCount, setMaintenanceRuleCount] = useState(0)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/maintenance/rules/by-equipment?equipment_id=${encodeURIComponent(card.equipment_id)}`)
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled && res.ok) setMaintenanceRuleCount((data.rules ?? []).length)
+      } catch { /* 靜默失敗，入口維持不顯示 */ }
+    })()
+    return () => { cancelled = true }
   }, [open, card.equipment_id])
 
   const touchStartX = useRef<number | null>(null)
@@ -290,6 +306,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </div>
                 )}
+                {maintenanceRuleCount > 0 && onViewMaintenanceInfo && (
+                  <button
+                    onClick={() => onViewMaintenanceInfo(card.equipment_id)}
+                    className="flex items-center gap-1.5 text-xs text-[#7a5230] hover:text-[#9c6b42] transition-colors"
+                  >
+                    <Wrench className="h-3.5 w-3.5" />
+                    查看維修資訊（{maintenanceRuleCount} 筆與此料號相關）
+                  </button>
+                )}
                 <div className="pt-1 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
                   {permissions.includes('read_created_at') && (
                     <p className="text-xs text-[#b0967a]">新增時間：{fmtDate(card.created_at)}</p>
@@ -398,6 +423,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                           ))}
                         </div>
                       </div>
+                    )}
+                    {maintenanceRuleCount > 0 && onViewMaintenanceInfo && (
+                      <button
+                        onClick={() => onViewMaintenanceInfo(card.equipment_id)}
+                        className="flex items-center gap-1.5 text-sm text-[#7a5230] hover:text-[#9c6b42] transition-colors"
+                      >
+                        <Wrench className="h-4 w-4" />
+                        查看維修資訊（{maintenanceRuleCount} 筆與此料號相關）
+                      </button>
                     )}
                     <div className="pt-2 border-t border-[rgba(122,82,48,.1)] space-y-0.5">
                       {permissions.includes('read_created_at') && (
