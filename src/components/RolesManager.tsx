@@ -69,6 +69,8 @@ const PERM_LABELS: Record<string, string> = {
   manage_roles:               '角色與權限設定',
   // 文件管理
   manage_documents:           '文件管理（批次上傳/批次刪除/依文件/依料號檢視/CSV 匯出）',
+  // 維修資訊
+  manage_maintenance_info:    '維修資訊管理（新增/編輯廠商與規則、掛載料號、標示已確認最新）',
   // 追蹤板
   view_tracker:               '可看任務板 (只有同一部門能看到彼此任務)',
   view_my_tasks:              '我的任務',
@@ -117,6 +119,9 @@ const CARD_MGMT_PERMS = ['create_delete_cards'] as const
 
 // 文件管理分組（單一總開關，批次上傳/批次刪除/雙視圖檢視/CSV 匯出不分層級）
 const DOCUMENT_MGMT_PERMS = ['manage_documents'] as const
+
+// 維修資訊分組（單一總開關，新增/編輯廠商與規則/掛載料號/標示已確認最新不分層級）
+const MAINTENANCE_INFO_PERMS = ['manage_maintenance_info'] as const
 
 const ACCOUNT_PERMS = ['manage_users', 'manage_roles'] as const
 
@@ -747,6 +752,23 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   ))}
                 </div>
               </div>
+              {/* 維修資訊 */}
+              <div>
+                <p className="text-[11px] font-semibold text-[#a08060] mb-1">維修資訊</p>
+                <div className="space-y-1 pl-1">
+                  {MAINTENANCE_INFO_PERMS.map(key => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={newRolePerms.includes(key)}
+                        onChange={() => setNewRolePerms(prev => prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key])}
+                        className="accent-[#7a5230]"
+                      />
+                      <span className="text-xs text-[#4a3422]">{PERM_LABELS[key]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               {[
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
                 { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
@@ -1040,6 +1062,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">文件管理</p>
                   <div className="space-y-1.5">
                     {DOCUMENT_MGMT_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 維修資訊 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">維修資訊</p>
+                  <div className="space-y-1.5">
+                    {MAINTENANCE_INFO_PERMS.map(key => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
