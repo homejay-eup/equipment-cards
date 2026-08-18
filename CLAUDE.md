@@ -117,7 +117,7 @@
   - **待辦更新**：① `step38-maintenance-info.sql` 使用者已於正式 Supabase 執行成功（3 張表建立完成）；② 角色權限授予、③ 實機測試待確認
   - **2026-08-17 Step 39：使用者實測回饋修正——已執行完成，待正式 Supabase 執行新 SQL**：實機測試後回報「標示已確認最新」導致整頁重整+規則收合的 UX bug、日期選擇器風格不一致、欄位語意需改名「適用進貨日期（起）」、新增保固期間欄位（月/年切換）需求。規格見 `_管理/01_equipment-cards/specs/step39-maintenance-followup-fixes.md`。根因：`MaintenanceInfoClient.tsx` 每次背景刷新都觸發全畫面 loading + 從零重算展開狀態，改成只有「切換廠商」才重算（`isSwitch` 參數 + ref 追蹤）；日期欄位改用既有 `DatePicker.tsx`（任務板同款，Step 38 執行時漏用）；新增 `warranty_period_months` 欄位＋共用格式化函式 `formatWarrantyPeriod()`。過程中為解決 client component 誤觸 `next/headers` 邊界的 build 錯誤，把純函式從 `maintenance.ts` 拆到新檔 `maintenanceFormat.ts`。`reviewer` 補上保固期間三層上限防禦（API+表單+DB CHECK constraint，100 年）。依 `frontend`→`tester`→`reviewer` 委派，全數通過無阻塞問題。完整過程見 `_管理/00_執行紀錄.md` 對應條目。
   - **待辦（需使用者手動執行）**：① 把 `_開發檔案/sql/step39-maintenance-warranty-period.sql` 在正式 Supabase 執行（`maintenance_rules` 加 `warranty_period_months` 欄位+CHECK constraint）；② 到角色管理頁面把 `manage_maintenance_info` 權限授予需要的角色；③ 實機測試維修資訊分頁與料卡細節頁入口
-- **目前 git HEAD**：待這次 push 後更新（Step 39 維修資訊管理實測回饋修正，已 push main，Vercel 應已自動部署；`step39-maintenance-warranty-period.sql` 尚未在正式 Supabase 執行）
+- **目前 git HEAD**：`e15c921`（Step 39 維修資訊管理實測回饋修正，已 push main，Vercel 應已自動部署；`step39-maintenance-warranty-period.sql` 尚未在正式 Supabase 執行）
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
