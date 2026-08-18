@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { computeNeedsReview, isLoggedIn, VALID_MAINTENANCE_RULE_TYPES } from '@/lib/maintenance'
+import { computeNeedsReview, isLoggedIn, VALID_MAINTENANCE_RULE_TYPES, MAX_WARRANTY_PERIOD_MONTHS } from '@/lib/maintenance'
 
 function getSupabase() {
   return createClient(
@@ -23,6 +23,7 @@ interface RuleRow {
   rule_type: string
   content: string
   warranty_start_date: string | null
+  warranty_period_months: number | null
   last_updated_at: string
   last_updated_by: string | null
   confirmed_at: string | null
@@ -48,6 +49,7 @@ function formatRule(row: RuleRow) {
     rule_type: row.rule_type,
     content: row.content,
     warranty_start_date: row.warranty_start_date,
+    warranty_period_months: row.warranty_period_months,
     last_updated_at: row.last_updated_at,
     last_updated_by: row.last_updated_by,
     confirmed_at: row.confirmed_at,
@@ -76,7 +78,8 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from('maintenance_rules')
       .select(
-        'id, vendor_id, item, rule_type, content, warranty_start_date, last_updated_at, last_updated_by, ' +
+        'id, vendor_id, item, rule_type, content, warranty_start_date, warranty_period_months, ' +
+        'last_updated_at, last_updated_by, ' +
         'confirmed_at, confirmed_by, sort_order, created_at, ' +
         'maintenance_rule_equipment(equipment_id, equipment_cards(equipment_id, name))',
       )
@@ -126,6 +129,18 @@ export async function POST(req: NextRequest) {
       ? body.warranty_start_date.trim()
       : null
 
+    let warranty_period_months: number | null = null
+    if (body?.warranty_period_months !== undefined && body?.warranty_period_months !== null) {
+      const n = Number(body.warranty_period_months)
+      if (!Number.isInteger(n) || n < 0 || n > MAX_WARRANTY_PERIOD_MONTHS) {
+        return NextResponse.json(
+          { error: `warranty_period_months 必須為 0～${MAX_WARRANTY_PERIOD_MONTHS} 之間的整數` },
+          { status: 400 },
+        )
+      }
+      warranty_period_months = n
+    }
+
     const supabase = getSupabase()
 
     const { data: vendor, error: vendorError } = await supabase
@@ -150,6 +165,7 @@ export async function POST(req: NextRequest) {
         rule_type,
         content,
         warranty_start_date,
+        warranty_period_months,
         last_updated_at: now,
         last_updated_by: actorEmail,
         sort_order: typeof body?.sort_order === 'number' ? body.sort_order : 0,

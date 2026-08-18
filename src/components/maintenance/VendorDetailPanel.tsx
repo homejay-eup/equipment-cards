@@ -122,7 +122,7 @@ export default function VendorDetailPanel({
 
       {/* 規則列表 */}
       <div className="p-3 space-y-2">
-        {rulesLoading ? (
+        {rules.length === 0 && rulesLoading ? (
           <div className="flex items-center justify-center py-8 text-[#a08060]">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Pencil, Trash2, Loader2, Truck, ShieldCheck } from 'lucide-react'
 import { MaintenanceRule } from '@/types/maintenance'
+import { formatWarrantyPeriod } from '@/lib/maintenanceFormat'
 
 interface Props {
   rule: MaintenanceRule
@@ -78,7 +79,15 @@ export default function RuleCard({ rule, canManage, onEdit, onDelete, onConfirmL
       <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{rule.content}</p>
 
       {rule.warranty_start_date && (
-        <p className="text-xs text-[#a08060]">保固起始日：{rule.warranty_start_date}</p>
+        <p className="flex items-center gap-1 text-xs text-[#a08060]">
+          <Truck className="h-3 w-3 flex-shrink-0" />{rule.warranty_start_date} 後到貨適用
+        </p>
+      )}
+
+      {formatWarrantyPeriod(rule.warranty_period_months) && (
+        <p className="flex items-center gap-1 text-xs text-[#a08060]">
+          <ShieldCheck className="h-3 w-3 flex-shrink-0" />保固 {formatWarrantyPeriod(rule.warranty_period_months)}
+        </p>
       )}
 
       {(rule.equipment_ids?.length ?? 0) > 0 && (

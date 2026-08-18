@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import { MaintenanceVendor, MaintenanceRule } from '@/types/maintenance'
@@ -32,6 +32,11 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
+  // 目前展開狀態是依哪個 vendorId 算出來的預設值——只有切換到不同廠商才重算，
+  // 同廠商內因確認最新/新增/編輯/刪除規則觸發的背景重新整理不能覆蓋使用者手動展開/收合狀態
+  const prevRulesVendorRef = useRef<string | null>(null)
+  const pendingFocusIdRef = useRef<string | null>(null)
+  useEffect(() => { pendingFocusIdRef.current = pendingFocusId }, [pendingFocusId])
 
   const [vendorFormOpen, setVendorFormOpen] = useState(false)
   const [vendorFormMode, setVendorFormMode] = useState<'create' | 'edit'>('create')
@@ -59,12 +64,34 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     }
   }, [])
 
-  const refreshRules = useCallback(async (vendorId: string) => {
+  // isSwitch=true 代表這次抓取是因為切換到不同廠商（或首次選定廠商），才需要重算預設展開集合；
+  // 同廠商內的背景重新整理（確認最新/新增/編輯/刪除規則）呼叫時 isSwitch 維持預設 false，
+  // 不得覆蓋使用者手動展開/收合的 expandedIds
+  const refreshRules = useCallback(async (vendorId: string, isSwitch: boolean = false) => {
     setRulesLoading(true)
     try {
       const res = await fetch(`/api/maintenance/rules?vendor_id=${encodeURIComponent(vendorId)}`)
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setRules(data.rules ?? [])
+      if (res.ok) {
+        const nextRules: MaintenanceRule[] = data.rules ?? []
+        setRules(nextRules)
+        if (isSwitch) {
+          const next = new Set<string>()
+          for (const rule of nextRules) {
+            if (!rule.needs_review) continue
+            const ids = rule.equipment_ids ?? []
+            if (ids.length === 0) { next.add(GENERAL_KEY); continue }
+            for (const ref of ids) next.add(ref.equipment_id)
+          }
+          const focusId = pendingFocusIdRef.current
+          if (focusId) {
+            next.add(focusId)
+            pendingFocusIdRef.current = null
+            setPendingFocusId(null)
+          }
+          setExpandedIds(next)
+        }
+      }
     } finally {
       setRulesLoading(false)
     }
@@ -95,29 +122,13 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     return () => { cancelled = true }
   }, [isActive, filter?.equipmentId])
 
-  // 選定廠商後抓取規則清單
+  // 選定廠商後抓取規則清單；只有「切換到不同廠商」才視為 isSwitch，觸發預設展開重算
   useEffect(() => {
     if (!selectedVendorId) { setRules([]); return }
-    refreshRules(selectedVendorId)
+    const isSwitch = prevRulesVendorRef.current !== selectedVendorId
+    prevRulesVendorRef.current = selectedVendorId
+    refreshRules(selectedVendorId, isSwitch)
   }, [selectedVendorId, refreshRules])
-
-  // 規則載入完成後計算預設展開的分組：有待覆核規則的料號 + 從料卡細節頁跳轉指定的料號
-  useEffect(() => {
-    if (rulesLoading) return
-    const next = new Set<string>()
-    for (const rule of rules) {
-      if (!rule.needs_review) continue
-      const ids = rule.equipment_ids ?? []
-      if (ids.length === 0) { next.add(GENERAL_KEY); continue }
-      for (const ref of ids) next.add(ref.equipment_id)
-    }
-    if (pendingFocusId) {
-      next.add(pendingFocusId)
-      setPendingFocusId(null)
-    }
-    setExpandedIds(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rules, rulesLoading])
 
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
@@ -209,7 +220,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       {vendorsError && (
         <p className="mb-3 text-sm text-[#b5451b]">{vendorsError}</p>
       )}
-      {vendorsLoading ? (
+      {vendors.length === 0 && vendorsLoading ? (
         <div className="flex items-center justify-center py-16 text-[#a08060]">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>

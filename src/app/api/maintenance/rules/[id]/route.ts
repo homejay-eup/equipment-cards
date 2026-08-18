@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { VALID_MAINTENANCE_RULE_TYPES } from '@/lib/maintenance'
+import { VALID_MAINTENANCE_RULE_TYPES, MAX_WARRANTY_PERIOD_MONTHS } from '@/lib/maintenance'
 
 function getSupabase() {
   return createClient(
@@ -55,6 +55,20 @@ export async function PATCH(
     }
     if ('sort_order' in body && typeof body.sort_order === 'number') {
       updates.sort_order = body.sort_order
+    }
+    if ('warranty_period_months' in body) {
+      if (body.warranty_period_months === null) {
+        updates.warranty_period_months = null
+      } else {
+        const n = Number(body.warranty_period_months)
+        if (!Number.isInteger(n) || n < 0 || n > MAX_WARRANTY_PERIOD_MONTHS) {
+          return NextResponse.json(
+            { error: `warranty_period_months 必須為 0～${MAX_WARRANTY_PERIOD_MONTHS} 之間的整數` },
+            { status: 400 },
+          )
+        }
+        updates.warranty_period_months = n
+      }
     }
 
     if (Object.keys(updates).length === 0) {

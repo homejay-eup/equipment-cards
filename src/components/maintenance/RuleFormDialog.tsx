@@ -6,6 +6,18 @@ import { Loader2, X } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import { MaintenanceRule, MaintenanceRuleType, MAINTENANCE_RULE_TYPES } from '@/types/maintenance'
 import EquipmentQuickPick from '@/components/documents/EquipmentQuickPick'
+import DatePicker from '@/components/DatePicker'
+import { MAX_WARRANTY_PERIOD_MONTHS } from '@/lib/maintenanceFormat'
+
+type WarrantyPeriodUnit = 'month' | 'year'
+
+// 既有月數換算回輸入用的「數字＋單位」：優先用年顯示（能整除 12 就用年），
+// 否則用月，讓使用者體感自然（例如 24 個月顯示為「2」年，18 個月顯示為「18」月）
+function monthsToDisplay(months: number | null | undefined): { value: string; unit: WarrantyPeriodUnit } {
+  if (months === null || months === undefined) return { value: '', unit: 'month' }
+  if (months > 0 && months % 12 === 0) return { value: String(months / 12), unit: 'year' }
+  return { value: String(months), unit: 'month' }
+}
 
 interface Props {
   open: boolean
@@ -25,6 +37,8 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
   const [ruleType, setRuleType] = useState<MaintenanceRuleType>('送修規則')
   const [content, setContent] = useState('')
   const [warrantyStartDate, setWarrantyStartDate] = useState('')
+  const [warrantyPeriodValue, setWarrantyPeriodValue] = useState('')
+  const [warrantyPeriodUnit, setWarrantyPeriodUnit] = useState<WarrantyPeriodUnit>('month')
   const [pickedIds, setPickedIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,6 +61,9 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
     setRuleType(rule?.rule_type ?? '送修規則')
     setContent(rule?.content ?? '')
     setWarrantyStartDate(rule?.warranty_start_date ?? '')
+    const { value, unit } = monthsToDisplay(rule?.warranty_period_months)
+    setWarrantyPeriodValue(value)
+    setWarrantyPeriodUnit(unit)
     setPickedIds((rule?.equipment_ids ?? []).map(e => e.equipment_id))
     setError(null)
   }, [open, rule])
@@ -61,6 +78,20 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
     e.preventDefault()
     if (!item.trim()) { setError('項目/型號為必填'); return }
     if (!content.trim()) { setError('內容為必填'); return }
+
+    const trimmedPeriod = warrantyPeriodValue.trim()
+    let warrantyPeriodMonths: number | null = null
+    if (trimmedPeriod) {
+      const n = Number(trimmedPeriod)
+      if (!Number.isInteger(n) || n < 0) { setError('保固期間必須為非負整數'); return }
+      const months = warrantyPeriodUnit === 'year' ? n * 12 : n
+      if (months > MAX_WARRANTY_PERIOD_MONTHS) {
+        setError(`保固期間不可超過 ${MAX_WARRANTY_PERIOD_MONTHS} 個月（100 年）`)
+        return
+      }
+      warrantyPeriodMonths = months
+    }
+
     setSubmitting(true)
     setError(null)
     try {
@@ -75,6 +106,7 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
             rule_type: ruleType,
             content: content.trim(),
             warranty_start_date: warrantyStartDate.trim() || null,
+            warranty_period_months: warrantyPeriodMonths,
             equipment_ids: pickedIds,
           }),
         })
@@ -92,6 +124,7 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
             rule_type: ruleType,
             content: content.trim(),
             warranty_start_date: warrantyStartDate.trim() || null,
+            warranty_period_months: warrantyPeriodMonths,
           }),
         })
         const data = await res.json().catch(() => ({}))
@@ -168,11 +201,33 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
             />
           </div>
           <div>
-            <label className="block text-xs text-[#a08060] mb-1">保固起始日</label>
-            <input
-              type="date" value={warrantyStartDate} onChange={e => setWarrantyStartDate(e.target.value)} disabled={submitting}
-              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
-            />
+            <label className="block text-xs text-[#a08060] mb-1">適用進貨日期（起）</label>
+            <p className="text-[10px] text-[#a08060] mb-1.5">此日期（含）之後到貨的設備才適用這條規則，選填</p>
+            <DatePicker value={warrantyStartDate} onChange={setWarrantyStartDate} disabled={submitting} />
+          </div>
+          <div>
+            <label className="block text-xs text-[#a08060] mb-1">保固期間</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min="0" max={warrantyPeriodUnit === 'year' ? MAX_WARRANTY_PERIOD_MONTHS / 12 : MAX_WARRANTY_PERIOD_MONTHS}
+                value={warrantyPeriodValue}
+                onChange={e => setWarrantyPeriodValue(e.target.value)}
+                disabled={submitting}
+                placeholder="數字，選填"
+                className="flex-1 border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"
+              />
+              <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs flex-shrink-0">
+                <button type="button" onClick={() => setWarrantyPeriodUnit('month')} disabled={submitting}
+                  className={`px-2.5 py-2 transition-colors ${warrantyPeriodUnit === 'month' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'} disabled:opacity-50`}>
+                  月
+                </button>
+                <button type="button" onClick={() => setWarrantyPeriodUnit('year')} disabled={submitting}
+                  className={`px-2.5 py-2 transition-colors ${warrantyPeriodUnit === 'year' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'} disabled:opacity-50`}>
+                  年
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] text-[#a08060] mt-1.5">顯示時會自動換算，例如輸入 18 個月會顯示為「1 年 6 個月」</p>
           </div>
           <div>
             <label className="block text-xs text-[#a08060] mb-1">掛載料號</label>

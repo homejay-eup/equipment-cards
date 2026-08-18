@@ -32,6 +32,7 @@ export interface MaintenanceRule {
   rule_type: MaintenanceRuleType
   content: string
   warranty_start_date: string | null
+  warranty_period_months: number | null
   last_updated_at: string
   last_updated_by: string | null
   confirmed_at: string | null

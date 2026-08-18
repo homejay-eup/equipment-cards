@@ -1,22 +1,10 @@
 // Step 38：維修資訊管理 共用工具函式
+//
+// 純格式化/判斷函式已搬到 ./maintenanceFormat.ts（client component 安全 import），
+// 這裡繼續 re-export 供既有 server-side（API routes）呼叫端相容；
+// isLoggedIn() 依賴 next/headers，僅限 server 端使用，不得被 client component 直接或間接 import。
 
-const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 30 * 6
-
-/**
- * 過時判斷：取 last_updated_at 與 confirmed_at 較新者，超過 6 個月即建議覆核。
- */
-export function computeNeedsReview(
-  lastUpdatedAt: string | null | undefined,
-  confirmedAt: string | null | undefined,
-): boolean {
-  const lastUpdatedTime = lastUpdatedAt ? new Date(lastUpdatedAt).getTime() : 0
-  const confirmedTime = confirmedAt ? new Date(confirmedAt).getTime() : 0
-  const mostRecent = Math.max(lastUpdatedTime, confirmedTime)
-  if (!mostRecent) return true
-  return Date.now() - mostRecent > SIX_MONTHS_MS
-}
-
-export const VALID_MAINTENANCE_RULE_TYPES = ['送修規則', '保固說明', '報廢條件', '其他'] as const
+export { computeNeedsReview, VALID_MAINTENANCE_RULE_TYPES, formatWarrantyPeriod, MAX_WARRANTY_PERIOD_MONTHS } from './maintenanceFormat'
 
 /**
  * 維修資訊讀取類 API 的權限門檻：所有已登入使用者皆可讀（一般人員唯讀瀏覽），
