@@ -18,6 +18,7 @@ interface LinkRow {
     rule_type: string
     content: string
     warranty_start_date: string | null
+    warranty_period_months: number | null
     last_updated_at: string
     last_updated_by: string | null
     confirmed_at: string | null
@@ -32,6 +33,7 @@ interface LinkRow {
     rule_type: string
     content: string
     warranty_start_date: string | null
+    warranty_period_months: number | null
     last_updated_at: string
     last_updated_by: string | null
     confirmed_at: string | null
@@ -61,7 +63,7 @@ export async function GET(req: NextRequest) {
       .from('maintenance_rule_equipment')
       .select(
         'equipment_id, maintenance_rules(id, vendor_id, item, rule_type, content, warranty_start_date, ' +
-        'last_updated_at, last_updated_by, confirmed_at, confirmed_by, sort_order, created_at, ' +
+        'warranty_period_months, last_updated_at, last_updated_by, confirmed_at, confirmed_by, sort_order, created_at, ' +
         'maintenance_vendors(id, name))',
       )
       .eq('equipment_id', equipment_id)
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
           rule_type: rule.rule_type,
           content: rule.content,
           warranty_start_date: rule.warranty_start_date,
+          warranty_period_months: rule.warranty_period_months,
           last_updated_at: rule.last_updated_at,
           last_updated_by: rule.last_updated_by,
           confirmed_at: rule.confirmed_at,

@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
-import { MaintenanceVendor, MaintenanceRule } from '@/types/maintenance'
+import { MaintenanceVendor, MaintenanceRule, MaintenanceEquipmentStats, MaintenanceEquipmentRule } from '@/types/maintenance'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import VendorListPanel from '@/components/maintenance/VendorListPanel'
 import VendorDetailPanel, { GENERAL_KEY } from '@/components/maintenance/VendorDetailPanel'
 import VendorFormDialog from '@/components/maintenance/VendorFormDialog'
 import RuleFormDialog from '@/components/maintenance/RuleFormDialog'
+import EquipmentSearchPanel from '@/components/maintenance/EquipmentSearchPanel'
+import EquipmentRulesPanel from '@/components/maintenance/EquipmentRulesPanel'
 
 interface Props {
   isActive: boolean
@@ -25,10 +27,17 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   const [vendors, setVendors] = useState<MaintenanceVendor[]>([])
   const [vendorsLoading, setVendorsLoading] = useState(true)
   const [vendorsError, setVendorsError] = useState<string | null>(null)
+  const [equipmentStats, setEquipmentStats] = useState<Record<string, MaintenanceEquipmentStats>>({})
 
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null)
   const [rules, setRules] = useState<MaintenanceRule[]>([])
   const [rulesLoading, setRulesLoading] = useState(false)
+
+  // 依料號查詢模式：預設 'vendor'，切換分頁不清空另一模式的選取狀態
+  const [mode, setMode] = useState<'vendor' | 'equipment'>('vendor')
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null)
+  const [equipmentRules, setEquipmentRules] = useState<MaintenanceEquipmentRule[]>([])
+  const [equipmentRulesLoading, setEquipmentRulesLoading] = useState(false)
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
@@ -57,6 +66,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setVendorsError(data?.error ?? '查詢廠商清單失敗'); return }
       setVendors(data.vendors ?? [])
+      setEquipmentStats(data.equipment_stats ?? {})
     } catch {
       setVendorsError('查詢廠商清單失敗')
     } finally {
@@ -115,6 +125,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         if (cancelled || !res.ok) return
         const relatedRules = data.rules ?? []
         if (relatedRules.length === 0) return
+        setMode('vendor')
         setSelectedVendorId(relatedRules[0].vendor_id)
         setPendingFocusId(filter.equipmentId)
       } catch { /* 靜默失敗，維持原本畫面 */ }
@@ -129,6 +140,29 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     prevRulesVendorRef.current = selectedVendorId
     refreshRules(selectedVendorId, isSwitch)
   }, [selectedVendorId, refreshRules])
+
+  // 依料號查詢模式：選定料號後抓取橫跨所有廠商的相關規則。
+  // mode 也列入 deps：切去「依廠商」編輯規則後再切回「依料號」時要重新抓最新資料，
+  // 否則唯讀畫面會停留在切換當下的舊快照（例如剛在廠商頁確認最新/編輯過內容）。
+  // 這也讓「跳轉去廠商頁」與「依料號查詢」兩個 fetch 不會互相汙染彼此的 state：
+  // mode 一變動，前一個 effect 的 cleanup 就會把還在飛行中的舊 fetch 標記為 cancelled。
+  useEffect(() => {
+    if (!selectedEquipmentId) { setEquipmentRules([]); return }
+    if (mode !== 'equipment') return
+    let cancelled = false
+    setEquipmentRulesLoading(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/maintenance/rules/by-equipment?equipment_id=${encodeURIComponent(selectedEquipmentId)}`)
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (res.ok) setEquipmentRules(data.rules ?? [])
+      } finally {
+        if (!cancelled) setEquipmentRulesLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [selectedEquipmentId, mode])
 
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
@@ -214,6 +248,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   }
 
   const selectedVendor = vendors.find(v => v.id === selectedVendorId)
+  const selectedEquipmentName = allCards.find(c => c.equipment_id === selectedEquipmentId)?.name ?? ''
 
   return (
     <div className="max-w-5xl mx-auto px-4 pt-4 pb-16">
@@ -226,14 +261,61 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
-          <VendorListPanel
-            vendors={vendors}
-            selectedVendorId={selectedVendorId}
-            onSelect={setSelectedVendorId}
-            canManage={canManage}
-            onAddVendor={openCreateVendor}
-          />
-          {selectedVendor ? (
+          <div className="space-y-2">
+            <div className="inline-flex p-0.5 bg-[rgba(122,82,48,.06)] rounded-lg">
+              <button
+                onClick={() => setMode('vendor')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === 'vendor' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
+                }`}
+              >
+                依廠商
+              </button>
+              <button
+                onClick={() => setMode('equipment')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === 'equipment' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
+                }`}
+              >
+                依料號
+              </button>
+            </div>
+            {mode === 'vendor' ? (
+              <VendorListPanel
+                vendors={vendors}
+                selectedVendorId={selectedVendorId}
+                onSelect={setSelectedVendorId}
+                canManage={canManage}
+                onAddVendor={openCreateVendor}
+              />
+            ) : (
+              <EquipmentSearchPanel
+                allCards={allCards}
+                equipmentStats={equipmentStats}
+                selectedEquipmentId={selectedEquipmentId}
+                onSelect={setSelectedEquipmentId}
+              />
+            )}
+          </div>
+          {mode === 'equipment' ? (
+            selectedEquipmentId ? (
+              <EquipmentRulesPanel
+                equipmentId={selectedEquipmentId}
+                equipmentName={selectedEquipmentName}
+                rules={equipmentRules}
+                loading={equipmentRulesLoading}
+                onJumpToVendor={(vendorId, equipmentId) => {
+                  setMode('vendor')
+                  setSelectedVendorId(vendorId)
+                  setPendingFocusId(equipmentId)
+                }}
+              />
+            ) : (
+              <div className="bg-white border border-[#e8ddd0] rounded-lg flex items-center justify-center py-16 text-sm text-[#a08060]">
+                請從左側搜尋料號或品名
+              </div>
+            )
+          ) : selectedVendor ? (
             <VendorDetailPanel
               vendor={selectedVendor}
               rules={rules}

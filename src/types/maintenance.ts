@@ -44,3 +44,26 @@ export interface MaintenanceRule {
   // 由 API 計算：last_updated_at 與 confirmed_at 取較新者，超過 6 個月未更新/未確認
   needs_review?: boolean
 }
+
+// 依料號彙總的規則統計，由 GET /api/maintenance/vendors 的 equipment_stats 欄位提供
+export interface MaintenanceEquipmentStats {
+  rule_count: number
+  needs_review_count: number
+}
+
+// GET /api/maintenance/rules/by-equipment 單筆規則的回傳形狀（已扁平化，含所屬廠商名稱）
+export interface MaintenanceEquipmentRule {
+  id: string
+  vendor_id: string
+  vendor_name: string
+  item: string
+  rule_type: MaintenanceRuleType
+  content: string
+  warranty_start_date: string | null
+  warranty_period_months: number | null
+  last_updated_at: string
+  last_updated_by: string | null
+  confirmed_at: string | null
+  confirmed_by: string | null
+  needs_review: boolean
+}

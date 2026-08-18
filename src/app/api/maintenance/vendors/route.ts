@@ -43,6 +43,7 @@ export async function GET() {
     const ruleRows = (rules ?? []) as unknown as RuleAggregateRow[]
 
     const statsByVendor = new Map<string, { ruleCount: number; needsReviewCount: number; equipmentIds: Set<string> }>()
+    const statsByEquipment = new Map<string, { rule_count: number; needs_review_count: number }>()
     for (const row of ruleRows) {
       let stats = statsByVendor.get(row.vendor_id)
       if (!stats) {
@@ -50,11 +51,22 @@ export async function GET() {
         statsByVendor.set(row.vendor_id, stats)
       }
       stats.ruleCount += 1
-      if (computeNeedsReview(row.last_updated_at, row.confirmed_at)) {
+      const needsReview = computeNeedsReview(row.last_updated_at, row.confirmed_at)
+      if (needsReview) {
         stats.needsReviewCount += 1
       }
       for (const link of row.maintenance_rule_equipment ?? []) {
         stats.equipmentIds.add(link.equipment_id)
+
+        let equipmentStats = statsByEquipment.get(link.equipment_id)
+        if (!equipmentStats) {
+          equipmentStats = { rule_count: 0, needs_review_count: 0 }
+          statsByEquipment.set(link.equipment_id, equipmentStats)
+        }
+        equipmentStats.rule_count += 1
+        if (needsReview) {
+          equipmentStats.needs_review_count += 1
+        }
       }
     }
 
@@ -68,7 +80,12 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ vendors: results })
+    const equipment_stats: Record<string, { rule_count: number; needs_review_count: number }> = {}
+    statsByEquipment.forEach((stats, equipmentId) => {
+      equipment_stats[equipmentId] = stats
+    })
+
+    return NextResponse.json({ vendors: results, equipment_stats })
   } catch (err) {
     console.error('[maintenance/vendors] list error', err)
     return NextResponse.json({ error: '查詢失敗' }, { status: 500 })
