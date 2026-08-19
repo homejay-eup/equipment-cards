@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight,
+  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare,
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
@@ -25,7 +25,7 @@ export default function PackageListView({
   setDuplicateTarget, askDeleteSingle,
   canReorderPackages, draggingPackageId, dragOverPackageId, dragOverPackagePosition,
   onPackageDragStart, onPackageDragEnd, onPackageDragOver, onPackageDragLeave, onPackageDrop,
-  onReorderItems,
+  onReorderItems, batchPackageId, onToggleBatchMode, onCardClick,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
   allCards: EquipmentCard[]
@@ -70,6 +70,11 @@ export default function PackageListView({
   onPackageDrop: (fromId: string, toId: string, position: DropPosition) => void
   // Step 36：組合內料卡拖曳排序（清單模式才能拖，只允許同一個組合內部重排）
   onReorderItems: (packageId: string, fromEquipmentId: string, toEquipmentId: string, position: DropPosition) => void
+  // 照片模式批次選取：同時只有一個組合能進入（比照 GroupsPanel 的 batchGroupId），
+  // 沒進入時卡片點擊＝查看細節，進入後才是勾選取消掛載
+  batchPackageId: string | null
+  onToggleBatchMode: (packageId: string) => void
+  onCardClick: (card: EquipmentCard) => void
 }) {
   // 組合內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
   // 邏輯跟 GroupsPanel.tsx 的 draggingItem/dragOverItem 平行
@@ -164,6 +169,17 @@ export default function PackageListView({
               <span className="text-[#a08060] flex-shrink-0">{pkg.package_items.length} 筆</span>
               {!isShared && canEdit && renamingId !== pkg.id && (
                 <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {display === 'photo' && pkg.package_items.length > 0 && (
+                    <button
+                      onClick={() => onToggleBatchMode(pkg.id)}
+                      className={`p-1 transition-colors rounded ${
+                        batchPackageId === pkg.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
+                      }`}
+                      title={batchPackageId === pkg.id ? '取消批次選取' : '批次選取'}
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
                     <span className="text-[10px]">改名</span>
                   </button>
@@ -191,10 +207,10 @@ export default function PackageListView({
                         <EquipmentCardItem
                           key={card.equipment_id}
                           card={card}
-                          onClick={() => {}}
+                          onClick={() => onCardClick(card)}
                           isAdmin={false}
                           activeStatus={card.status}
-                          selectMode={!isShared && canEdit}
+                          selectMode={!isShared && canEdit && batchPackageId === pkg.id}
                           isSelected={selectedUnlinkKeys.has(k)}
                           onSelect={() => toggleUnlinkSelect(pkg.id, card.equipment_id)}
                           quantity={pkg.package_items.find(i => i.equipment_id === card.equipment_id)?.quantity}

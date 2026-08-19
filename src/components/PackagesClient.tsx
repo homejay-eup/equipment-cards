@@ -22,6 +22,7 @@ interface Props {
   isActive: boolean
   // 頂端工具列 sticky 定位距離（px），由 PhotoWall 量測外層凍結標題列高度後往下傳，預設 0 不影響既有呼叫端
   stickyTop?: number
+  onCardClick: (card: EquipmentCard) => void
 }
 
 // 純前端比對：同部門的組合之間是否有兩個以上的料號內容完全相同（排序後 set 比較）
@@ -54,7 +55,7 @@ function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, strin
 // PhotoWall 往下傳（page.tsx 一次 fetch 好），不再自己 fetch allCards。
 export default function PackagesClient({
   initialOwnPackages, initialSharedPackages, departments, allCards,
-  permissions, userDepartmentId, sourceGroupUpdatedAt, isActive,
+  permissions, userDepartmentId, sourceGroupUpdatedAt, isActive, onCardClick,
   stickyTop = 0,
 }: Props) {
   const pkgApi = usePackages()
@@ -230,6 +231,7 @@ export default function PackagesClient({
               onOptimisticItemOrder={applyOwnItemOrder}
               storageKeyPrefix="packages_own"
               stickyTop={stickyTop}
+              onCardClick={onCardClick}
             />
           )}
         </section>
@@ -251,6 +253,7 @@ export default function PackagesClient({
             onChanged={refreshShared}
             storageKeyPrefix="packages_shared"
             stickyTop={stickyTop}
+            onCardClick={onCardClick}
           />
         </section>
       )}

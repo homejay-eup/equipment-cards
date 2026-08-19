@@ -1098,6 +1098,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
             isActive={activeTab === 'packages'}
             stickyTop={stickyHeaderHeight}
+            onCardClick={(card) => setSelected(card)}
           />
         </div>
       )}
