@@ -55,19 +55,21 @@ export async function assertStillAuthorized(
 
 // 透過 roles + role_permissions 查權限
 // 若 roles 表不存在或找不到角色 → 依舊 role 名稱做 fallback
-export async function getUserRoleWithPermissions(): Promise<{ roleName: string; permissions: string[] }> {
-  const supabase = createSupabaseServerClient()
-
-  // 平行：驗證 session + 預載所有角色權限資料
-  const [{ data: { user } }, rolesResult] = await Promise.all([
-    supabase.auth.getUser(),
+// userEmail：呼叫端若已經呼叫過 supabase.auth.getUser() 拿到 email，直接傳入省一次重複的 auth 往返；
+// 不傳則退回原本自己查一次 auth.getUser()（維持向後相容）
+export async function getUserRoleWithPermissions(userEmail?: string | null): Promise<{ roleName: string; permissions: string[] }> {
+  // 平行：（視情況）驗證 session + 預載所有角色權限資料
+  const [email, rolesResult] = await Promise.all([
+    userEmail !== undefined
+      ? Promise.resolve(userEmail)
+      : createSupabaseServerClient().auth.getUser().then(({ data }) => data.user?.email ?? null),
     getServiceClient()
       .from('roles')
       .select('name, role_permissions(permission_key)')
       .order('id', { ascending: true }),
   ])
 
-  if (!user?.email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
+  if (!email) return { roleName: '', permissions: VIEWER_PERMISSIONS }
 
   // 不再用網域降級決定權限：登入閘門 isEmailAllowedToLogin 已保證「非公司信箱一定要先被
   // 管理員加進 allowed_emails 才進得來」，所以這裡一律以 allowed_emails 指派的角色算權限，
@@ -76,7 +78,7 @@ export async function getUserRoleWithPermissions(): Promise<{ roleName: string; 
   const { data: emailData } = await getServiceClient()
     .from('allowed_emails')
     .select('role')
-    .eq('email', user.email)
+    .eq('email', email)
     .single()
 
   const roleName = emailData?.role ?? ''
@@ -100,7 +102,7 @@ export async function requirePermission(key: string) {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return null
-  const { permissions } = await getUserRoleWithPermissions()
+  const { permissions } = await getUserRoleWithPermissions(user.email)
   return permissions.includes(key) ? user : null
 }
 

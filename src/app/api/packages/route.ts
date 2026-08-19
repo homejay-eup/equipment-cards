@@ -12,7 +12,7 @@ export async function GET() {
   if (!authUser?.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const { permissions } = await getUserRoleWithPermissions()
+  const { permissions } = await getUserRoleWithPermissions(authUser.email)
   if (!permissions.includes('view_own_packages') && !permissions.includes('edit_own_packages')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

@@ -309,7 +309,7 @@ export default async function HomePage() {
 
   const [cards, roleData, settings, initialGroups, initialBookmarkNotes, subfilterConfig] = await Promise.all([
     getEquipmentCards(),
-    getUserRoleWithPermissions(),
+    getUserRoleWithPermissions(user.email),
     getSettings(),
     getUserGroups(user.id),
     getUserBookmarkNotes(user.id),
@@ -326,18 +326,21 @@ export default async function HomePage() {
     : cards.filter(c => c.status === activeStatus)
 
   const hasTrackerPermission = permissions.includes('view_tracker')
-  const trackerData = hasTrackerPermission ? await getTrackerData(user.email ?? '') : undefined
-
   const hasQuotesPermission = permissions.includes('view_quotes') || permissions.includes('edit_quotes')
   const canViewManagerPrice = permissions.includes('view_quotes_manager_price')
-  const rawQuoteItems = hasQuotesPermission ? await getQuoteItems() : []
+  const PACKAGE_PERM_KEYS = ['view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages']
+  const hasPackagesPermission = PACKAGE_PERM_KEYS.some(k => permissions.includes(k))
+
+  // 三者互不依賴，原本依序 await 會疊加等待時間，改平行抓取
+  const [trackerData, rawQuoteItems, packagesData] = await Promise.all([
+    hasTrackerPermission ? getTrackerData(user.email ?? '') : Promise.resolve(undefined),
+    hasQuotesPermission ? getQuoteItems() : Promise.resolve([] as QuoteItem[]),
+    hasPackagesPermission ? getPackagesData(user.email ?? '', permissions) : Promise.resolve(undefined),
+  ])
+
   const quoteItems = canViewManagerPrice
     ? rawQuoteItems
     : rawQuoteItems.map(item => ({ ...item, manager_price: null }))
-
-  const PACKAGE_PERM_KEYS = ['view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages']
-  const hasPackagesPermission = PACKAGE_PERM_KEYS.some(k => permissions.includes(k))
-  const packagesData = hasPackagesPermission ? await getPackagesData(user.email ?? '', permissions) : undefined
 
   return (
     <main className="min-h-screen bg-[#faf6f0]">
