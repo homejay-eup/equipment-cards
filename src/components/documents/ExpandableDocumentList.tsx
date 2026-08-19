@@ -55,6 +55,8 @@ interface Props {
   formatDateTime: (iso: string) => string
   onChanged: () => void | Promise<void>
   onBusyChange?: (busy: boolean) => void
+  // 頂端工具列 sticky 定位距離（px），由 PhotoWall 量測外層凍結標題列高度後往下傳，預設 0 不影響既有呼叫端
+  stickyTop?: number
 }
 
 function unlinkKey(documentId: string, equipmentId: string) {
@@ -66,6 +68,7 @@ function unlinkKey(documentId: string, equipmentId: string) {
 // 對外只需要 documents 快照與一個「資料異動後請重新整理」的 callback
 export default function ExpandableDocumentList({
   documents, allCards, documentTypes, loading, error, formatDateTime, onChanged, onBusyChange,
+  stickyTop = 0,
 }: Props) {
   const docApi = useDocumentUpload()
   const [view, setView] = useState<ViewMode>('byDoc')
@@ -400,8 +403,11 @@ export default function ExpandableDocumentList({
 
   return (
     <div className="rounded-xl border border-[#e8ddd0] bg-white p-4">
-      {/* 手機分兩層（標題＋切換一層、搜尋＋動作一層），桌機仍為左右一整排 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+      {/* 手機分兩層（標題＋切換一層、搜尋＋動作一層），桌機仍為左右一整排；sticky 貼在外層凍結標題列下方 */}
+      <div
+        className="sticky z-30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 bg-white pb-2 border-b border-[#e8ddd0]"
+        style={{ top: stickyTop }}
+      >
         <div className="flex items-center justify-between sm:justify-start gap-2">
           <h3 className="text-sm font-semibold text-[#6b4f38]">
             文件清單（共 {documents.length} 份，掛載 {cardGroups.length} 張料卡）

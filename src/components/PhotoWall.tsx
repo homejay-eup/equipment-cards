@@ -118,6 +118,22 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     title: string; message?: string; detail?: string; onConfirm: () => void
   }>({ title: '', onConfirm: () => {} })
 
+  // 凍結工具列高度量測：供「我的關注」「文件管理」「設備組合」內部工具列 sticky 定位使用，
+  // 動態量測而非寫死像素值，因為不同分頁/螢幕寬度下這層高度不同
+  const stickyHeaderRef = useRef<HTMLDivElement>(null)
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(0)
+  useEffect(() => {
+    const el = stickyHeaderRef.current
+    if (!el) return
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setStickyHeaderHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance'>('all')
@@ -579,7 +595,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
   return (
     <>
       {/* 單一凍結列：標題列 + 搜尋 + 篩選 */}
-      <div className="sticky top-0 z-40 bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] shadow-sm">
+      <div ref={stickyHeaderRef} className="sticky top-0 z-40 bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] shadow-sm">
         {/* 標題列 */}
         <div className="max-w-7xl mx-auto px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-baseline gap-2 min-w-0">
@@ -1024,6 +1040,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             bookmarkedIds={bookmarkedIds}
             onToggleBookmark={toggleDefaultGroup}
             canManagePackages={permissions.includes('edit_own_packages')}
+            stickyTop={stickyHeaderHeight}
           />
         </div>
       )}
@@ -1063,6 +1080,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             allCards={initialCards}
             documentTypes={settings.documentTypes}
             onBusyChange={setDocumentsBusy}
+            stickyTop={stickyHeaderHeight}
           />
         </div>
       )}
@@ -1079,6 +1097,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             userDepartmentId={packagesData.userDepartmentId}
             sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
             isActive={activeTab === 'packages'}
+            stickyTop={stickyHeaderHeight}
           />
         </div>
       )}

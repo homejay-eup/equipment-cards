@@ -10,9 +10,11 @@ interface Props {
   allCards: EquipmentCard[]
   documentTypes: string[]
   onBusyChange?: (busy: boolean) => void
+  // 頂端工具列 sticky 定位距離（px），由 PhotoWall 量測外層凍結標題列高度後往下傳，預設 0 不影響既有呼叫端
+  stickyTop?: number
 }
 
-export default function DocumentsClient({ allCards, documentTypes: initialDocumentTypes, onBusyChange }: Props) {
+export default function DocumentsClient({ allCards, documentTypes: initialDocumentTypes, onBusyChange, stickyTop = 0 }: Props) {
   const docApi = useDocumentUpload()
 
   // 文件類型清單：本頁的 SettingsPopover（掛在 BatchUploadPanel 裡）改的是 DB，
@@ -65,6 +67,7 @@ export default function DocumentsClient({ allCards, documentTypes: initialDocume
         formatDateTime={formatDateTime}
         onChanged={refreshDocuments}
         onBusyChange={onBusyChange}
+        stickyTop={stickyTop}
       />
     </div>
   )

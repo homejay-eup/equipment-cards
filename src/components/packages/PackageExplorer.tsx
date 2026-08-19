@@ -47,6 +47,8 @@ interface Props {
   onOptimisticPackageOrder?: (orderedPackageIds: string[]) => void
   onOptimisticItemOrder?: (packageId: string, orderedEquipmentIds: string[]) => void
   storageKeyPrefix: string // 依 own/shared 各自獨立記憶顯示偏好
+  // 頂端工具列 sticky 定位距離（px），由 PhotoWall 量測外層凍結標題列高度後往下傳，預設 0 不影響既有呼叫端
+  stickyTop?: number
 }
 
 function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
@@ -71,6 +73,7 @@ export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
   duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange,
   onOptimisticPackageOrder, onOptimisticItemOrder, storageKeyPrefix,
+  stickyTop = 0,
 }: Props) {
   const pkgApi = usePackages()
   const [view, setView] = useLocalStorageState<ViewMode>(`${storageKeyPrefix}_view`, 'byPackage')
@@ -447,55 +450,58 @@ export default function PackageExplorer({
 
   return (
     <div className="rounded-xl border border-[#e8ddd0] bg-white p-4">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-[#6b4f38]">
-            共 {packages.length} 份組合，掛載 {equipmentGroups.length} 張料卡
-          </h3>
-          <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
-            <button type="button" onClick={() => setView('byPackage')}
-              className={`px-2.5 py-1 transition-colors ${view === 'byPackage' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
-              依組合
-            </button>
-            <button type="button" onClick={() => setView('byEquipment')}
-              className={`px-2.5 py-1 transition-colors ${view === 'byEquipment' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
-              依料號
-            </button>
+      {/* 依組合/依料號切換、清單/照片模式切換、搜尋列 + 批次動作列合併成同一個 sticky 容器，貼在外層凍結標題列下方 */}
+      <div className="sticky z-30 bg-white pb-2 mb-2 border-b border-[#e8ddd0]" style={{ top: stickyTop }}>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-[#6b4f38]">
+              共 {packages.length} 份組合，掛載 {equipmentGroups.length} 張料卡
+            </h3>
+            <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+              <button type="button" onClick={() => setView('byPackage')}
+                className={`px-2.5 py-1 transition-colors ${view === 'byPackage' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
+                依組合
+              </button>
+              <button type="button" onClick={() => setView('byEquipment')}
+                className={`px-2.5 py-1 transition-colors ${view === 'byEquipment' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
+                依料號
+              </button>
+            </div>
+            <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+              <button type="button" onClick={() => setDisplay('list')} title="清單模式"
+                className={`p-1.5 transition-colors ${display === 'list' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
+                <ListIcon className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" onClick={() => setDisplay('photo')} title="照片模式"
+                className={`p-1.5 transition-colors ${display === 'photo' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
-            <button type="button" onClick={() => setDisplay('list')} title="清單模式"
-              className={`p-1.5 transition-colors ${display === 'list' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
-              <ListIcon className="h-3.5 w-3.5" />
-            </button>
-            <button type="button" onClick={() => setDisplay('photo')} title="照片模式"
-              className={`p-1.5 transition-colors ${display === 'photo' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
-              <LayoutGrid className="h-3.5 w-3.5" />
-            </button>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
+            <input value={query} onChange={e => setQuery(e.target.value)}
+              placeholder={view === 'byPackage' ? '搜尋組合名稱…' : '搜尋料號、品名…'}
+              className="pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
           </div>
         </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
-          <input value={query} onChange={e => setQuery(e.target.value)}
-            placeholder={view === 'byPackage' ? '搜尋組合名稱…' : '搜尋料號、品名…'}
-            className="pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
-        </div>
+
+        {/* 批次動作列（僅 own 且有權限時顯示，依組合視圖才有整份組合可選） */}
+        {!isShared && view === 'byPackage' && (canEdit || canShare) && (
+          <PackageBatchActionsBar
+            filteredPackageIds={filteredPackages.map(p => p.id)}
+            selectedPackageIds={selectedPackageIds}
+            onToggleAll={toggleAllPackages}
+            canShare={canShare}
+            canEdit={canEdit}
+            running={running}
+            onShare={() => setShareOpen(true)}
+            onDeleteSelected={askDeleteSelected}
+          />
+        )}
       </div>
 
       {actionError && <p className="text-xs text-[#b5451b] mb-2 whitespace-pre-wrap">{actionError}</p>}
-
-      {/* 批次動作列（僅 own 且有權限時顯示，依組合視圖才有整份組合可選） */}
-      {!isShared && view === 'byPackage' && (canEdit || canShare) && (
-        <PackageBatchActionsBar
-          filteredPackageIds={filteredPackages.map(p => p.id)}
-          selectedPackageIds={selectedPackageIds}
-          onToggleAll={toggleAllPackages}
-          canShare={canShare}
-          canEdit={canEdit}
-          running={running}
-          onShare={() => setShareOpen(true)}
-          onDeleteSelected={askDeleteSelected}
-        />
-      )}
 
       {view === 'byPackage' ? (
         <PackageListView

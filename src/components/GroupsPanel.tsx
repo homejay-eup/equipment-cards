@@ -22,6 +22,8 @@ interface GroupsPanelProps {
   onToggleBookmark?: (card: EquipmentCard) => void
   // Step 34：設備組合來源對齊機制。預設 false 不影響既有呼叫端（未給此 prop 時完全不出現組合相關按鈕/API 呼叫）
   canManagePackages?: boolean
+  // 頂端工具列 sticky 定位距離（px），由 PhotoWall 量測外層凍結標題列高度後往下傳，預設 0 不影響既有呼叫端
+  stickyTop?: number
 }
 
 // ── 替換料卡彈窗 ────────────────────────────────────────────────
@@ -422,6 +424,7 @@ export default function GroupsPanel({
   bookmarkedIds,
   onToggleBookmark,
   canManagePackages = false,
+  stickyTop = 0,
 }: GroupsPanelProps) {
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
@@ -902,8 +905,11 @@ export default function GroupsPanel({
           </div>
         ) : (
           <div>
-            {/* 頂端工具列：新增組合 + 私人說明 */}
-            <div className="flex items-center justify-between pb-3 mb-1 border-b border-[rgba(122,82,48,.1)]">
+            {/* 頂端工具列：新增組合 + 私人說明（sticky 貼在外層凍結標題列下方） */}
+            <div
+              className="sticky z-30 flex items-center justify-between pb-3 mb-1 border-b border-[rgba(122,82,48,.1)] bg-[#faf6f0] shadow-sm"
+              style={{ top: stickyTop }}
+            >
               {addingGroup ? (
                 <div className="flex items-center gap-2 flex-1">
                   <input
