@@ -21,6 +21,19 @@ export default function EquipmentQuickPick({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+
+  // 比照 SettingsPopover/DatePicker：改 fixed 定位（依按鈕位置動態計算），
+  // 避免巢狀在 overflow-hidden 容器（如 PackageListView 的組合清單列）內時被裁切
+  function toggleOpen() {
+    if (disabled) return
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    setOpen(v => !v)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -76,13 +89,15 @@ export default function EquipmentQuickPick({
 
   return (
     <div ref={ref} className="relative inline-block">
-      <button type="button" onClick={() => !disabled && setOpen(v => !v)} disabled={disabled}
+      <button ref={btnRef} type="button" onClick={toggleOpen} disabled={disabled}
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
         <Search className="h-3 w-3" />
         + 新增掛載料卡
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 left-0 w-64 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
+        <div
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="w-64 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
           <div className="p-2 border-b border-[rgba(122,82,48,.1)]">
             <input
               type="text" value={query} onChange={e => setQuery(e.target.value)}
