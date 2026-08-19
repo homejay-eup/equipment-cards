@@ -47,6 +47,8 @@ interface Props {
   onOptimisticPackageOrder?: (orderedPackageIds: string[]) => void
   onOptimisticItemOrder?: (packageId: string, orderedEquipmentIds: string[]) => void
   storageKeyPrefix: string // 依 own/shared 各自獨立記憶顯示偏好
+  // 點卡片查看細節：比照 GroupsPanel 的 onCardClick，往上交給 PhotoWall 開啟共用的 CardDetailDialog
+  onCardClick: (card: EquipmentCard) => void
 }
 
 function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
@@ -70,7 +72,7 @@ function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v
 export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
   duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange,
-  onOptimisticPackageOrder, onOptimisticItemOrder, storageKeyPrefix,
+  onOptimisticPackageOrder, onOptimisticItemOrder, storageKeyPrefix, onCardClick,
 }: Props) {
   const pkgApi = usePackages()
   const [view, setView] = useLocalStorageState<ViewMode>(`${storageKeyPrefix}_view`, 'byPackage')
@@ -82,6 +84,14 @@ export default function PackageExplorer({
 
   const [selectedPackageIds, setSelectedPackageIds] = useState<Set<string>>(new Set())
   const [selectedUnlinkKeys, setSelectedUnlinkKeys] = useState<Set<string>>(new Set())
+
+  // 照片模式批次選取：比照 GroupsPanel 的 batchGroupId，同時只有一個組合能進入批次選取，
+  // 沒進入時卡片點擊＝查看細節（onCardClick），進入後才是勾選取消掛載
+  const [batchPackageId, setBatchPackageId] = useState<string | null>(null)
+  function toggleBatchMode(packageId: string) {
+    setBatchPackageId(prev => prev === packageId ? null : packageId)
+    setSelectedUnlinkKeys(new Set())
+  }
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -539,6 +549,9 @@ export default function PackageExplorer({
           onPackageDragLeave={() => { setDragOverPackageId(null); setDragOverPackagePosition(null) }}
           onPackageDrop={handlePackageReorder}
           onReorderItems={handleReorderItems}
+          batchPackageId={batchPackageId}
+          onToggleBatchMode={toggleBatchMode}
+          onCardClick={onCardClick}
         />
       ) : (
         <EquipmentListView

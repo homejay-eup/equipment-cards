@@ -20,6 +20,7 @@ interface Props {
   userDepartmentId: string | null
   sourceGroupUpdatedAt: Record<string, string>
   isActive: boolean
+  onCardClick: (card: EquipmentCard) => void
 }
 
 // 純前端比對：同部門的組合之間是否有兩個以上的料號內容完全相同（排序後 set 比較）
@@ -52,7 +53,7 @@ function computeDuplicateGroups(packages: EquipmentPackage[]): Map<string, strin
 // PhotoWall 往下傳（page.tsx 一次 fetch 好），不再自己 fetch allCards。
 export default function PackagesClient({
   initialOwnPackages, initialSharedPackages, departments, allCards,
-  permissions, userDepartmentId, sourceGroupUpdatedAt, isActive,
+  permissions, userDepartmentId, sourceGroupUpdatedAt, isActive, onCardClick,
 }: Props) {
   const pkgApi = usePackages()
   const [ownPackages, setOwnPackages] = useState<EquipmentPackage[]>(initialOwnPackages)
@@ -226,6 +227,7 @@ export default function PackagesClient({
               onOptimisticPackageOrder={applyOwnPackageOrder}
               onOptimisticItemOrder={applyOwnItemOrder}
               storageKeyPrefix="packages_own"
+              onCardClick={onCardClick}
             />
           )}
         </section>
@@ -246,6 +248,7 @@ export default function PackagesClient({
             sourceGroupUpdatedAt={{}}
             onChanged={refreshShared}
             storageKeyPrefix="packages_shared"
+            onCardClick={onCardClick}
           />
         </section>
       )}

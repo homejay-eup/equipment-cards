@@ -1079,6 +1079,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             userDepartmentId={packagesData.userDepartmentId}
             sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
             isActive={activeTab === 'packages'}
+            onCardClick={(card) => setSelected(card)}
           />
         </div>
       )}
