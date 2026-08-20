@@ -410,7 +410,7 @@ export default function ExpandableDocumentList({
       >
         <div className="flex items-center justify-between sm:justify-start gap-2">
           <h3 className="text-sm font-semibold text-[#6b4f38]">
-            文件清單（共 {documents.length} 份，掛載 {cardGroups.length} 張料卡）
+            共 {documents.length} 份，{cardGroups.length} 張料卡
           </h3>
           <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs flex-shrink-0">
             <button type="button" onClick={() => setView('byDoc')}
@@ -430,11 +430,6 @@ export default function ExpandableDocumentList({
               placeholder={view === 'byDoc' ? '搜尋文件名稱…' : '搜尋料號、品名…'}
               className="w-full sm:w-auto pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
           </div>
-          <button onClick={handleExport} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
-            <Download className="h-3.5 w-3.5" />
-            匯出 CSV
-          </button>
           {view === 'byDoc' && (
             <button onClick={askBatchDelete} disabled={selectedDocIds.size === 0 || deleteRunning}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#b5451b] border border-[rgba(181,69,27,.3)] rounded-lg hover:bg-[rgba(181,69,27,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
@@ -443,6 +438,14 @@ export default function ExpandableDocumentList({
             </button>
           )}
         </div>
+      </div>
+
+      <div className="flex justify-end mb-2">
+        <button onClick={handleExport} disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
+          <Download className="h-3.5 w-3.5" />
+          匯出 CSV
+        </button>
       </div>
 
       {error && <p className="text-xs text-[#b5451b] mb-2">{error}</p>}

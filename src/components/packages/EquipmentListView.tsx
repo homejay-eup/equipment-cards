@@ -53,26 +53,30 @@ export default function EquipmentListView({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(g.equipment_id) }
               }}
-              className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px"
+              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px"
             >
-              <span className="text-[#a08060] flex-shrink-0">
-                {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              </span>
-              <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
-              <span className="text-[#6b4f38] truncate flex-1">{g.name}</span>
-              <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份組合</span>
-              {/* 整列會觸發展開/收合，這顆按鈕要 stopPropagation 避免點擊時誤觸展開 */}
-              {!isShared && canEdit && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onReplace(g.equipment_id, g.name) }}
-                  title="替換料卡"
-                  className="flex items-center gap-1 text-[10px] font-medium text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0"
-                >
-                  <ArrowLeftRight className="h-3 w-3" />
-                  替換料卡
-                </button>
-              )}
+              <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+                <span className="text-[#a08060] flex-shrink-0">
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </span>
+                <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
+                <span className="text-[#6b4f38] truncate min-w-0 flex-1">{g.name}</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+                <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份組合</span>
+                {/* 整列會觸發展開/收合，這顆按鈕要 stopPropagation 避免點擊時誤觸展開 */}
+                {!isShared && canEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onReplace(g.equipment_id, g.name) }}
+                    title="替換料卡"
+                    className="flex items-center gap-1 text-[10px] font-medium text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0"
+                  >
+                    <ArrowLeftRight className="h-3 w-3" />
+                    替換料卡
+                  </button>
+                )}
+              </div>
             </div>
             {isExpanded && (
               <div className="px-3 pb-3 pl-9 bg-[rgba(122,82,48,.03)]">
@@ -86,15 +90,15 @@ export default function EquipmentListView({
                       const sharedDept = (pkg as SharedEquipmentPackage).source_department_name
                       const quantity = pkg.package_items.find(i => i.equipment_id === g.equipment_id)?.quantity ?? 1
                       return (
-                        <label key={pkg.id} className="flex items-center justify-between gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
-                          <span className="flex items-center gap-1.5 text-[#4a3422] truncate">
+                        <label key={pkg.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
+                          <span className="flex items-center gap-1.5 text-[#4a3422] min-w-0 sm:flex-1 truncate">
                             <Folder className="h-3 w-3 text-[#c49a72] flex-shrink-0" />
                             <span className="truncate">{pkg.name}</span>
                             {sharedDept && (
                               <span className="text-[10px] text-[#a08060] flex-shrink-0">（來自：{sharedDept}・{pkg.created_by.split('@')[0]}）</span>
                             )}
                           </span>
-                          <span className="flex items-center gap-3 flex-shrink-0">
+                          <span className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                             {!isShared && canEdit ? (
                               <QuantityStepper
                                 value={quantity}

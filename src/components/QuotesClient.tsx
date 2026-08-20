@@ -380,29 +380,33 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                       onDragOver={(e) => { if (canReorder) { e.preventDefault(); setDragOverId(item.id); setDragOverPosition(getDropPosition(e, 'vertical')) } }}
                       onDrop={() => canReorder && draggingId && handleReorder(item.category, draggingId, item.id, dragOverPosition ?? 'before')}
                       onDragEnd={() => { setDraggingId(null); setDragOverId(null); setDragOverPosition(null) }}
-                      className={`relative group flex items-center gap-3 px-4 py-1.5 transition-colors ${idx >= 2 ? 'border-t border-[#f0e8dc]' : ''} ${idx % 2 === 1 ? 'sm:border-l border-[#f0e8dc]' : ''}`}
+                      className={`relative group flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-4 py-1.5 transition-colors ${idx >= 2 ? 'border-t border-[#f0e8dc]' : ''} ${idx % 2 === 1 ? 'sm:border-l border-[#f0e8dc]' : ''}`}
                     >
                       {isDragOverThis && (
                         <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? 'bottom-0' : 'top-0'}`} />
                       )}
-                      {canEdit && (
-                        <GripVertical className={`h-4 w-4 text-[#d4bda0] flex-shrink-0 ${canReorder ? 'cursor-grab opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity`} />
-                      )}
-                      <span className="flex-1 text-sm text-[#2c1e12] truncate">{item.name}</span>
-                      <span className="text-sm font-medium text-[#7a5230] w-20 text-right">{formatPrice(item.standard_price)}</span>
-                      {canViewManagerPrice && (
-                        <span className="text-sm text-[#a08060] w-20 text-right">{formatPrice(item.manager_price)}</span>
-                      )}
-                      {canEdit && (
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => openEdit(item)} className="text-[#a08060] hover:text-[#7a5230] transition-colors p-1">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => setDeleteTarget(item)} className="text-[#a08060] hover:text-[#b5451b] transition-colors p-1">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+                        {canEdit && (
+                          <GripVertical className={`h-4 w-4 text-[#d4bda0] flex-shrink-0 ${canReorder ? 'cursor-grab opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity`} />
+                        )}
+                        <span className="text-sm text-[#2c1e12] truncate min-w-0 flex-1">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+                        <span className="text-sm font-medium text-[#7a5230] sm:w-20 sm:text-right">{formatPrice(item.standard_price)}</span>
+                        {canViewManagerPrice && (
+                          <span className="text-sm text-[#a08060] sm:w-20 sm:text-right">{formatPrice(item.manager_price)}</span>
+                        )}
+                        {canEdit && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={() => openEdit(item)} className="text-[#a08060] hover:text-[#7a5230] transition-colors p-1">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => setDeleteTarget(item)} className="text-[#a08060] hover:text-[#b5451b] transition-colors p-1">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )})}
                 </div>

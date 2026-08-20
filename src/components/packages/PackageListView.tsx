@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare, Pencil,
+  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare, Pencil, MoreVertical,
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
@@ -119,78 +119,91 @@ export default function PackageListView({
             {isDragOverThisPackage && (
               <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPackagePosition === 'after' ? '-bottom-1' : '-top-1'}`} />
             )}
-            <div className="group/header flex items-center gap-2 px-3 py-2 text-xs transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
-              {canReorderPackages && (
-                <span
-                  draggable
-                  onDragStart={e => { e.stopPropagation(); onPackageDragStart(pkg.id) }}
-                  onDragEnd={onPackageDragEnd}
-                  className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
-                >
-                  <GripVertical className="h-3.5 w-3.5" />
-                </span>
-              )}
-              {!isShared && (canEdit || canShare) && (
-                <input type="checkbox" checked={selectedPackageIds.has(pkg.id)}
-                  onChange={() => togglePackageSelect(pkg.id)} className="accent-[#7a5230]" />
-              )}
-              <button type="button" onClick={() => toggleExpand(pkg.id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
-                {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              </button>
-              <Folder className="h-3.5 w-3.5 text-[#c49a72] flex-shrink-0" />
-              {renamingId === pkg.id ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={e => setRenameValue(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') submitRename(pkg.id); if (e.key === 'Escape') setRenamingId(null) }}
-                  onBlur={() => submitRename(pkg.id)}
-                  className="flex-1 min-w-0 border border-[#c49a72] rounded px-1.5 py-0.5 text-xs bg-white focus:outline-none"
-                />
-              ) : (
-                <button type="button" onClick={() => toggleExpand(pkg.id)} className="flex-1 min-w-0 flex items-center gap-1.5 text-left truncate">
-                  <span className="font-medium text-[#4a3422] truncate">{pkg.name}</span>
+            <div className="group/header flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs transition-all sm:hover:bg-[#faf6f0] sm:hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] sm:hover:-translate-y-px">
+              <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+                {canReorderPackages && (
+                  <span
+                    draggable
+                    onDragStart={e => { e.stopPropagation(); onPackageDragStart(pkg.id) }}
+                    onDragEnd={onPackageDragEnd}
+                    className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0"
+                  >
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </span>
+                )}
+                {!isShared && (canEdit || canShare) && (
+                  <input type="checkbox" checked={selectedPackageIds.has(pkg.id)}
+                    onChange={() => togglePackageSelect(pkg.id)} className="accent-[#7a5230]" />
+                )}
+                <button type="button" onClick={() => toggleExpand(pkg.id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
-              )}
-              {sharedDept && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)] flex-shrink-0">
-                  來自：{sharedDept}・{pkg.created_by.split('@')[0]}
-                </span>
-              )}
-              {!isShared && sharedDeptLabel(pkg)}
-              {alignmentBadge(pkg)}
-              {duplicates && duplicates.length > 0 && (
-                <span title={`與「${duplicates.join('、')}」內容完全相同`}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)] flex-shrink-0">
-                  <AlertTriangle className="h-2.5 w-2.5" />
-                  與「{duplicates[0]}」{duplicates.length > 1 ? `等 ${duplicates.length} 份` : ''}內容相同
-                </span>
-              )}
-              <span className="text-[#a08060] flex-shrink-0">{pkg.package_items.length} 筆</span>
-              {!isShared && canEdit && renamingId !== pkg.id && (
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {display === 'photo' && pkg.package_items.length > 0 && (
-                    <button
-                      onClick={() => onToggleBatchMode(pkg.id)}
-                      className={`p-1 transition-colors rounded ${
-                        batchPackageId === pkg.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
-                      }`}
-                      title={batchPackageId === pkg.id ? '取消批次選取' : '批次選取'}
-                    >
-                      <CheckSquare className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
-                    <Pencil className="h-3.5 w-3.5" />
+                <Folder className="h-3.5 w-3.5 text-[#c49a72] flex-shrink-0" />
+                {renamingId === pkg.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') submitRename(pkg.id); if (e.key === 'Escape') setRenamingId(null) }}
+                    onBlur={() => submitRename(pkg.id)}
+                    className="flex-1 min-w-0 border border-[#c49a72] rounded px-1.5 py-0.5 text-xs bg-white focus:outline-none"
+                  />
+                ) : (
+                  <button type="button" onClick={() => toggleExpand(pkg.id)} className="flex-1 min-w-0 flex items-center gap-1.5 text-left truncate">
+                    <span className="font-medium text-[#4a3422] truncate">{pkg.name}</span>
                   </button>
-                  <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => askDeleteSingle(pkg)} title="刪除組合" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+                {sharedDept && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)] flex-shrink-0">
+                    來自：{sharedDept}・{pkg.created_by.split('@')[0]}
+                  </span>
+                )}
+                {!isShared && sharedDeptLabel(pkg)}
+                {alignmentBadge(pkg)}
+                {duplicates && duplicates.length > 0 && (
+                  <span title={`與「${duplicates.join('、')}」內容完全相同`}
+                    className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)] flex-shrink-0">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    與「{duplicates[0]}」{duplicates.length > 1 ? `等 ${duplicates.length} 份` : ''}內容相同
+                  </span>
+                )}
+                <span className="text-[#a08060] flex-shrink-0">{pkg.package_items.length} 筆</span>
+                {!isShared && canEdit && renamingId !== pkg.id && (
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {display === 'photo' && pkg.package_items.length > 0 && (
+                      <button
+                        onClick={() => onToggleBatchMode(pkg.id)}
+                        className={`p-1 transition-colors rounded ${
+                          batchPackageId === pkg.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
+                        }`}
+                        title={batchPackageId === pkg.id ? '取消批次選取' : '批次選取'}
+                      >
+                        <CheckSquare className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <div className="hidden sm:flex items-center gap-0.5">
+                      <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => askDeleteSingle(pkg)} title="刪除組合" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="sm:hidden">
+                      <PackageRowMenu
+                        onRename={() => startRename(pkg)}
+                        onDuplicate={() => setDuplicateTarget(pkg)}
+                        onDelete={() => askDeleteSingle(pkg)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {isExpanded && (
@@ -229,7 +242,7 @@ export default function PackageListView({
                       return (
                         <label
                           key={item.equipment_id}
-                          className={`relative group/item flex items-center justify-between gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThisItem ? 'opacity-40' : ''}`}
+                          className={`relative group/item flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs py-0.5 px-2 -mx-2 rounded-lg cursor-pointer transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px ${isDraggingThisItem ? 'opacity-40' : ''}`}
                           onDragOver={canDragItem ? e => {
                             e.preventDefault()
                             if (draggingItem && draggingItem.packageId === pkg.id && draggingItem.equipmentId !== item.equipment_id) {
@@ -250,7 +263,7 @@ export default function PackageListView({
                           {isDragOverThisItem && (
                             <div className={`absolute left-0 right-0 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverItemPosition === 'after' ? 'bottom-0' : 'top-0'}`} />
                           )}
-                          <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="flex items-center gap-1.5 min-w-0 sm:flex-1">
                             {canDragItem && (
                               <span
                                 draggable
@@ -261,9 +274,9 @@ export default function PackageListView({
                                 <GripVertical className="h-3.5 w-3.5" />
                               </span>
                             )}
-                            <span className="text-[#4a3422] truncate">{item.equipment_id} {card?.name ?? '（找不到此料卡）'}</span>
+                            <span className="text-[#4a3422] truncate min-w-0">{item.equipment_id} {card?.name ?? '（找不到此料卡）'}</span>
                           </span>
-                          <span className="flex items-center gap-3 flex-shrink-0">
+                          <span className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                             {!isShared && canEdit ? (
                               <QuantityStepper
                                 value={item.quantity ?? 1}
@@ -328,6 +341,77 @@ export default function PackageListView({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// 手機版「改名／複製組合／刪除組合」收合選單：桌機維持 3 顆圖示並排，手機版收成一顆「⋮」
+// 展開一個小 popover，行為完全轉發桌機版同名的 3 個 callback。定位比照 EquipmentQuickPick.tsx
+// 的「fixed 定位 + 依按鈕位置動態計算 + useRef/mousedown 監聽點擊外部關閉」寫法，
+// 避免巢狀在外層 overflow-hidden 容器（組合清單本身）內時被裁切。
+function PackageRowMenu({
+  onRename, onDuplicate, onDelete,
+}: {
+  onRename: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 })
+
+  function toggleOpen() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      const margin = 8
+      const preferredHeight = 130 // 3 個選項的展開高度概估
+      const spaceBelow = window.innerHeight - r.bottom - margin
+      const spaceAbove = r.top - margin
+      const openUpward = spaceBelow < preferredHeight && spaceAbove > spaceBelow
+      setPos(
+        openUpward
+          ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right }
+          : { top: r.bottom + 4, right: window.innerWidth - r.right },
+      )
+    }
+    setOpen(v => !v)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button type="button" ref={btnRef} onClick={toggleOpen} title="更多操作"
+        className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, right: pos.right, zIndex: 9999 }}
+          className="w-32 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden text-xs"
+        >
+          <button type="button" onClick={() => { setOpen(false); onRename() }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-left text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] transition-colors">
+            <Pencil className="h-3 w-3" /> 重命名
+          </button>
+          <button type="button" onClick={() => { setOpen(false); onDuplicate() }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-left text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] transition-colors">
+            <Copy className="h-3 w-3" /> 複製組合
+          </button>
+          <button type="button" onClick={() => { setOpen(false); onDelete() }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-left text-red-500 hover:bg-[rgba(181,69,27,.06)] transition-colors">
+            <Trash2 className="h-3 w-3" /> 刪除組合
+          </button>
+        </div>
+      )}
     </div>
   )
 }
