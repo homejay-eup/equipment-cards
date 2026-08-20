@@ -22,15 +22,27 @@ export default function EquipmentQuickPick({
   const [submitting, setSubmitting] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; maxHeight: number }>({ left: 0, maxHeight: 320 })
 
   // 比照 SettingsPopover/DatePicker：改 fixed 定位（依按鈕位置動態計算），
-  // 避免巢狀在 overflow-hidden 容器（如 PackageListView 的組合清單列）內時被裁切
+  // 避免巢狀在 overflow-hidden 容器（如 PackageListView 的組合清單列）內時被裁切。
+  // 額外處理視窗邊界：頁面上方現在有凍結工具列佔掉一截高度，往下開的可視空間變小，
+  // 按鈕若偏下方，固定往下開很容易被視窗底部裁切又滾不到——改成量測上下可用空間，
+  // 空間不夠就往上開，並把可用高度當 maxHeight 讓清單自己內部捲動，不會整塊超出畫面。
   function toggleOpen() {
     if (disabled) return
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left })
+      const margin = 8
+      const preferredHeight = 320 // 搜尋列+提示文字+清單+按鈕列完整展開大概需要的高度
+      const spaceBelow = window.innerHeight - r.bottom - margin
+      const spaceAbove = r.top - margin
+      const openUpward = spaceBelow < preferredHeight && spaceAbove > spaceBelow
+      setPos(
+        openUpward
+          ? { bottom: window.innerHeight - r.top + 4, left: r.left, maxHeight: Math.max(spaceAbove, 160) }
+          : { top: r.bottom + 4, left: r.left, maxHeight: Math.max(spaceBelow, 160) }
+      )
     }
     setOpen(v => !v)
   }
@@ -96,9 +108,9 @@ export default function EquipmentQuickPick({
       </button>
       {open && (
         <div
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-64 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
-          <div className="p-2 border-b border-[rgba(122,82,48,.1)]">
+          style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
+          className="w-64 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
+          <div className="p-2 border-b border-[rgba(122,82,48,.1)] shrink-0">
             <input
               type="text" value={query} onChange={e => setQuery(e.target.value)}
               placeholder="搜尋料號、品名…" autoFocus disabled={submitting}
@@ -106,11 +118,11 @@ export default function EquipmentQuickPick({
             />
           </div>
           {!query.trim() && (
-            <p className="px-3 py-1.5 text-[10px] text-[#a08060] border-b border-[rgba(122,82,48,.08)]">
+            <p className="px-3 py-1.5 text-[10px] text-[#a08060] border-b border-[rgba(122,82,48,.08)] shrink-0">
               共 {candidates.length} 張料卡，顯示前 {Math.min(50, candidates.length)} 筆，請輸入關鍵字搜尋更多
             </p>
           )}
-          <div className="max-h-48 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {results.length === 0 ? (
               <p className="px-3 py-2 text-xs text-[#a08060]">沒有符合的料卡</p>
             ) : results.map(c => {
@@ -125,7 +137,7 @@ export default function EquipmentQuickPick({
               )
             })}
           </div>
-          <div className="flex items-center justify-between gap-2 p-2 border-t border-[rgba(122,82,48,.1)]">
+          <div className="flex items-center justify-between gap-2 p-2 border-t border-[rgba(122,82,48,.1)] shrink-0">
             <button type="button" onClick={reset} disabled={submitting}
               className="text-xs text-[#a08060] hover:text-[#6b4f38] disabled:opacity-40 transition-colors">取消</button>
             <button type="button" onClick={handleConfirm} disabled={selectedIds.size === 0 || submitting}
