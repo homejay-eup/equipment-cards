@@ -190,23 +190,38 @@ export default function PackageExplorer({
   }, [equipmentGroups, query])
 
   function alignmentBadge(pkg: EquipmentPackage | SharedEquipmentPackage) {
-    if (!pkg.source_group_id) return null
-    const groupUpdatedAt = sourceGroupUpdatedAt[pkg.source_group_id]
-    if (!groupUpdatedAt) return null
-    // 雙向比對：來源內容變了，或這份設備組合本身被直接編輯過（跟來源不一致），都算「來源已更新」
-    const syncedAt = pkg.source_synced_at ? new Date(pkg.source_synced_at).getTime() : null
-    const stale = syncedAt === null
-      || new Date(groupUpdatedAt).getTime() > syncedAt
-      || new Date(pkg.updated_at).getTime() > syncedAt
-    return stale ? (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)]">
-        <RefreshCw className="h-2.5 w-2.5" />
-        來源已更新
-      </span>
-    ) : (
-      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(34,139,34,.08)] text-green-700 border border-[rgba(34,139,34,.2)]">
-        <Check className="h-2.5 w-2.5" />
-        已對齊最新版本
+    const groupUpdatedAt = pkg.source_group_id ? sourceGroupUpdatedAt[pkg.source_group_id] : undefined
+    if (pkg.source_group_id && groupUpdatedAt) {
+      // 雙向比對：來源內容變了，或這份設備組合本身被直接編輯過（跟來源不一致），都算「已過期」
+      const syncedAt = pkg.source_synced_at ? new Date(pkg.source_synced_at).getTime() : null
+      const stale = syncedAt === null
+        || new Date(groupUpdatedAt).getTime() > syncedAt
+        || new Date(pkg.updated_at).getTime() > syncedAt
+      // 「我的關注」是個人清單，來源可能是同部門其他人的，不是複製者自己的，
+      // 所以徽章下面補一行「來自 {建立者}」（用 email @ 前的名稱），避免誤會成一定是自己的清單
+      const creatorName = pkg.created_by.split('@')[0]
+      return (
+        <span className="flex flex-col items-end gap-0.5">
+          {stale ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)]">
+              <RefreshCw className="h-2.5 w-2.5" />
+              已過期
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(34,139,34,.08)] text-green-700 border border-[rgba(34,139,34,.2)]">
+              <Check className="h-2.5 w-2.5" />
+              已對齊
+            </span>
+          )}
+          <span className="text-[10px] text-[#a08060] whitespace-nowrap">來自 {creatorName}</span>
+        </span>
+      )
+    }
+    // 沒有（或找不到）可比對的來源組合（新增組合／複製組合／來源已被刪除）：
+    // 不留白，改顯示中性的最後更新時間，避免使用者誤以為「沒徽章＝這組合有問題、不是最新的」
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.06)] text-[#a08060] border border-[rgba(122,82,48,.15)]">
+        最後更新：{new Date(pkg.updated_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
       </span>
     )
   }
