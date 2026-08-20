@@ -312,7 +312,7 @@ export default function PackageListView({
                       )} disabled={isBusy || running}
                         className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                         <Trash2 className="h-3 w-3" />
-                        批量移除（{scopedUnlinkCount}）
+                        批次移除（{scopedUnlinkCount}）
                       </button>
                     )}
                     <EquipmentQuickPick
