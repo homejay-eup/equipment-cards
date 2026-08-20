@@ -1123,7 +1123,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           onClose={() => setSelected(null)}
           activeStatus={activeStatus}
           isAdmin={isAdmin}
-          onEdit={canEditCard ? () => { openEdit(selected); setSelected(null) } : undefined}
+          // 我的關注／設備組合開啟的細節頁純檢視，不提供編輯入口，只有全部料卡 tab 才能編輯
+          onEdit={(canEditCard && activeTab === 'all') ? () => { openEdit(selected); setSelected(null) } : undefined}
           permissions={permissions}
           bookmarkNotes={activeTab === 'bookmarks' ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
           onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}

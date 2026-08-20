@@ -74,7 +74,7 @@ export default function PackageQuickPick({
       <button type="button" onClick={() => !disabled && setOpen(v => !v)} disabled={disabled}
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
         <Search className="h-3 w-3" />
-        + 掛載到其他組合
+        + 新增到其他組合
       </button>
       {open && (
         <div className="absolute z-50 mt-1 left-0 w-64 bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">

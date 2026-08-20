@@ -304,7 +304,7 @@ export default function PackageExplorer({
       return n
     })
     setRunning(false)
-    if (failed.length > 0) setActionError('部分取消掛載失敗，請重試')
+    if (failed.length > 0) setActionError('部分移除失敗，請重試')
     await onChanged()
   }
 

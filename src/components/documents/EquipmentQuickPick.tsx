@@ -104,7 +104,7 @@ export default function EquipmentQuickPick({
       <button ref={btnRef} type="button" onClick={toggleOpen} disabled={disabled}
         className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
         <Search className="h-3 w-3" />
-        + 新增掛載料卡
+        + 新增料卡
       </button>
       {open && (
         <div

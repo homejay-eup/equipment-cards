@@ -264,7 +264,7 @@ export default function ExpandableDocumentList({
     setUnlinkRunning(false)
     onBusyChange?.(false)
     const messages: string[] = []
-    if (failedLabels.length > 0) messages.push(`部分取消掛載失敗：${failedLabels.join('、')}`)
+    if (failedLabels.length > 0) messages.push(`部分移除失敗：${failedLabels.join('、')}`)
     if (unexpectedDeletes.size > 0) {
       messages.push(`⚠️ 以下文件在處理過程中因資料異動被整個刪除（非預期，可能是其他人同時異動了掛載關係）：${Array.from(unexpectedDeletes).join('、')}`)
     }
@@ -508,7 +508,7 @@ export default function ExpandableDocumentList({
                               <label key={c.equipment_id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
                                 <span className="text-[#4a3422] truncate">{c.equipment_id} {c.name}</span>
                                 <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
-                                  取消掛載
+                                  移除
                                   <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
                                     onChange={() => toggleUnlinkSelect(doc.id, c.equipment_id)}
                                     disabled={isBusy} className="accent-[#b5451b]" />
@@ -523,7 +523,7 @@ export default function ExpandableDocumentList({
                           <button type="button" onClick={() => askBatchUnlinkForDoc(doc)} disabled={isBusy || unlinkRunning}
                             className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                             <Trash2 className="h-3 w-3" />
-                            批次取消掛載（{scopedUnlinkCount}）
+                            批量移除（{scopedUnlinkCount}）
                           </button>
                         )}
                         <EquipmentQuickPick
@@ -591,7 +591,7 @@ export default function ExpandableDocumentList({
                                   <span className="text-[#a08060] flex-shrink-0">（{doc.type}）</span>
                                 </a>
                                 <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
-                                  取消掛載
+                                  移除
                                   <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
                                     onChange={() => toggleUnlinkSelect(doc.id, g.equipment_id)}
                                     disabled={isBusy} className="accent-[#b5451b]" />
@@ -605,7 +605,7 @@ export default function ExpandableDocumentList({
                         <button type="button" onClick={() => askBatchUnlinkForCard(g)} disabled={unlinkRunning}
                           className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                           <Trash2 className="h-3 w-3" />
-                          批次取消掛載（{scopedUnlinkCount}）
+                          批量移除（{scopedUnlinkCount}）
                         </button>
                       )}
                       <AddDocumentToCard
@@ -641,7 +641,7 @@ export default function ExpandableDocumentList({
       {/* 批次取消掛載確認：分兩段清楚列出「會被整個刪除的文件」跟「只是單純解除關聯」，不混在一起 */}
       <ConfirmDialog
         open={!!batchUnlinkConfirm}
-        title={`確定取消掛載 ${batchUnlinkConfirm?.targets.length ?? 0} 筆？`}
+        title={`確定移除 ${batchUnlinkConfirm?.targets.length ?? 0} 筆？`}
         message={
           batchUnlinkConfirm && batchUnlinkConfirm.willDelete.length > 0
             ? `其中 ${batchUnlinkConfirm.willDelete.length} 份文件會因此被整個刪除（Google Drive 檔案會移到「_待清除文件」資料夾），請確認。`
@@ -659,7 +659,7 @@ export default function ExpandableDocumentList({
               ].filter(Boolean).join('\n\n———\n\n')
             : undefined
         }
-        confirmLabel="確定取消掛載"
+        confirmLabel="確定移除"
         cancelLabel="取消"
         danger={!!batchUnlinkConfirm && batchUnlinkConfirm.willDelete.length > 0}
         onConfirm={handleConfirmBatchUnlink}

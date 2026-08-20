@@ -91,7 +91,7 @@ export default function EquipmentListView({
                             <Folder className="h-3 w-3 text-[#c49a72] flex-shrink-0" />
                             <span className="truncate">{pkg.name}</span>
                             {sharedDept && (
-                              <span className="text-[10px] text-[#a08060] flex-shrink-0">（來自：{sharedDept}）</span>
+                              <span className="text-[10px] text-[#a08060] flex-shrink-0">（來自：{sharedDept}・{pkg.created_by.split('@')[0]}）</span>
                             )}
                           </span>
                           <span className="flex items-center gap-3 flex-shrink-0">
@@ -106,7 +106,7 @@ export default function EquipmentListView({
                             )}
                             {!isShared && canEdit && (
                               <span className="flex items-center gap-1.5 text-[#a08060]">
-                                取消掛載
+                                移除
                                 <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
                                   onChange={() => toggleUnlinkSelect(pkg.id, g.equipment_id)}
                                   disabled={isBusy} className="accent-[#b5451b]" />
@@ -128,7 +128,7 @@ export default function EquipmentListView({
                       )} disabled={running}
                         className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                         <Trash2 className="h-3 w-3" />
-                        批次取消掛載（{scopedUnlinkCount}）
+                        批量移除（{scopedUnlinkCount}）
                       </button>
                     )}
                     <PackageQuickPick

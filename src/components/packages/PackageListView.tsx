@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare,
+  Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare, Pencil,
 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
@@ -154,7 +154,7 @@ export default function PackageListView({
               )}
               {sharedDept && (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.2)] flex-shrink-0">
-                  來自：{sharedDept}
+                  來自：{sharedDept}・{pkg.created_by.split('@')[0]}
                 </span>
               )}
               {!isShared && sharedDeptLabel(pkg)}
@@ -181,7 +181,7 @@ export default function PackageListView({
                     </button>
                   )}
                   <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
-                    <span className="text-[10px]">改名</span>
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
                     <Copy className="h-3.5 w-3.5" />
@@ -290,7 +290,7 @@ export default function PackageListView({
                             )}
                             {!isShared && canEdit && (
                               <span className="flex items-center gap-1.5 text-[#a08060]">
-                                取消掛載
+                                移除
                                 <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
                                   onChange={() => toggleUnlinkSelect(pkg.id, item.equipment_id)}
                                   disabled={isBusy} className="accent-[#b5451b]" />
@@ -312,7 +312,7 @@ export default function PackageListView({
                       )} disabled={isBusy || running}
                         className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#b5451b] hover:text-[#9a3a16] disabled:opacity-40 transition-colors">
                         <Trash2 className="h-3 w-3" />
-                        批次取消掛載（{scopedUnlinkCount}）
+                        批量移除（{scopedUnlinkCount}）
                       </button>
                     )}
                     <EquipmentQuickPick
