@@ -480,9 +480,9 @@ export default function PackageExplorer({
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-[#6b4f38]">
-              共 {packages.length} 份組合，掛載 {equipmentGroups.length} 張料卡
+              共 {packages.length} 份組合
             </h3>
-            <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+            <div className="flex flex-shrink-0 whitespace-nowrap border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
               <button type="button" onClick={() => setView('byPackage')}
                 className={`px-2.5 py-1 transition-colors ${view === 'byPackage' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
                 依組合
@@ -492,7 +492,7 @@ export default function PackageExplorer({
                 依料號
               </button>
             </div>
-            <div className="flex border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
+            <div className="flex flex-shrink-0 border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs">
               <button type="button" onClick={() => setDisplay('list')} title="清單模式"
                 className={`p-1.5 transition-colors ${display === 'list' ? 'bg-[#7a5230] text-white' : 'text-[#6b4f38] hover:bg-[rgba(122,82,48,.06)]'}`}>
                 <ListIcon className="h-3.5 w-3.5" />

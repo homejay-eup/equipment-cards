@@ -356,7 +356,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                 <div className="grid grid-cols-1 sm:grid-cols-2 bg-[#faf6f0] border-b border-[#e8ddd0]">
                   {[0, 1].map(col => (
                     (col === 0 || groupItems.length > 1) && (
-                      <div key={col} className={`${col === 1 ? 'hidden sm:flex sm:border-l' : 'flex'} items-center gap-3 px-4 py-1 border-[#e8ddd0]`}>
+                      <div key={col} className={`${col === 1 ? 'hidden sm:flex sm:border-l' : 'hidden sm:flex'} items-center gap-3 px-4 py-1 border-[#e8ddd0]`}>
                         {canEdit && <span className="w-4 flex-shrink-0" />}
                         <span className="flex-1" />
                         <span className="text-xs font-semibold text-[#a08060] w-20 text-right">標準售價</span>
@@ -392,9 +392,13 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                         <span className="text-sm text-[#2c1e12] truncate min-w-0 flex-1">{item.name}</span>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
-                        <span className="text-sm font-medium text-[#7a5230] sm:w-20 sm:text-right">{formatPrice(item.standard_price)}</span>
+                        <span className="text-sm font-medium text-[#7a5230] sm:w-20 sm:text-right">
+                          <span className="sm:hidden text-[#a08060] font-normal">標準 </span>{formatPrice(item.standard_price)}
+                        </span>
                         {canViewManagerPrice && (
-                          <span className="text-sm text-[#a08060] sm:w-20 sm:text-right">{formatPrice(item.manager_price)}</span>
+                          <span className="text-sm text-[#a08060] sm:w-20 sm:text-right">
+                            <span className="sm:hidden font-normal">主管 </span>{formatPrice(item.manager_price)}
+                          </span>
                         )}
                         {canEdit && (
                           <div className="flex items-center gap-1 flex-shrink-0">

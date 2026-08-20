@@ -1014,8 +1014,10 @@ export default function GroupsPanel({
                     {isDragOverThisGroup && (
                       <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPosition === 'after' ? '-bottom-1' : '-top-1'}`} />
                     )}
-                    {/* 組合標題列 */}
-                    <div className="relative flex items-center group/header rounded-lg -mx-2 px-2 transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
+                    {/* 組合標題列：手機版拆成「名稱群組」／「中繼資訊群組」兩塊（比照 PackageListView.tsx
+                        組合列標頭的做法），名稱獨佔一行避免被筆數/徽章/操作圖示擠壓；桌機版（sm 以上）
+                        維持單行不變 */}
+                    <div className="relative flex flex-col sm:flex-row sm:items-center group/header rounded-lg -mx-2 px-2 py-1 sm:py-0 transition-all hover:bg-[#faf6f0] hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] hover:-translate-y-px">
                       {renamingId === group.id ? (
                         /* 重命名模式：flat div，不巢狀在 button 內，有 ✓ / ✗ 按鈕 */
                         <div className="flex items-center gap-1.5 w-full min-w-0 py-1">
@@ -1052,125 +1054,138 @@ export default function GroupsPanel({
                           </button>
                         </div>
                       ) : (
-                        /* 一般模式：點擊展開/收合 */
+                        /* 一般模式：手機版拆成「名稱群組」／「中繼資訊群組」兩塊（比照 PackageListView.tsx
+                           組合列標頭的做法），名稱獨佔一行；中繼資訊群組（筆數/對齊徽章/展開箭頭）換到
+                           第二行、跟操作圖示同一個 flex-wrap 容器，允許換行；桌機版（sm 以上）維持單行不變 */
                         <>
-                          {!group.is_default && (
-                            <span
-                              draggable
-                              onDragStart={e => { e.stopPropagation(); setDraggingId(group.id) }}
-                              onDragEnd={() => { setDraggingId(null); setDragOverId(null); setDragOverPosition(null) }}
-                              className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0 px-0.5"
-                            >
-                              <GripVertical className="h-4 w-4" />
-                            </span>
-                          )}
-                          <button
-                            onClick={() => toggleExpand(group.id)}
-                            className="flex items-center gap-2 flex-1 min-w-0 text-left py-1"
-                          >
-                            {group.is_default
-                              ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
-                              : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
-                            }
-                            <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
-                            <span className="text-xs text-[#a08060] flex-shrink-0 mr-1">
-                              {filteredSet && displayCards.length !== itemCount
-                                ? `${displayCards.length} / ${itemCount} 筆`
-                                : `${itemCount} 筆`
-                              }
-                            </span>
-                            {canManagePackages && !group.is_default && packagesByGroupId[group.id] && (
-                              isSourceStale(group, packagesByGroupId[group.id])
-                                ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)] flex-shrink-0 mr-1">
-                                    <RefreshCw className="h-2.5 w-2.5" />
-                                    來源已更新
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(34,139,34,.08)] text-green-700 border border-[rgba(34,139,34,.2)] flex-shrink-0 mr-1">
-                                    <Check className="h-2.5 w-2.5" />
-                                    已對齊最新版本
-                                  </span>
-                                )
+                          <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+                            {!group.is_default && (
+                              <span
+                                draggable
+                                onDragStart={e => { e.stopPropagation(); setDraggingId(group.id) }}
+                                onDragEnd={() => { setDraggingId(null); setDragOverId(null); setDragOverPosition(null) }}
+                                className="opacity-0 group-hover/header:opacity-100 transition-opacity cursor-grab text-[#c0a882] hover:text-[#a08060] flex-shrink-0 px-0.5"
+                              >
+                                <GripVertical className="h-4 w-4" />
+                              </span>
                             )}
-                            {isExpanded
-                              ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                              : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
-                            }
-                          </button>
-                        </>
-                      )}
-
-                      {/* 編輯按鈕：重命名時隱藏，常駐顯示（不用滑鼠移過去才看得到有哪些操作） */}
-                      {!group.is_default && renamingId !== group.id && (
-                        <div className="flex items-center gap-0.5 flex-shrink-0">
-                          {canManagePackages && (
-                            packagesByGroupId[group.id] ? (
-                              <button
-                                onClick={e => { e.stopPropagation(); askAlign(group) }}
-                                disabled={aligningGroupId === group.id}
-                                className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
-                                title="重新對齊組合（會覆蓋組合目前內容）"
-                              >
-                                {aligningGroupId === group.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <PackageCheck className="h-3.5 w-3.5" />
-                                }
-                              </button>
-                            ) : (
-                              <button
-                                onClick={e => { e.stopPropagation(); handleCopyToPackage(group) }}
-                                disabled={copyingGroupId === group.id}
-                                className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
-                                title="複製為組合"
-                              >
-                                {copyingGroupId === group.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <FolderPlus className="h-3.5 w-3.5" />
-                                }
-                              </button>
-                            )
-                          )}
-                          <button
-                            onClick={e => { e.stopPropagation(); setDuplicateTarget(group) }}
-                            className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
-                            title="複製組合"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
-                            className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
-                            title="加入料卡"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                          {itemCount > 0 && (
                             <button
-                              onClick={e => { e.stopPropagation(); toggleBatchMode(group.id) }}
-                              className={`p-1.5 transition-colors rounded ${
-                                batchGroupId === group.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
-                              }`}
-                              title={batchGroupId === group.id ? '取消批次選取' : '批次選取'}
+                              onClick={() => toggleExpand(group.id)}
+                              className="flex items-center gap-2 flex-1 min-w-0 text-left py-1"
                             >
-                              <CheckSquare className="h-3.5 w-3.5" />
+                              {group.is_default
+                                ? <Star className="h-4 w-4 text-amber-400 fill-amber-400 flex-shrink-0" />
+                                : <Folder className="h-4 w-4 text-[#c49a72] flex-shrink-0" />
+                              }
+                              <span className="text-sm font-semibold text-[#5a3820] truncate flex-1">{group.name}</span>
                             </button>
-                          )}
-                          <button
-                            onClick={e => { e.stopPropagation(); startRename(group) }}
-                            className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
-                            title="重命名"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); askDelete(group) }}
-                            className="p-1.5 text-[#a08060] hover:text-red-500 transition-colors rounded"
-                            title="刪除組合"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
+                            <button
+                              onClick={() => toggleExpand(group.id)}
+                              className="flex items-center gap-1.5"
+                            >
+                              <span className="text-xs text-[#a08060] flex-shrink-0">
+                                {filteredSet && displayCards.length !== itemCount
+                                  ? `${displayCards.length} / ${itemCount} 筆`
+                                  : `${itemCount} 筆`
+                                }
+                              </span>
+                              {canManagePackages && !group.is_default && packagesByGroupId[group.id] && (
+                                isSourceStale(group, packagesByGroupId[group.id])
+                                  ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(217,119,6,.1)] text-amber-600 border border-[rgba(217,119,6,.25)] flex-shrink-0">
+                                      <RefreshCw className="h-2.5 w-2.5" />
+                                      已過期
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[rgba(34,139,34,.08)] text-green-700 border border-[rgba(34,139,34,.2)] flex-shrink-0">
+                                      <Check className="h-2.5 w-2.5" />
+                                      已對齊
+                                    </span>
+                                  )
+                              )}
+                              {isExpanded
+                                ? <ChevronDown className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                                : <ChevronRight className="h-4 w-4 text-[#a08060] flex-shrink-0" />
+                              }
+                            </button>
+
+                            {/* 編輯按鈕：重命名時隱藏，常駐顯示（不用滑鼠移過去才看得到有哪些操作），
+                                跟上面中繼資訊同一個 flex-wrap 容器，手機版可換行 */}
+                            {!group.is_default && (
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                {canManagePackages && (
+                                  packagesByGroupId[group.id] ? (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); askAlign(group) }}
+                                      disabled={aligningGroupId === group.id}
+                                      className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
+                                      title="重新對齊組合（會覆蓋組合目前內容）"
+                                    >
+                                      {aligningGroupId === group.id
+                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        : <PackageCheck className="h-3.5 w-3.5" />
+                                      }
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleCopyToPackage(group) }}
+                                      disabled={copyingGroupId === group.id}
+                                      className="p-1.5 text-[#a08060] hover:text-[#7a5230] disabled:opacity-40 transition-colors rounded"
+                                      title="複製為組合"
+                                    >
+                                      {copyingGroupId === group.id
+                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        : <FolderPlus className="h-3.5 w-3.5" />
+                                      }
+                                    </button>
+                                  )
+                                )}
+                                <button
+                                  onClick={e => { e.stopPropagation(); setDuplicateTarget(group) }}
+                                  className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
+                                  title="複製組合"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); setAddTarget({ groupId: group.id }) }}
+                                  className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
+                                  title="加入料卡"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                                {itemCount > 0 && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); toggleBatchMode(group.id) }}
+                                    className={`p-1.5 transition-colors rounded ${
+                                      batchGroupId === group.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
+                                    }`}
+                                    title={batchGroupId === group.id ? '取消批次選取' : '批次選取'}
+                                  >
+                                    <CheckSquare className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={e => { e.stopPropagation(); startRename(group) }}
+                                  className="p-1.5 text-[#a08060] hover:text-[#7a5230] transition-colors rounded"
+                                  title="重命名"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={e => { e.stopPropagation(); askDelete(group) }}
+                                  className="p-1.5 text-[#a08060] hover:text-red-500 transition-colors rounded"
+                                  title="刪除組合"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
 

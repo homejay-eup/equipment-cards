@@ -422,6 +422,11 @@ export default function ExpandableDocumentList({
               依料號
             </button>
           </div>
+          <button onClick={handleExport} disabled={loading}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">匯出 CSV</span>
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:flex-none">
@@ -438,14 +443,6 @@ export default function ExpandableDocumentList({
             </button>
           )}
         </div>
-      </div>
-
-      <div className="flex justify-end mb-2">
-        <button onClick={handleExport} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#7a5230] border border-[rgba(122,82,48,.3)] rounded-lg hover:bg-[rgba(122,82,48,.06)] disabled:opacity-40 transition-colors flex-shrink-0 whitespace-nowrap">
-          <Download className="h-3.5 w-3.5" />
-          匯出 CSV
-        </button>
       </div>
 
       {error && <p className="text-xs text-[#b5451b] mb-2">{error}</p>}

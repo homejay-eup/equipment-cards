@@ -204,7 +204,7 @@ export default function PackagesClient({
                 </div>
               ) : (
                 <button onClick={() => setAddingOpen(true)}
-                  className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] transition-colors">
+                  className="flex items-center gap-1.5 text-sm text-[#a08060] hover:text-[#7a5230] border border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] px-3 py-1.5 rounded-lg transition-colors">
                   <Plus className="h-4 w-4" />
                   新增組合
                 </button>
