@@ -70,7 +70,7 @@ const PERM_LABELS: Record<string, string> = {
   // 文件管理
   manage_documents:           '文件管理（批次上傳/批次刪除/依文件/依料號檢視/CSV 匯出）',
   // 維修資訊
-  manage_maintenance_info:    '維修資訊管理（新增/編輯廠商與規則、掛載料號、標示已確認最新）',
+  manage_maintenance_info:    '維修資訊（看得到頁籤＋新增/編輯廠商與規則、掛載料號、標示已確認最新）',
   // 追蹤板
   view_tracker:               '可看任務板 (只有同一部門能看到彼此任務)',
   view_my_tasks:              '我的任務',

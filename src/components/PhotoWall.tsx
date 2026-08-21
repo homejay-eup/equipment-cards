@@ -718,18 +718,20 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">設備組合</span>
               </button>
             )}
-            <button
-              onClick={() => setActiveTab('maintenance')}
-              title="維修資訊"
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                activeTab === 'maintenance'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
-            >
-              <Wrench className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">維修資訊</span>
-            </button>
+            {permissions.includes('manage_maintenance_info') && (
+              <button
+                onClick={() => setActiveTab('maintenance')}
+                title="維修資訊"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'maintenance'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Wrench className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">維修資訊</span>
+              </button>
+            )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
@@ -1128,11 +1130,11 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           permissions={permissions}
           bookmarkNotes={activeTab === 'bookmarks' ? (bookmarkNotes[selected.equipment_id] ?? '') : undefined}
           onBookmarkNotesChange={activeTab === 'bookmarks' ? (notes) => updateBookmarkNotes(selected, notes) : undefined}
-          onViewMaintenanceInfo={(equipmentId) => {
+          onViewMaintenanceInfo={permissions.includes('manage_maintenance_info') ? (equipmentId) => {
             setActiveTab('maintenance')
             setMaintenanceFilter({ equipmentId })
             setSelected(null)
-          }}
+          } : undefined}
         />
       )}
 
