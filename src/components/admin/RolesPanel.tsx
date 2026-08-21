@@ -31,7 +31,6 @@ interface RolesData {
 
 interface Props {
   isActive: boolean
-  onSwitchSubTab?: (tab: 'departments') => void
 }
 
 // Step 40：角色管理子分頁。fetch 模式比照 UserManagementPanel/MaintenanceInfoClient：
@@ -43,7 +42,7 @@ interface Props {
 // 最容易踩到的情境：勾了幾個權限還沒按儲存，切去別的子分頁看一下再切回來，勾選全部消失）。
 // 改成讓 RolesManager 自己用 useEffect 依 initialRoles prop 變化同步 roles 清單（見該檔案），
 // 這裡只需要正常把每次 fetch 到的新物件往下傳即可。
-export default function RolesPanel({ isActive, onSwitchSubTab }: Props) {
+export default function RolesPanel({ isActive }: Props) {
   const [data, setData] = useState<RolesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,7 +87,6 @@ export default function RolesPanel({ isActive, onSwitchSubTab }: Props) {
       initialRoles={data.roles}
       currentUserRoleName={data.currentUserRoleName}
       deptGroups={data.departments}
-      onSwitchSubTab={onSwitchSubTab}
     />
   )
 }

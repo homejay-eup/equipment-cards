@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin, isAllowedDomain, getUserRoleWithPermissions, getAssignableRolesData } from '@/lib/admin'
+import { requireAdmin, isAllowedDomain, getAssignableRolesData } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 function getSupabase() {
@@ -117,11 +117,10 @@ export async function GET() {
   const callerLevel = callerRole?.level ?? null
   const callerDepartmentId = callerRole?.department_id ?? null
 
-  const [allowedEmails, assignableRoles, authTimestamps, roleData] = await Promise.all([
+  const [allowedEmails, assignableRoles, authTimestamps] = await Promise.all([
     fetchAllowedEmails(callerLevel, callerDepartmentId),
     getAssignableRolesData(user.email),
     fetchAuthTimestamps(),
-    getUserRoleWithPermissions(user.email),
   ])
 
   const users = allowedEmails.map(u => ({
@@ -133,7 +132,6 @@ export async function GET() {
     users,
     currentUserEmail: user.email,
     availableRoles: assignableRoles.map(r => r.name),
-    permissions: roleData.permissions,
     canSyncUsers: callerLevel === 'super_admin',
   })
 }

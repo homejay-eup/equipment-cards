@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, ShieldCheck, RefreshCw, Users, BarChart3, Search } from 'lucide-react'
+import { Loader2, Shield, Trash2, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, RefreshCw, Users, Search } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserRow {
@@ -16,11 +16,7 @@ interface Props {
   initialUsers: UserRow[]
   currentUserEmail: string
   availableRoles: string[]
-  permissions?: string[]
   canSyncUsers?: boolean
-  // Step 40：嵌入首頁「系統管理」分頁後，切到角色管理/使用統計改為呼叫這個 callback 切子分頁，
-  // 不再是 <Link> 導頁。唯一呼叫端（UserManagementPanel）一定會傳入，未傳入時不渲染這個按鈕。
-  onSwitchSubTab?: (tab: 'roles' | 'departments' | 'analytics') => void
 }
 
 function formatDate(iso?: string | null) {
@@ -31,7 +27,7 @@ function formatDate(iso?: string | null) {
   })
 }
 
-export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles, permissions = [], canSyncUsers = false, onSwitchSubTab }: Props) {
+export default function UserManagementTable({ initialUsers, currentUserEmail, availableRoles, canSyncUsers = false }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers)
   // Step 40：嵌入首頁分頁後，UserManagementPanel 每次切回這個子分頁都會重新 fetch 一份
   // initialUsers 傳進來（不會整個 remount 這個元件，避免打斷使用者正在編輯的搜尋/新增表單/
@@ -245,26 +241,6 @@ export default function UserManagementTable({ initialUsers, currentUserEmail, av
               >
                 {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 同步公司帳號
-              </button>
-            )}
-            {permissions.includes('view_analytics') && onSwitchSubTab && (
-              <button
-                type="button"
-                onClick={() => onSwitchSubTab('analytics')}
-                className="flex items-center gap-1.5 text-sm text-[#7a5230] border border-[rgba(122,82,48,.25)] bg-[rgba(122,82,48,.05)] rounded-md px-3 py-1.5 hover:bg-[rgba(122,82,48,.12)] transition-colors whitespace-nowrap"
-              >
-                <BarChart3 className="h-4 w-4" />
-                使用統計
-              </button>
-            )}
-            {permissions.includes('manage_roles') && onSwitchSubTab && (
-              <button
-                type="button"
-                onClick={() => onSwitchSubTab('roles')}
-                className="flex items-center gap-1.5 text-sm text-[#7a5230] border border-[rgba(122,82,48,.25)] bg-[rgba(122,82,48,.05)] rounded-md px-3 py-1.5 hover:bg-[rgba(122,82,48,.12)] transition-colors whitespace-nowrap"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                角色管理
               </button>
             )}
           </div>

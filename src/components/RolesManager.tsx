@@ -27,9 +27,6 @@ interface Props {
   initialRoles: RoleData[]
   currentUserRoleName?: string
   deptGroups?: Department[]
-  // Step 40：嵌入首頁「系統管理」分頁後，切到部門管理改為呼叫這個 callback 切子分頁，
-  // 不再是 <Link> 導頁。唯一呼叫端（RolesPanel）一定會傳入，未傳入時不渲染這個按鈕。
-  onSwitchSubTab?: (tab: 'departments') => void
 }
 
 const PERM_LABELS: Record<string, string> = {
@@ -194,7 +191,7 @@ function DeptBadge({ departmentName, level }: { departmentName: string | null; l
   )
 }
 
-export default function RolesManager({ initialRoles, currentUserRoleName, deptGroups, onSwitchSubTab }: Props) {
+export default function RolesManager({ initialRoles, currentUserRoleName, deptGroups }: Props) {
   const [roles, setRoles] = useState<RoleData[]>(initialRoles)
   // Step 40：嵌入首頁分頁後，RolesPanel 每次切回這個子分頁都會重新 fetch 一份 initialRoles
   // 傳進來（不會整個 remount 這個元件，避免打斷使用者正在編輯的展開/草稿勾選/新增角色表單等
@@ -626,15 +623,6 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-[#6b4f38]">角色清單</h2>
         <div className="flex items-center gap-2">
-          {onSwitchSubTab && (
-            <button
-              type="button"
-              onClick={() => onSwitchSubTab('departments')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[#7a5230] border border-[rgba(122,82,48,.25)] rounded-lg hover:bg-[rgba(122,82,48,.06)] transition-colors"
-            >
-              部門管理
-            </button>
-          )}
           <button
             onClick={() => setNewRoleOpen(v => !v)}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors shadow-[0_0_8px_rgba(122,82,48,.35)]"

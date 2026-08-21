@@ -110,18 +110,12 @@ export default function SystemAdminClient({ isActive, permissions, subTabRequest
 
       {usersMounted && (
         <div className={activeSubTab !== 'users' ? 'hidden' : ''}>
-          <UserManagementPanel
-            isActive={isActive && activeSubTab === 'users'}
-            onSwitchSubTab={setActiveSubTab}
-          />
+          <UserManagementPanel isActive={isActive && activeSubTab === 'users'} />
         </div>
       )}
       {rolesMounted && (
         <div className={activeSubTab !== 'roles' ? 'hidden' : ''}>
-          <RolesPanel
-            isActive={isActive && activeSubTab === 'roles'}
-            onSwitchSubTab={setActiveSubTab}
-          />
+          <RolesPanel isActive={isActive && activeSubTab === 'roles'} />
         </div>
       )}
       {departmentsMounted && (

@@ -16,13 +16,11 @@ interface UsersData {
   users: UserRow[]
   currentUserEmail: string
   availableRoles: string[]
-  permissions: string[]
   canSyncUsers: boolean
 }
 
 interface Props {
   isActive: boolean
-  onSwitchSubTab?: (tab: 'roles' | 'departments' | 'analytics') => void
 }
 
 // Step 40：帳號管理子分頁。比照 MaintenanceInfoClient 的 isActive 重新抓資料模式——
@@ -35,7 +33,7 @@ interface Props {
 // 角色下拉等 UI 狀態全部清空且沒有任何提示（tester 實測踩到）。改成讓 UserManagementTable
 // 自己用 useEffect 依 initialUsers prop 變化同步 users 清單（見該檔案），這裡只需要正常把
 // 每次 fetch 到的新物件往下傳即可，不需要任何 remount 手段。
-export default function UserManagementPanel({ isActive, onSwitchSubTab }: Props) {
+export default function UserManagementPanel({ isActive }: Props) {
   const [data, setData] = useState<UsersData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -80,9 +78,7 @@ export default function UserManagementPanel({ isActive, onSwitchSubTab }: Props)
       initialUsers={data.users}
       currentUserEmail={data.currentUserEmail}
       availableRoles={data.availableRoles}
-      permissions={data.permissions}
       canSyncUsers={data.canSyncUsers}
-      onSwitchSubTab={onSwitchSubTab}
     />
   )
 }
