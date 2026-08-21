@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireAdmin, isAllowedDomain } from '@/lib/admin'
+import { requireAdmin, isAllowedDomain, getUserRoleWithPermissions, getAssignableRolesData } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 function getSupabase() {
@@ -36,19 +36,106 @@ async function getCallerRoleInfo(): Promise<{ level: string; department_id: stri
   return roleData as { level: string; department_id: string | null }
 }
 
-// GET /api/admin/users
+// 依 caller 身分過濾可見的 allowed_emails 範圍：
+// super_admin 看全部；dept_admin 只看同部門角色對應的帳號；其他（不應進入此頁，requireAdmin 已擋）回傳空
+async function fetchAllowedEmails(
+  callerLevel: string | null,
+  callerDepartmentId: string | null,
+) {
+  const service = getSupabase()
+
+  if (callerLevel === 'super_admin') {
+    const { data } = await service
+      .from('allowed_emails')
+      .select('email, role, created_at')
+      .order('created_at', { ascending: true })
+    return (data ?? []) as { email: string; role: string; created_at: string }[]
+  }
+
+  if (callerLevel === 'dept_admin' && callerDepartmentId) {
+    const { data: deptRoles } = await service
+      .from('roles')
+      .select('name')
+      .eq('department_id', callerDepartmentId)
+    const deptRoleNames = (deptRoles ?? []).map((r: { name: string }) => r.name)
+
+    if (deptRoleNames.length === 0) return []
+
+    const { data } = await service
+      .from('allowed_emails')
+      .select('email, role, created_at')
+      .in('role', deptRoleNames)
+      .order('created_at', { ascending: true })
+    return (data ?? []) as { email: string; role: string; created_at: string }[]
+  }
+
+  return []
+}
+
+// 撈 Supabase Auth 使用者清單，取初始登入/最後登入時間，用 email 建 map
+async function fetchAuthTimestamps() {
+  const service = getSupabase()
+  const map = new Map<string, { auth_created_at: string | null; last_sign_in_at: string | null }>()
+
+  let page = 1
+  const perPage = 1000
+  while (true) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage })
+    if (error) break
+    const users = data?.users ?? []
+    if (users.length === 0) break
+    for (const u of users) {
+      if (!u.email) continue
+      map.set(u.email.toLowerCase(), {
+        auth_created_at: u.created_at ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      })
+    }
+    if (users.length < perPage) break
+    page += 1
+  }
+
+  return map
+}
+
+// GET /api/admin/users — 帳號管理分頁初始資料（清單 + 目前使用者 email + 可指派角色 + 權限 + 是否可同步）
 export async function GET() {
   if (!await requireAdmin()) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { data, error } = await getSupabase()
-    .from('allowed_emails')
-    .select('email, role, created_at')
-    .order('created_at', { ascending: true })
+  const supabase = createSupabaseServerClient()
+  const [{ data: { user } }, callerRole] = await Promise.all([
+    supabase.auth.getUser(),
+    getCallerRoleInfo(),
+  ])
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  if (!user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const callerLevel = callerRole?.level ?? null
+  const callerDepartmentId = callerRole?.department_id ?? null
+
+  const [allowedEmails, assignableRoles, authTimestamps, roleData] = await Promise.all([
+    fetchAllowedEmails(callerLevel, callerDepartmentId),
+    getAssignableRolesData(user.email),
+    fetchAuthTimestamps(),
+    getUserRoleWithPermissions(user.email),
+  ])
+
+  const users = allowedEmails.map(u => ({
+    ...u,
+    ...(authTimestamps.get(u.email.toLowerCase()) ?? { auth_created_at: null, last_sign_in_at: null }),
+  }))
+
+  return NextResponse.json({
+    users,
+    currentUserEmail: user.email,
+    availableRoles: assignableRoles.map(r => r.name),
+    permissions: roleData.permissions,
+    canSyncUsers: callerLevel === 'super_admin',
+  })
 }
 
 // POST /api/admin/users — 新增 email

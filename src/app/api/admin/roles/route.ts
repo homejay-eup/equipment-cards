@@ -1,9 +1,6 @@
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
-import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import RolesManager from '@/components/RolesManager'
+import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 
 interface Department {
   id: string
@@ -22,23 +19,6 @@ interface RoleData {
   assignable_role_names: string[] | null
   custom_default_permissions: string[] | null
   custom_default_assignable_role_names: string[] | null
-}
-
-const ROLE_ORDER = [
-  '管理員', '管理員(供應鏈)', '管理員(採購)', '管理員(工程)', '管理員(業務)', '管理員(技師)',
-  '供應鏈', '採購', '工程', '業務', '技師', '一般使用者',
-]
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function sortByRoleOrder<T extends { name: string }>(roles: T[]): T[] {
-  return [...roles].sort((a, b) => {
-    const ai = ROLE_ORDER.indexOf(a.name)
-    const bi = ROLE_ORDER.indexOf(b.name)
-    if (ai === -1 && bi === -1) return 0
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
 }
 
 function getServiceClient() {
@@ -112,34 +92,21 @@ async function fetchRoles(): Promise<RoleData[]> {
   }
 }
 
-export default async function AdminRolesPage() {
-  // 平行：權限驗證 + 頁面資料 + 當前使用者角色
-  const [user, departments, roles, roleData] = await Promise.all([
-    requirePermission('manage_roles'),
+// GET /api/admin/roles — 角色管理分頁初始資料（部門清單 + 角色清單 + 目前使用者角色名稱）
+export async function GET() {
+  if (!await requirePermission('manage_roles')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const [departments, roles, roleData] = await Promise.all([
     fetchDepartments(),
     fetchRoles(),
     getUserRoleWithPermissions(),
   ])
 
-  if (!user) redirect('/')
-
-  return (
-    <main className="min-h-screen bg-[#faf6f0]">
-      <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/admin/users" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#7a5230]" />
-            <h1 className="text-xl font-bold text-[#7a5230]">角色管理</h1>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <RolesManager initialRoles={roles} currentUserRoleName={roleData.roleName} deptGroups={departments} />
-      </div>
-    </main>
-  )
+  return NextResponse.json({
+    departments,
+    roles,
+    currentUserRoleName: roleData.roleName,
+  })
 }

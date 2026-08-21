@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import Fuse from 'fuse.js'
 import { EquipmentCard, AppSettings, UserGroup, QuoteItem } from '@/types/equipment'
 import { Input } from '@/components/ui/input'
@@ -18,7 +17,8 @@ import QuotesClient from '@/components/QuotesClient'
 import DocumentsClient from '@/components/DocumentsClient'
 import PackagesClient from '@/components/PackagesClient'
 import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench } from 'lucide-react'
+import SystemAdminClient from '@/components/admin/SystemAdminClient'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -136,7 +136,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -171,6 +171,15 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [activeTab])
   // 供 CardDetailDialog「查看維修資訊」入口設定：跳轉維修資訊分頁時自動篩選出與該料號相關的規則
   const [maintenanceFilter, setMaintenanceFilter] = useState<{ equipmentId: string } | null>(null)
+  // 首次切到「系統管理」才 mount SystemAdminClient，之後保持常駐（CSS hide/show）保留 state
+  const [adminMounted, setAdminMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'admin') setAdminMounted(true)
+  }, [activeTab])
+  // 供標題列「帳號管理」徽章點擊後跳轉系統管理分頁內的帳號管理子分頁：
+  // 每次點擊帶一個新的 requestId，讓 SystemAdminClient 能區分「同一個 tab 但這是新的一次跳轉請求」
+  const [adminSubTabRequest, setAdminSubTabRequest] = useState<{ tab: 'users' | 'roles' | 'departments' | 'analytics'; requestId: number } | null>(null)
+  const adminSubTabRequestIdRef = useRef(0)
   // 若 use_bookmarks 權限被移除，回退到全部料卡
   useEffect(() => {
     if (activeTab === 'bookmarks' && !permissions.includes('use_bookmarks')) {
@@ -604,13 +613,21 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
           <div className="flex items-center gap-3">
             {canManage ? (
-              <Link href="/admin/users" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('admin')
+                  adminSubTabRequestIdRef.current += 1
+                  setAdminSubTabRequest({ tab: 'users', requestId: adminSubTabRequestIdRef.current })
+                }}
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+              >
                 <span className="badge-admin-pulse text-xs font-bold tracking-wider border border-[rgba(122,82,48,.35)] text-[#7a5230] bg-[rgba(122,82,48,.07)] px-2.5 py-0.5 rounded">
                   {userRole ?? '管理員'}
                 </span>
                 <Users className="h-4 w-4 text-[#a08060]" />
                 <span className="hidden sm:inline text-xs text-[#a08060]">帳號管理</span>
-              </Link>
+              </button>
             ) : userRole ? (
               <span className={`text-xs font-medium border px-2.5 py-0.5 rounded ${
                 isAdmin
@@ -732,10 +749,24 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">維修資訊</span>
               </button>
             )}
+            {(permissions.includes('manage_users') || permissions.includes('manage_roles') || permissions.includes('view_analytics')) && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                title="系統管理"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'admin'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">系統管理</span>
+              </button>
+            )}
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' || activeTab === 'admin' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1113,6 +1144,17 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             filter={maintenanceFilter}
             permissions={permissions}
             allCards={initialCards}
+          />
+        </div>
+      )}
+
+      {/* 系統管理：首次進入後保持常駐（CSS hide/show），資料由各 Panel 自行 client fetch */}
+      {adminMounted && (
+        <div className={activeTab !== 'admin' ? 'hidden' : ''}>
+          <SystemAdminClient
+            isActive={activeTab === 'admin'}
+            permissions={permissions}
+            subTabRequest={adminSubTabRequest}
           />
         </div>
       )}

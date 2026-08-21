@@ -118,6 +118,8 @@
   - **2026-08-17 Step 39：使用者實測回饋修正——已執行完成，待正式 Supabase 執行新 SQL**：實機測試後回報「標示已確認最新」導致整頁重整+規則收合的 UX bug、日期選擇器風格不一致、欄位語意需改名「適用進貨日期（起）」、新增保固期間欄位（月/年切換）需求。規格見 `_管理/01_equipment-cards/specs/step39-maintenance-followup-fixes.md`。根因：`MaintenanceInfoClient.tsx` 每次背景刷新都觸發全畫面 loading + 從零重算展開狀態，改成只有「切換廠商」才重算（`isSwitch` 參數 + ref 追蹤）；日期欄位改用既有 `DatePicker.tsx`（任務板同款，Step 38 執行時漏用）；新增 `warranty_period_months` 欄位＋共用格式化函式 `formatWarrantyPeriod()`。過程中為解決 client component 誤觸 `next/headers` 邊界的 build 錯誤，把純函式從 `maintenance.ts` 拆到新檔 `maintenanceFormat.ts`。`reviewer` 補上保固期間三層上限防禦（API+表單+DB CHECK constraint，100 年）。依 `frontend`→`tester`→`reviewer` 委派，全數通過無阻塞問題。完整過程見 `_管理/00_執行紀錄.md` 對應條目。
   - **待辦（需使用者手動執行）**：① 把 `_開發檔案/sql/step39-maintenance-warranty-period.sql` 在正式 Supabase 執行（`maintenance_rules` 加 `warranty_period_months` 欄位+CHECK constraint）；② 到角色管理頁面把 `manage_maintenance_info` 權限授予需要的角色；③ 實機測試維修資訊分頁與料卡細節頁入口
 - **目前 git HEAD**：`e15c921`（Step 39 維修資訊管理實測回饋修正，已 push main，Vercel 應已自動部署；`step39-maintenance-warranty-period.sql` 尚未在正式 Supabase 執行）
+- **承接待辦（尚未執行，來自上一次對話，非本次任務）**：設備套餐頁面補齊跨套餐批次替換功能，範圍已定案（詳見 `_管理/00_方案紀錄.md` 2026-08-12／2026-08-13 共三條條目），CodeGraph 調查與委派尚未進行。
+- **2026-08-21 Step 40：管理頁面收斂為首頁「系統管理」分頁——已執行完成，待 commit/push**：`/admin/users`／`/admin/roles`／`/admin/departments`／`/admin/analytics` 4 個獨立路由整頁 Loading 困擾，收斂成首頁「系統管理」分頁 + 內部橫向子分頁（帳號管理/角色管理/部門管理/使用統計），子分頁權限判斷與使用統計版面完全沿用現況。規格見 `_管理/01_equipment-cards/specs/step40-admin-tabs.md`。依 `data`→`frontend`→`tester`→`reviewer` 標準順序委派，`tester` 抓到 1 個必須修正（4 個 Panel 原本用 `key={version}` 強制 remount 保持資料最新，會把使用者切分頁時把 `RolesManager`/`UserManagementTable`/`DepartmentsManager` 正在編輯的草稿靜默清空，跟 Step 39 修過的同一類 bug）+ 2 個非阻塞建議（死連結 fallback、殘留返回箭頭），皆已修正——改成 `useEffect(() => setX(initialX), [initialX])` 只同步資料清單本身，比照既有 `DocumentsClient.tsx` 模式。`reviewer` 通過，提出 2 項非阻塞技術債（並發覆蓋風險本來就存在非本次引入、4 個 Panel 重複邏輯可抽共用 hook）不處理。核心保護元件 `PhotoWall.tsx` 異動已事前跟使用者確認範圍（新分頁按鈕+標題列徽章行為改變）。`npm run build` 通過，舊 4 個路由已刪除。完整過程見 `_管理/00_執行紀錄.md` 對應條目。**尚未 commit/push**（工作目錄有一批跟本次無關的既有未追蹤檔案，commit 時需限定只加入本次異動檔案）。
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
@@ -239,13 +241,18 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 
 ## 此次任務（每次新對話時更新，執行完後清空）
 
-**主題**：「我的關注」／「設備套餐」頁面「群組(套餐)組合情境太多太亂、難維護」的架構優化討論。**已最終定案：標籤分類方案（含 11 個維度、列表顯示切換、篩選面板）與備註欄全部擱置**——使用者評估後認為人工貼標籤的維護成本抵銷了效益。**範圍收斂為僅執行「設備套餐頁補齊跨套餐批次替換」，尚未進行 CodeGraph 調查或執行任何程式碼變更**。完整討論脈絡（考慮過的方案、排除原因）已記錄於 `_管理/00_方案紀錄.md`「[2026-08-12]」「[2026-08-13]（續：標籤範圍與畫面呈現定案）」「[2026-08-13]（最終定案：標籤方案擱置，範圍收斂為批次替換）」三條條目，新 session 開場請先讀這三條再接續執行。
+**主題**：任務板功能優化（暫定 Step 41）——關鍵字搜尋 + 更新紀錄支援貼圖/貼表格。
 
-**唯一待執行項目**：補齊「設備套餐」頁面缺的**跨套餐批次替換**功能——「我的關注」的替換料卡彈窗已有「此料卡同時存在於」勾選多群組一次套用的功能，「設備套餐」目前沒有，需要比照補齊。範圍明確，下一步是 CodeGraph blast radius 調查（預期涉及 `PackagesClient.tsx`/`PackageExplorer.tsx`/`PackageListView.tsx`/`EquipmentListView.tsx`，比照 `GroupsPanel.tsx` 的替換料卡邏輯），確認後委派 `frontend`（若涉及資料異動則含 `data`）→ `tester` → `reviewer`。
+**已定案範圍**：
+1. `TrackerClient.tsx` 篩選列新增關鍵字搜尋框，比對標題+說明+標籤，前端過濾現有 state，不需新 API
+2. 更新紀錄（`issue_updates`）從純文字變成「文字＋可選圖片(可多張)＋可選表格」複合留言——不動「說明」欄位，貼圖/貼表格定位在更新紀錄（本來就是按時間序列附加的機制），取代原本考慮過的「說明欄位改 rich text 編輯器」重工方案
+3. 表格採**真表格渲染**（結構化資料存成列×欄，非簡易文字表格）
+4. 圖片縮圖可點擊放大：新增獨立輕量放大檢視元件，**不**沿用核心保護元件 `CardDetailDialog`（用途是料卡照片輪播，不適合）
+5. 更新紀錄輸入行為從「離開欄位（`onBlur`）自動儲存」改成「明確送出按鈕」，**純文字更新也一併改動**（理由：圖片上傳非同步、表格需使用者確認解析結果，跟自動儲存衝突；兩套邏輯並存的複雜度成本高於「多按一下」）
 
-**已擱置（不執行）**：套餐/群組自由標籤分類（11 個維度）、標籤列表顯示切換、多維度篩選面板、備註欄。善用既有「複製套餐」功能取代模組化組裝——維持共識但不算新開發項目，不需要委派執行。
+完整規格見 `_管理/01_equipment-cards/specs/step41-tracker-search-attachments.md`；討論過程見 `_管理/00_方案紀錄.md` [2026-08-21] 條目。討論過程中先用 `mcp__visualize__show_widget` 畫搜尋框+複合留言介面預覽給使用者確認後才進入規格文件。
 
-**目前狀態**：已產出視覺化 mockup 供使用者確認，**待使用者確認 mockup OK 後才進入 CodeGraph blast radius 調查**（預期涉及 `GroupsPanel.tsx`、`PackagesClient.tsx`/`PackageExplorer.tsx`/`PackageListView.tsx`/`EquipmentListView.tsx`，可能新增標籤相關資料表或延伸既有 `category_subfilter_tags` 架構），確認後委派 `data`（標籤資料表設計）→ `frontend`（列表顯示切換+篩選面板+備註欄）→ `tester` → `reviewer`。跨套餐批次替換功能可以獨立先執行。
+**尚未執行**：CodeGraph blast radius 調查（`issue_updates`／`IssueUpdate`／`handleSubmitUpdate`／`IssueExpandedContent`／`useIssueRealtime.ts`）+ Grep 交叉驗證，確認影響範圍後才進入委派（`data`→`frontend`→`tester`→`reviewer`）。
 
 ---
 

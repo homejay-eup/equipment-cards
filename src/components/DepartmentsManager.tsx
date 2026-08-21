@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, Check, X, Pencil, Trash2, Plus, AlertTriangle } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
@@ -63,6 +63,16 @@ function LevelBadge({ level }: { level: string | null }) {
 export default function DepartmentsManager({ initialDepartments, initialRoles }: Props) {
   const [departments, setDepartments] = useState<Department[]>(initialDepartments)
   const [roles, setRoles] = useState<DeptRoleBasic[]>(initialRoles)
+  // Step 40：嵌入首頁分頁後，DepartmentsPanel 每次切回這個子分頁都會重新 fetch 一份
+  // initialDepartments/initialRoles 傳進來（不會整個 remount 這個元件，避免打斷使用者正在
+  // 填的新增部門名稱/改名輸入框等 UI 狀態）。這裡只同步清單本身；addingDept/newDeptName/
+  // editingDeptId/editingRoleId 等都是獨立的 useState，不受影響。
+  useEffect(() => {
+    setDepartments(initialDepartments)
+  }, [initialDepartments])
+  useEffect(() => {
+    setRoles(initialRoles)
+  }, [initialRoles])
 
   // 新增部門
   const [addingDept, setAddingDept] = useState(false)

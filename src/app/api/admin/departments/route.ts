@@ -1,17 +1,14 @@
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Building2 } from 'lucide-react'
-import { requirePermission } from '@/lib/admin'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import DepartmentsManager from '@/components/DepartmentsManager'
+import { requirePermission } from '@/lib/admin'
 
-export interface Department {
+interface Department {
   id: string
   name: string
   created_at: string
 }
 
-export interface RoleBasic {
+interface RoleBasic {
   id: string
   name: string
   is_system: boolean
@@ -96,32 +93,16 @@ async function fetchRoles(): Promise<RoleBasic[]> {
   }
 }
 
-export default async function AdminDepartmentsPage() {
-  const [user, departments, roles] = await Promise.all([
-    requirePermission('manage_roles'),
+// GET /api/admin/departments — 部門管理分頁初始資料（部門清單 + 角色清單）
+export async function GET() {
+  if (!await requirePermission('manage_roles')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const [departments, roles] = await Promise.all([
     fetchDepartments(),
     fetchRoles(),
   ])
 
-  if (!user) redirect('/')
-
-  return (
-    <main className="min-h-screen bg-[#faf6f0]">
-      <header className="bg-[#faf6f0] border-b border-[rgba(122,82,48,.18)] sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/admin/roles" className="text-[#a08060] hover:text-[#7a5230] transition-colors">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-[#7a5230]" />
-            <h1 className="text-xl font-bold text-[#7a5230]">部門管理</h1>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <DepartmentsManager initialDepartments={departments} initialRoles={roles} />
-      </div>
-    </main>
-  )
+  return NextResponse.json({ departments, roles })
 }
