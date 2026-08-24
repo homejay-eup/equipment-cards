@@ -120,6 +120,7 @@
 - **目前 git HEAD**：`e15c921`（Step 39 維修資訊管理實測回饋修正，已 push main，Vercel 應已自動部署；`step39-maintenance-warranty-period.sql` 尚未在正式 Supabase 執行）
 - **承接待辦（尚未執行，來自上一次對話，非本次任務）**：設備套餐頁面補齊跨套餐批次替換功能，範圍已定案（詳見 `_管理/00_方案紀錄.md` 2026-08-12／2026-08-13 共三條條目），CodeGraph 調查與委派尚未進行。
 - **2026-08-21 Step 40：管理頁面收斂為首頁「系統管理」分頁——已執行完成，待 commit/push**：`/admin/users`／`/admin/roles`／`/admin/departments`／`/admin/analytics` 4 個獨立路由整頁 Loading 困擾，收斂成首頁「系統管理」分頁 + 內部橫向子分頁（帳號管理/角色管理/部門管理/使用統計），子分頁權限判斷與使用統計版面完全沿用現況。規格見 `_管理/01_equipment-cards/specs/step40-admin-tabs.md`。依 `data`→`frontend`→`tester`→`reviewer` 標準順序委派，`tester` 抓到 1 個必須修正（4 個 Panel 原本用 `key={version}` 強制 remount 保持資料最新，會把使用者切分頁時把 `RolesManager`/`UserManagementTable`/`DepartmentsManager` 正在編輯的草稿靜默清空，跟 Step 39 修過的同一類 bug）+ 2 個非阻塞建議（死連結 fallback、殘留返回箭頭），皆已修正——改成 `useEffect(() => setX(initialX), [initialX])` 只同步資料清單本身，比照既有 `DocumentsClient.tsx` 模式。`reviewer` 通過，提出 2 項非阻塞技術債（並發覆蓋風險本來就存在非本次引入、4 個 Panel 重複邏輯可抽共用 hook）不處理。核心保護元件 `PhotoWall.tsx` 異動已事前跟使用者確認範圍（新分頁按鈕+標題列徽章行為改變）。`npm run build` 通過，舊 4 個路由已刪除。完整過程見 `_管理/00_執行紀錄.md` 對應條目。已 commit/push main（`8a09a9d`，工作目錄同時有另一對話窗的 Step 41 規劃在進行，用明確檔案清單 `git add` 避開對方未追蹤檔案）。
+- **2026-08-21/22 Step 41：任務板關鍵字搜尋 + 更新紀錄支援貼圖/貼表格——已執行完成，待 commit/push + 使用者於正式 Supabase 執行新 SQL**：規格 `_管理/01_equipment-cards/specs/step41-tracker-search-attachments.md`。CodeGraph blast radius 調查揪出原規格草稿誤植目標元件（應改 `IssueDetailDialog.tsx`，不是死碼 `IssueExpandedContent.tsx`）+ 4 處需同步加欄位的 select 查詢。依 `data`→`frontend`→`tester`→`reviewer` 標準順序委派，`issue_updates` 新增 `image_urls`／`table_data` 欄位、新 Cloudinary 簽名端點、更新紀錄改成「文字＋可貼圖(Ctrl+V)＋可貼表格(真表格渲染)」複合留言、送出方式從自動儲存改成明確按鈕、新增獨立放大檢視元件、刪除時連動清 Cloudinary 圖片。`reviewer` 第一輪抓到 2 個必須修正（附件缺乏形狀驗證可讓議題頁面壞掉、簽名端點缺乏部門檢查）+ 3 個非阻塞建議，委派 `data` 一次性修正後第二輪 `reviewer` 全數通過。完整過程見 `_管理/00_執行紀錄.md` 對應條目。**待辦**：① SQL migration `_開發檔案/sql/step41-issue-updates-attachments.sql` 在正式 Supabase 執行；② commit/push main；③ 實機測試。
 - **重要**：Step 20 執行時必須嚴守 `_管理/01_equipment-cards/specs/step20-tracker.md` 的「⛔ 核心保護原則」，現有版面功能風格一律不得改動
 
 ### CodeGraph 工作規範（強制）
@@ -240,19 +241,6 @@ claude mcp add --scope user codegraph -- codegraph serve --mcp
 ---
 
 ## 此次任務（每次新對話時更新，執行完後清空）
-
-**主題**：任務板功能優化（暫定 Step 41）——關鍵字搜尋 + 更新紀錄支援貼圖/貼表格。
-
-**已定案範圍**：
-1. `TrackerClient.tsx` 篩選列新增關鍵字搜尋框，比對標題+說明+標籤，前端過濾現有 state，不需新 API
-2. 更新紀錄（`issue_updates`）從純文字變成「文字＋可選圖片(可多張)＋可選表格」複合留言——不動「說明」欄位，貼圖/貼表格定位在更新紀錄（本來就是按時間序列附加的機制），取代原本考慮過的「說明欄位改 rich text 編輯器」重工方案
-3. 表格採**真表格渲染**（結構化資料存成列×欄，非簡易文字表格）
-4. 圖片縮圖可點擊放大：新增獨立輕量放大檢視元件，**不**沿用核心保護元件 `CardDetailDialog`（用途是料卡照片輪播，不適合）
-5. 更新紀錄輸入行為從「離開欄位（`onBlur`）自動儲存」改成「明確送出按鈕」，**純文字更新也一併改動**（理由：圖片上傳非同步、表格需使用者確認解析結果，跟自動儲存衝突；兩套邏輯並存的複雜度成本高於「多按一下」）
-
-完整規格見 `_管理/01_equipment-cards/specs/step41-tracker-search-attachments.md`；討論過程見 `_管理/00_方案紀錄.md` [2026-08-21] 條目。討論過程中先用 `mcp__visualize__show_widget` 畫搜尋框+複合留言介面預覽給使用者確認後才進入規格文件。
-
-**尚未執行**：CodeGraph blast radius 調查（`issue_updates`／`IssueUpdate`／`handleSubmitUpdate`／`IssueExpandedContent`／`useIssueRealtime.ts`）+ Grep 交叉驗證，確認影響範圍後才進入委派（`data`→`frontend`→`tester`→`reviewer`）。
 
 ---
 

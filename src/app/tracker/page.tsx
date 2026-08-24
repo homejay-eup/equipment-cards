@@ -30,7 +30,9 @@ export interface Issue {
 export interface IssueUpdate {
   id: string
   issue_id?: string
-  content: string
+  content: string | null
+  image_urls: { public_id: string; url: string }[]
+  table_data: { rows: string[][]; hasHeader: boolean } | null
   created_by: string
   created_at: string
 }
@@ -100,14 +102,21 @@ export default async function TrackerPage() {
     sort_order: number | null
     is_pinned: boolean
     issue_assignees: { user_email: string }[]
-    issue_updates: { id: string; content: string; created_by: string; created_at: string }[]
+    issue_updates: {
+      id: string
+      content: string | null
+      image_urls: { public_id: string; url: string }[]
+      table_data: { rows: string[][]; hasHeader: boolean } | null
+      created_by: string
+      created_at: string
+    }[]
   }
 
   const issueSelectQuery = `
     id, title, type, priority, status, due_date, description, tags,
     created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
     issue_assignees(user_email),
-    issue_updates(id, content, created_by, created_at)
+    issue_updates(id, content, image_urls, table_data, created_by, created_at)
   `
 
   let rawIssues: RawIssue[] = []

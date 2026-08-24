@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone, SlidersHorizontal, X } from 'lucide-react'
+import { Plus, AlertTriangle, ArrowUpDown, Trash2, Megaphone, SlidersHorizontal, X, Search } from 'lucide-react'
 import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
@@ -91,6 +91,7 @@ export default function TrackerClient({
   const [myTasksOnly,          setMyTasksOnly]          = useState(() => searchParams.get('tab') === 'my')
   const [filterPriority,       setFilterPriority]       = useState<'' | 'high' | 'medium' | 'low'>('')
   const [filterAssignee,       setFilterAssignee]       = useState('')
+  const [searchQuery,          setSearchQuery]          = useState('')
   const [showFilters,          setShowFilters]          = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -215,8 +216,15 @@ export default function TrackerClient({
     if (myTasksOnly)    list = list.filter(i => i.assignee_emails.includes(userEmail))
     if (filterAssignee) list = list.filter(i => i.assignee_emails.includes(filterAssignee))
     if (filterPriority) list = list.filter(i => i.priority === filterPriority)
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      list = list.filter(i => {
+        const haystack = [i.title, i.description ?? '', ...(i.tags ?? [])].join(' ').toLowerCase()
+        return haystack.includes(q)
+      })
+    }
     return list
-  }, [issues, myTasksOnly, filterPriority, filterAssignee, userEmail])
+  }, [issues, myTasksOnly, filterPriority, filterAssignee, userEmail, searchQuery])
 
   // 分欄（依 sort_order 排序，null 排最後）
   const columnIssues = useMemo(() => {
@@ -476,6 +484,27 @@ export default function TrackerClient({
                   {myPendingCount}
                 </span>
               )}
+            </button>
+          )}
+        </div>
+
+        {/* 關鍵字搜尋：比對標題＋說明＋標籤，前端直接過濾，常駐顯示不收進篩選展開區 */}
+        <div className="relative flex-1 min-w-[160px] max-w-xs">
+          <Search className="h-3.5 w-3.5 text-[#a08060] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜尋標題／說明／標籤…"
+            className="w-full pl-8 pr-7 py-1.5 text-sm border border-[rgba(122,82,48,.2)] rounded-lg bg-white text-[#2c1e12] placeholder:text-[#c0a882] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.08)] transition-colors"
+              title="清除搜尋"
+            >
+              <X className="h-3 w-3" />
             </button>
           )}
         </div>

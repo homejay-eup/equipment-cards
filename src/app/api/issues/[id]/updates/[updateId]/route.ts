@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { v2 as cloudinary } from 'cloudinary'
 import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 
 function getSupabase() {
@@ -8,6 +9,15 @@ function getSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
+}
+
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+  return cloudinary
 }
 
 // ── DELETE /api/issues/[id]/updates/[updateId] ───────────────
@@ -28,7 +38,7 @@ export async function DELETE(
     // 取得既有更新紀錄
     const { data: update, error: fetchError } = await supabase
       .from('issue_updates')
-      .select('id, created_by, issue_id')
+      .select('id, created_by, issue_id, image_urls')
       .eq('id', params.updateId)
       .single()
 
@@ -50,6 +60,22 @@ export async function DELETE(
       }
     }
 
+    // best effort：逐一刪除 Cloudinary 圖片。這裡的簽名是本專案自己的 Cloudinary API key，
+    // 沒有 Google Drive Service Account 那種權限限制，可以直接刪除（跟 Drive「留給人工」不同）。
+    // 即使 Cloudinary 刪除失敗（例如網路問題），也不擋住使用者刪除這筆更新紀錄。
+    const images = (update.image_urls ?? []) as { public_id: string; url: string }[]
+    let cloudinaryWarning: string | null = null
+    if (images.length > 0) {
+      const results = await Promise.allSettled(
+        images.map((img) => getCloudinary().uploader.destroy(img.public_id)),
+      )
+      const failedCount = results.filter((r) => r.status === 'rejected').length
+      if (failedCount > 0) {
+        console.error(`[issues/updates/[updateId]] Cloudinary 刪除失敗 ${failedCount}/${images.length} 張`, results)
+        cloudinaryWarning = `更新紀錄已刪除，但有 ${failedCount} 張圖片未能從 Cloudinary 清除`
+      }
+    }
+
     const { error } = await supabase
       .from('issue_updates')
       .delete()
@@ -57,7 +83,7 @@ export async function DELETE(
 
     if (error) throw error
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, warning: cloudinaryWarning })
   } catch (err) {
     console.error('[issues/updates/[updateId]] delete error', err)
     return NextResponse.json({ error: '刪除更新紀錄失敗' }, { status: 500 })

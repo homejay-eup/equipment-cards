@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { v2 as cloudinary } from 'cloudinary'
 import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
@@ -9,6 +10,15 @@ function getSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
+}
+
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+  return cloudinary
 }
 
 function normalizeIssue(raw: Record<string, unknown>) {
@@ -43,7 +53,7 @@ export async function GET(
         id, title, type, priority, status, due_date, description, tags,
         created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at)
       `)
       .eq('id', params.id)
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
@@ -182,7 +192,7 @@ export async function PATCH(
         id, title, type, priority, status, due_date, description, tags,
         created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at)
       `)
       .eq('id', params.id)
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
@@ -227,6 +237,27 @@ export async function DELETE(
 
     if (!isAuthor) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // 刪除議題前先撈出所有更新紀錄的圖片，best effort 清除 Cloudinary（避免孤兒圖片累積）。
+    // 這是不可逆的破壞性操作，使用者已在前端 ConfirmDialog 確認過，這裡不需要把 Cloudinary
+    // 清除的成功/失敗結果額外回報給前端（跟單筆刪除更新紀錄的情境不同）。
+    const { data: updatesWithImages } = await adminClient
+      .from('issue_updates')
+      .select('image_urls')
+      .eq('issue_id', params.id)
+
+    const allImages = (updatesWithImages ?? [])
+      .flatMap((u) => (u.image_urls ?? []) as { public_id: string; url: string }[])
+
+    if (allImages.length > 0) {
+      const results = await Promise.allSettled(
+        allImages.map((img) => getCloudinary().uploader.destroy(img.public_id)),
+      )
+      const failedCount = results.filter((r) => r.status === 'rejected').length
+      if (failedCount > 0) {
+        console.error(`[issues] 刪除議題時 Cloudinary 圖片清除失敗 ${failedCount}/${allImages.length} 張`)
+      }
     }
 
     // CASCADE 會自動刪除 issue_assignees 與 issue_updates

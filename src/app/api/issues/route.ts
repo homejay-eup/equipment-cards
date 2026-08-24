@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         id, title, type, priority, status, due_date, description, tags,
         created_by, created_at, updated_at, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at)
       `)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })

@@ -84,7 +84,7 @@ export default function IssueExpandedContent({
     const content = updateContent.trim()
     if (!content) return
     const pendingId = `pending-${Date.now()}`
-    const optimistic: IssueUpdate = { id: pendingId, content, created_by: userEmail, created_at: new Date().toISOString() }
+    const optimistic: IssueUpdate = { id: pendingId, content, image_urls: [], table_data: null, created_by: userEmail, created_at: new Date().toISOString() }
     setUpdates((p) => [optimistic, ...p])
     setUpdateContent('')
     setError(null)
