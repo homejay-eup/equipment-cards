@@ -15,6 +15,7 @@ import EquipmentListView from './EquipmentListView'
 import { unlinkKey } from './unlinkKey'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { reorderByPosition, type DropPosition } from '@/lib/dragReorder'
+import { logUsageEvent } from '@/lib/analyticsClient'
 
 type ViewMode = 'byPackage' | 'byEquipment'
 type DisplayMode = 'list' | 'photo'
@@ -51,6 +52,9 @@ interface Props {
   stickyTop?: number
   // 點卡片查看細節：比照 GroupsPanel 的 onCardClick，往上交給 PhotoWall 開啟共用的 CardDetailDialog
   onCardClick: (card: EquipmentCard) => void
+  // 是否能把「分享給我的組合」複製一份到自己部門（edit_own_packages 權限），own 模式下靠既有 canEdit 顯示，
+  // shared 模式下靠這個 prop 顯示（複製到自己部門不需要來源組合的編輯權限）
+  canCopyToOwn?: boolean
 }
 
 function useLocalStorageState<T extends string>(key: string, initial: T): [T, (v: T) => void] {
@@ -75,7 +79,7 @@ export default function PackageExplorer({
   mode, packages, allCards, canEdit, canShare, departments, currentDepartmentId,
   duplicateGroups, sourceGroupUpdatedAt, onChanged, onOptimisticQuantityChange,
   onOptimisticPackageOrder, onOptimisticItemOrder, storageKeyPrefix, onCardClick,
-  stickyTop = 0,
+  stickyTop = 0, canCopyToOwn = false,
 }: Props) {
   const pkgApi = usePackages()
   const [view, setView] = useLocalStorageState<ViewMode>(`${storageKeyPrefix}_view`, 'byPackage')
@@ -123,7 +127,12 @@ export default function PackageExplorer({
   function toggleExpand(key: string) {
     setExpanded(prev => {
       const n = new Set(prev)
-      if (n.has(key)) n.delete(key); else n.add(key)
+      if (n.has(key)) {
+        n.delete(key)
+      } else {
+        n.add(key)
+        logUsageEvent('package_expand')
+      }
       return n
     })
   }
@@ -573,6 +582,7 @@ export default function PackageExplorer({
           batchPackageId={batchPackageId}
           onToggleBatchMode={toggleBatchMode}
           onCardClick={onCardClick}
+          canCopyToOwn={canCopyToOwn}
         />
       ) : (
         <EquipmentListView

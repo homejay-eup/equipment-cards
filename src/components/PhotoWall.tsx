@@ -657,7 +657,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             </button>
             {(permissions.includes('view_quotes') || permissions.includes('edit_quotes')) && (
               <button
-                onClick={() => setActiveTab('quotes')}
+                onClick={() => { logUsageEvent('quotes_tab_switch'); setActiveTab('quotes') }}
                 title="人為配件報價"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'quotes'
@@ -688,7 +688,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             )}
             {permissions.includes('view_tracker') && (
               <button
-                onClick={() => setActiveTab('tracker')}
+                onClick={() => { logUsageEvent('tracker_tab_switch'); setActiveTab('tracker') }}
                 title="任務板"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'tracker'
@@ -705,7 +705,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             )}
             {permissions.includes('manage_documents') && (
               <button
-                onClick={() => setActiveTab('documents')}
+                onClick={() => { logUsageEvent('documents_tab_switch'); setActiveTab('documents') }}
                 title="文件管理"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'documents'
@@ -723,7 +723,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             {(permissions.includes('view_own_packages') || permissions.includes('edit_own_packages')
               || permissions.includes('share_own_packages') || permissions.includes('view_shared_packages')) && (
               <button
-                onClick={() => setActiveTab('packages')}
+                onClick={() => { logUsageEvent('packages_tab_switch'); setActiveTab('packages') }}
                 title="設備組合"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'packages'
@@ -737,7 +737,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             )}
             {permissions.includes('manage_maintenance_info') && (
               <button
-                onClick={() => setActiveTab('maintenance')}
+                onClick={() => { logUsageEvent('maintenance_tab_switch'); setActiveTab('maintenance') }}
                 title="維修資訊"
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
                   activeTab === 'maintenance'

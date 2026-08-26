@@ -71,7 +71,9 @@ export async function PATCH(
 }
 
 // ── DELETE /api/maintenance/vendors/[id] ────────────────────────
-// 刪除廠商，需先確認底下無規則（有規則則拒絕並回傳筆數），需 manage_maintenance_info
+// 刪除廠商，需 manage_maintenance_info。允許直接整個刪除：底下的 maintenance_rules
+// （及規則對料號的掛載 maintenance_rule_equipment）由 DB 端 ON DELETE CASCADE 一併清除
+// （見 _開發檔案/sql/step38-maintenance-info.sql），不在應用層另外擋。
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } },
@@ -90,19 +92,6 @@ export async function DELETE(
       .maybeSingle()
     if (vendorError) throw vendorError
     if (!vendor) return NextResponse.json({ error: '找不到廠商' }, { status: 404 })
-
-    const { count, error: countError } = await supabase
-      .from('maintenance_rules')
-      .select('id', { count: 'exact', head: true })
-      .eq('vendor_id', params.id)
-    if (countError) throw countError
-
-    if ((count ?? 0) > 0) {
-      return NextResponse.json(
-        { error: '此廠商底下尚有規則，請先處理規則後再刪除', rule_count: count },
-        { status: 409 },
-      )
-    }
 
     const { error: deleteError } = await supabase
       .from('maintenance_vendors')

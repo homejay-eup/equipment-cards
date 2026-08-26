@@ -9,6 +9,7 @@ import NewIssueDialog from '@/components/NewIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useIssueRealtime } from '@/hooks/useIssueRealtime'
 import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
+import { logUsageEvent } from '@/lib/analyticsClient'
 
 interface Props {
   initialIssues: Issue[]
@@ -365,6 +366,13 @@ export default function TrackerClient({
     setNewIssueOpen(true)
   }, [])
 
+  // Step 43：開啟議題詳情統一走這個 wrapper 記錄使用統計，跟純粹「關閉」(setSelectedIssue(null))
+  // 或 Realtime/樂觀更新同步 selectedIssue 內容的呼叫點區分開，只有「打開」才算一次事件
+  const openIssue = useCallback((issue: Issue) => {
+    logUsageEvent('issue_detail_open')
+    setSelectedIssue(issue)
+  }, [])
+
   const handleClearCompleted = useCallback(async () => {
     const completedIssues = issues.filter(i => i.status === '已完成')
     setClearingCompleted(true)
@@ -656,7 +664,7 @@ export default function TrackerClient({
             {announcements.map(i => (
               <button
                 key={i.id}
-                onClick={() => setSelectedIssue(i)}
+                onClick={() => openIssue(i)}
                 className="text-left text-sm text-[#4a3422] hover:text-[#2c1e12] hover:underline truncate"
               >
                 {i.title}
@@ -778,10 +786,10 @@ export default function TrackerClient({
                         {col.key === '已完成' ? (
                           /* 已完成欄：改用 div（避免 button 巢狀 button） */
                           <div
-                            onClick={() => setSelectedIssue(issue)}
+                            onClick={() => openIssue(issue)}
                             role="button"
                             tabIndex={0}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedIssue(issue) } }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { openIssue(issue) } }}
                             draggable={true}
                             onDragStart={() => setDraggingId(issue.id)}
                             onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null); setDragOverPosition(null) }}
@@ -839,7 +847,7 @@ export default function TrackerClient({
                         ) : (
                           /* 其他欄：維持原本 button 結構 */
                           <button
-                            onClick={() => setSelectedIssue(issue)}
+                            onClick={() => openIssue(issue)}
                             draggable={true}
                             onDragStart={() => setDraggingId(issue.id)}
                             onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverIssueId(null); setDragOverPosition(null) }}

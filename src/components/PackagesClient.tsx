@@ -67,6 +67,8 @@ export default function PackagesClient({
   const canEdit = permissions.includes('edit_own_packages')
   const canShare = permissions.includes('share_own_packages')
   const canViewShared = permissions.includes('view_shared_packages')
+  // 複製「分享給我的組合」到自己部門，靠的是「能編輯自己部門組合」的權限，跟來源組合的編輯權限無關
+  const canCopyToOwn = permissions.includes('edit_own_packages')
 
   const refreshOwn = useCallback(async () => {
     try {
@@ -232,6 +234,7 @@ export default function PackagesClient({
               storageKeyPrefix="packages_own"
               stickyTop={stickyTop}
               onCardClick={onCardClick}
+              canCopyToOwn={canCopyToOwn}
             />
           )}
         </section>
@@ -254,6 +257,7 @@ export default function PackagesClient({
             storageKeyPrefix="packages_shared"
             stickyTop={stickyTop}
             onCardClick={onCardClick}
+            canCopyToOwn={canCopyToOwn}
           />
         </section>
       )}

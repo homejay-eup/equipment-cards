@@ -10,13 +10,37 @@ function getSupabase() {
   )
 }
 
+// 取得呼叫者自己那個角色的 level（用來判斷是否有權變更「其他角色的 level」，
+// 不能只看 manage_roles 這個一般權限——level 本身就是一層更高的授權邊界，
+// 例如 admin/users/route.ts 用 level === 'super_admin' 決定能不能跨部門指派角色，
+// 若只要 manage_roles 就能把任一非系統角色（含自己所屬角色）的 level 改成
+// super_admin，manage_roles 就形同能自我提權為 super_admin，即使該角色原本只
+// 打算開放給部門管理員做角色改名/調整權限之類的局部管理）
+async function getCallerLevel(email: string): Promise<string | null> {
+  const service = getSupabase()
+  const { data: emailData } = await service
+    .from('allowed_emails')
+    .select('role')
+    .eq('email', email)
+    .single()
+  if (!emailData?.role) return null
+
+  const { data: roleData } = await service
+    .from('roles')
+    .select('level')
+    .eq('name', emailData.role)
+    .single()
+  return (roleData as { level: string | null } | null)?.level ?? null
+}
+
 // PATCH /api/roles/[id]
 // 支援更新 name 或 department_id（至少需傳入其一）
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  if (!await requirePermission('manage_roles')) {
+  const caller = await requirePermission('manage_roles')
+  if (!caller) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -29,14 +53,15 @@ export async function PATCH(
     return NextResponse.json({ error: '無效的請求內容' }, { status: 400 })
   }
 
-  const { name, department_id } = body as { name?: unknown; department_id?: unknown }
+  const { name, department_id, level } = body as { name?: unknown; department_id?: unknown; level?: unknown }
 
-  // 驗證：至少需要 name 或 department_id 其中一個
+  // 驗證：至少需要 name、department_id、level 其中一個
   const hasName = name !== undefined
   const hasDepartmentId = department_id !== undefined
+  const hasLevel = level !== undefined
 
-  if (!hasName && !hasDepartmentId) {
-    return NextResponse.json({ error: '請提供 name 或 department_id' }, { status: 400 })
+  if (!hasName && !hasDepartmentId && !hasLevel) {
+    return NextResponse.json({ error: '請提供 name、department_id 或 level' }, { status: 400 })
   }
 
   if (hasName && (typeof name !== 'string' || (name as string).trim() === '')) {
@@ -45,6 +70,21 @@ export async function PATCH(
 
   if (hasDepartmentId && department_id !== null && typeof department_id !== 'string') {
     return NextResponse.json({ error: 'department_id 必須為字串或 null' }, { status: 400 })
+  }
+
+  const VALID_LEVELS = ['super_admin', 'dept_admin', 'member', 'viewer']
+  if (hasLevel && (typeof level !== 'string' || !VALID_LEVELS.includes(level))) {
+    return NextResponse.json({ error: 'level 必須為 super_admin / dept_admin / member / viewer 其中之一' }, { status: 400 })
+  }
+
+  // level 是比一般權限更高的授權邊界（見上方 getCallerLevel 說明），只有呼叫者自己
+  // 本身就是 super_admin 才能變更任何角色（含自己所屬角色）的 level，避免只靠
+  // manage_roles 權限自我提權
+  if (hasLevel) {
+    const callerLevel = await getCallerLevel(caller.email!)
+    if (callerLevel !== 'super_admin') {
+      return NextResponse.json({ error: '只有管理員層級（super_admin）才能修改角色層級' }, { status: 403 })
+    }
   }
 
   const supabase = getSupabase()
@@ -71,15 +111,22 @@ export async function PATCH(
     return NextResponse.json({ error: '找不到角色' }, { status: 404 })
   }
 
+  // 系統角色（如「管理員」）的核心權限保護（見 /api/roles/[id]/permissions）是用
+  // is_system && level === 'super_admin' 判斷，若允許改掉系統角色的 level 會讓這條保護失效
+  if (hasLevel && (role as { is_system: boolean }).is_system) {
+    return NextResponse.json({ error: '系統角色的層級不可修改' }, { status: 403 })
+  }
+
   const updateFields: Record<string, unknown> = {}
   if (hasName) updateFields.name = (name as string).trim()
   if (hasDepartmentId) updateFields.department_id = (department_id as string | null)
+  if (hasLevel) updateFields.level = level as string
 
   const { data: updated, error: updateError } = await supabase
     .from('roles')
     .update(updateFields)
     .eq('id', id)
-    .select('id, name, department_id')
+    .select('id, name, department_id, level')
     .single()
 
   if (updateError) {

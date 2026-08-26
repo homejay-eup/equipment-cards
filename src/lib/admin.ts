@@ -165,6 +165,17 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
     assignable_role_names: string[] | null
   }
 
+  // super_admin 一律看到全部角色，不管 assignable_role_names 是否有明確設定
+  // （若放在下面的「明確設定清單優先」分支之後，assignable_role_names 一旦被設過就會
+  // 卡住舊清單，新建立的角色永遠不會出現在 super_admin 可指派範圍內）
+  if (level === 'super_admin') {
+    const { data } = await service
+      .from('roles')
+      .select('id, name, is_system, department_id, level')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+    return (data ?? []) as AssignableRoleRow[]
+  }
+
   // 優先：明確設定的清單
   if (assignable_role_names && assignable_role_names.length > 0) {
     const { data } = await service
@@ -176,14 +187,6 @@ export async function getAssignableRolesData(userEmail: string): Promise<Assigna
   }
 
   // Fallback：依 level
-  if (level === 'super_admin') {
-    const { data } = await service
-      .from('roles')
-      .select('id, name, is_system, department_id, level')
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    return (data ?? []) as AssignableRoleRow[]
-  }
-
   if (level === 'dept_admin') {
     if (!department_id) return []
     const { data } = await service

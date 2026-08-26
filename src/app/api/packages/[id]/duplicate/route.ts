@@ -28,12 +28,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { data: source } = await supabase
       .from('equipment_packages')
-      .select('id, department_id, package_items(equipment_id, quantity, sort_order)')
+      .select('id, department_id, package_items(equipment_id, quantity, sort_order), package_shared_departments(department_id)')
       .eq('id', params.id)
       .single()
 
     if (!source) return NextResponse.json({ error: '找不到組合' }, { status: 404 })
-    if (source.department_id !== departmentId) {
+
+    // 允許複製：來源組合屬於呼叫者部門，或來源組合已分享給呼叫者部門
+    // （複製只讀取來源內容、不修改來源，所以不需要對來源有編輯權限）
+    const sharedDeptIds = (source.package_shared_departments ?? []).map(
+      (d: { department_id: string }) => d.department_id,
+    )
+    const isOwnPackage = source.department_id === departmentId
+    const isSharedWithCaller = sharedDeptIds.includes(departmentId)
+    if (!isOwnPackage && !isSharedWithCaller) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

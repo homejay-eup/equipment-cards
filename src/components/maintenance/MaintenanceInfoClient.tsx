@@ -194,18 +194,17 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   }
 
   function handleDeleteVendor(vendor: MaintenanceVendor) {
+    const ruleCount = vendor.rule_count ?? 0
     askConfirm({
       title: `刪除廠商「${vendor.name}」？`,
-      message: '此操作無法還原。',
+      message: ruleCount > 0
+        ? `此操作無法還原，底下 ${ruleCount} 筆規則（含掛載的料號關聯）將一併刪除。`
+        : '此操作無法還原。',
       onConfirm: async () => {
         const res = await fetch(`/api/maintenance/vendors/${vendor.id}`, { method: 'DELETE' })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
-          if (res.status === 409) {
-            alert(`此廠商底下尚有 ${data?.rule_count ?? 0} 筆規則，請先處理規則後再刪除`)
-          } else {
-            alert(data?.error ?? '刪除失敗，請重試')
-          }
+          alert(data?.error ?? '刪除失敗，請重試')
           return
         }
         if (selectedVendorId === vendor.id) setSelectedVendorId(null)

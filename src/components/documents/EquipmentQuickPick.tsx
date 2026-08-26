@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Fuse from 'fuse.js'
 import { Search, Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
@@ -22,6 +23,7 @@ export default function EquipmentQuickPick({
   const [submitting, setSubmitting] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; maxHeight: number }>({ left: 0, maxHeight: 320 })
 
   // 比照 SettingsPopover/DatePicker：改 fixed 定位（依按鈕位置動態計算），
@@ -50,7 +52,9 @@ export default function EquipmentQuickPick({
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (dropRef.current?.contains(e.target as Node)) return
+      if (ref.current?.contains(e.target as Node)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
@@ -106,8 +110,9 @@ export default function EquipmentQuickPick({
         <Search className="h-3 w-3" />
         + 新增料卡
       </button>
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div
+          ref={dropRef}
           style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
           className="w-64 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
           <div className="p-2 border-b border-[rgba(122,82,48,.1)] shrink-0">
@@ -146,7 +151,8 @@ export default function EquipmentQuickPick({
               確認新增（已選 {selectedIds.size}）
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

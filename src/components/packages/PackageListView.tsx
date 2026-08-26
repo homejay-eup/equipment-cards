@@ -25,7 +25,7 @@ export default function PackageListView({
   setDuplicateTarget, askDeleteSingle,
   canReorderPackages, draggingPackageId, dragOverPackageId, dragOverPackagePosition,
   onPackageDragStart, onPackageDragEnd, onPackageDragOver, onPackageDragLeave, onPackageDrop,
-  onReorderItems, batchPackageId, onToggleBatchMode, onCardClick,
+  onReorderItems, batchPackageId, onToggleBatchMode, onCardClick, canCopyToOwn = false,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
   allCards: EquipmentCard[]
@@ -75,6 +75,9 @@ export default function PackageListView({
   batchPackageId: string | null
   onToggleBatchMode: (packageId: string) => void
   onCardClick: (card: EquipmentCard) => void
+  // 是否能把「分享給我的組合」複製一份到自己部門；own 模式靠既有 canEdit 顯示複製按鈕，
+  // shared 模式（isShared === true）改靠這個 prop 顯示（複製到自己部門不需要來源組合的編輯權限）
+  canCopyToOwn?: boolean
 }) {
   // 組合內料卡拖曳的暫存狀態：只在拖曳互動期間需要，不用往上層 PackageExplorer 傳，
   // 邏輯跟 GroupsPanel.tsx 的 draggingItem/dragOverItem 平行
@@ -170,39 +173,48 @@ export default function PackageListView({
                   </span>
                 )}
                 <span className="text-[#a08060] flex-shrink-0">{pkg.package_items.length} 筆</span>
-                {!isShared && canEdit && renamingId !== pkg.id && (
-                  <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {display === 'photo' && pkg.package_items.length > 0 && (
-                      <button
-                        onClick={() => onToggleBatchMode(pkg.id)}
-                        className={`p-1 transition-colors rounded ${
-                          batchPackageId === pkg.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
-                        }`}
-                        title={batchPackageId === pkg.id ? '取消批次選取' : '批次選取'}
-                      >
-                        <CheckSquare className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <div className="hidden sm:flex items-center gap-0.5">
-                      <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => askDeleteSingle(pkg)} title="刪除組合" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                {(() => {
+                  const canEditThis = !isShared && canEdit
+                  const canCopyThis = canEditThis || (isShared && canCopyToOwn)
+                  if (!canCopyThis || renamingId === pkg.id) return null
+                  return (
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {canEditThis && display === 'photo' && pkg.package_items.length > 0 && (
+                        <button
+                          onClick={() => onToggleBatchMode(pkg.id)}
+                          className={`p-1 transition-colors rounded ${
+                            batchPackageId === pkg.id ? 'text-[#7a5230] bg-[rgba(122,82,48,.1)]' : 'text-[#a08060] hover:text-[#7a5230]'
+                          }`}
+                          title={batchPackageId === pkg.id ? '取消批次選取' : '批次選取'}
+                        >
+                          <CheckSquare className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <div className="hidden sm:flex items-center gap-0.5">
+                        {canEditThis && (
+                          <button onClick={() => startRename(pkg)} title="重命名" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button onClick={() => setDuplicateTarget(pkg)} title="複製組合" className="p-1 text-[#a08060] hover:text-[#7a5230] transition-colors">
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                        {canEditThis && (
+                          <button onClick={() => askDeleteSingle(pkg)} title="刪除組合" className="p-1 text-[#a08060] hover:text-red-500 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="sm:hidden">
+                        <PackageRowMenu
+                          onRename={canEditThis ? () => startRename(pkg) : undefined}
+                          onDuplicate={() => setDuplicateTarget(pkg)}
+                          onDelete={canEditThis ? () => askDeleteSingle(pkg) : undefined}
+                        />
+                      </div>
                     </div>
-                    <div className="sm:hidden">
-                      <PackageRowMenu
-                        onRename={() => startRename(pkg)}
-                        onDuplicate={() => setDuplicateTarget(pkg)}
-                        onDelete={() => askDeleteSingle(pkg)}
-                      />
-                    </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
             </div>
 
@@ -352,9 +364,9 @@ export default function PackageListView({
 function PackageRowMenu({
   onRename, onDuplicate, onDelete,
 }: {
-  onRename: () => void
+  onRename?: () => void
   onDuplicate: () => void
-  onDelete: () => void
+  onDelete?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -398,18 +410,22 @@ function PackageRowMenu({
           style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, right: pos.right, zIndex: 9999 }}
           className="w-32 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden text-xs"
         >
-          <button type="button" onClick={() => { setOpen(false); onRename() }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-left text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] transition-colors">
-            <Pencil className="h-3 w-3" /> 重命名
-          </button>
+          {onRename && (
+            <button type="button" onClick={() => { setOpen(false); onRename() }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-left text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] transition-colors">
+              <Pencil className="h-3 w-3" /> 重命名
+            </button>
+          )}
           <button type="button" onClick={() => { setOpen(false); onDuplicate() }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-left text-[#4a3422] hover:bg-[rgba(122,82,48,.06)] transition-colors">
             <Copy className="h-3 w-3" /> 複製組合
           </button>
-          <button type="button" onClick={() => { setOpen(false); onDelete() }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-left text-red-500 hover:bg-[rgba(181,69,27,.06)] transition-colors">
-            <Trash2 className="h-3 w-3" /> 刪除組合
-          </button>
+          {onDelete && (
+            <button type="button" onClick={() => { setOpen(false); onDelete() }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-left text-red-500 hover:bg-[rgba(181,69,27,.06)] transition-colors">
+              <Trash2 className="h-3 w-3" /> 刪除組合
+            </button>
+          )}
         </div>
       )}
     </div>

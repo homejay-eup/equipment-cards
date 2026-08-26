@@ -148,6 +148,14 @@ const PACKAGE_PERMS = [
   'view_shared_packages',
 ] as const
 
+// Step 43：事後可修改角色層級。系統角色（is_system）後端會擋掉層級變更，UI 對應顯示唯讀文字。
+const LEVEL_LABELS: Record<string, string> = {
+  viewer: '一般',
+  member: '成員',
+  dept_admin: '部門管理員',
+  super_admin: '管理員',
+}
+
 const DEPT_GROUP_LABELS: Record<string, string> = {
   admin:        '管理',
   tech:         '技師',
@@ -219,6 +227,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
   const [draftPerms, setDraftPerms] = useState<Record<string, string[]>>({})
 
   const [draftAssignable, setDraftAssignable] = useState<Record<string, string[] | null>>({})
+  const [draftLevel, setDraftLevel] = useState<Record<string, string>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const [savingDefaultId, setSavingDefaultId] = useState<string | null>(null)
@@ -244,6 +253,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
           ...d,
           [id]: role.assignable_role_names ?? getDefaultAssignable(role, roles),
         }))
+        setDraftLevel(d => ({ ...d, [id]: role.level ?? 'viewer' }))
       }
       return next
     })
@@ -303,8 +313,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     setSaveError(null)
     setPermError(null)
     try {
-      // 同時呼叫兩個 API
-      await Promise.all([
+      const calls: Promise<void>[] = [
         (async () => {
           const draft = getDraft(role)
           let safePerms = draft
@@ -326,10 +335,27 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
           setRoles(prev => prev.map(r => r.id === role.id ? { ...r, permissions: safePerms } : r))
         })(),
         saveAssignableOnly(role),
-      ])
+      ]
+      // 層級：系統角色後端會擋掉（403），不送這個角色的層級異動；非系統角色才需要真的變更時才呼叫
+      const draftL = draftLevel[role.id]
+      if (!role.is_system && draftL !== undefined && draftL !== (role.level ?? 'viewer')) {
+        calls.push((async () => {
+          const res = await fetch(`/api/roles/${role.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level: draftL }),
+          })
+          if (!res.ok) {
+            const d = await res.json()
+            throw new Error(d.error ?? '層級更新失敗')
+          }
+          setRoles(prev => prev.map(r => r.id === role.id ? { ...r, level: draftL } : r))
+        })())
+      }
+      await Promise.all(calls)
       // Step 40：改為嵌在首頁「系統管理」分頁的 client 元件，不再是獨立 /admin/roles 路由，
       // router.refresh() 對它已無意義（沒有 Server Component 可重新執行）。
-      // setRoles(...) 已同步更新 permissions/assignable_role_names，畫面資料已完整，故直接移除。
+      // setRoles(...) 已同步更新 permissions/assignable_role_names/level，畫面資料已完整，故直接移除。
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '儲存失敗，請重試')
     } finally {
@@ -341,16 +367,24 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
     return draftPerms[role.id] ?? role.permissions
   }
 
+  function getDraftLevel(role: RoleData): string {
+    return draftLevel[role.id] ?? role.level ?? 'viewer'
+  }
+
   function isDirty(role: RoleData): boolean {
     const draftP = draftPerms[role.id]
     const draftA = draftAssignable[role.id]
-    if (draftP === undefined && draftA === undefined) return false
+    const draftL = draftLevel[role.id]
+    if (draftP === undefined && draftA === undefined && draftL === undefined) return false
     if (draftP !== undefined) {
       if (JSON.stringify([...draftP].sort()) !== JSON.stringify([...role.permissions].sort())) return true
     }
     if (draftA !== undefined) {
       const orig = role.assignable_role_names ?? getDefaultAssignable(role, roles)
       if (JSON.stringify([...(draftA ?? [])].sort()) !== JSON.stringify([...orig].sort())) return true
+    }
+    if (draftL !== undefined && !role.is_system) {
+      if (draftL !== (role.level ?? 'viewer')) return true
     }
     return false
   }
@@ -416,6 +450,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
       ...d,
       [role.id]: role.assignable_role_names ?? getDefaultAssignable(role, roles),
     }))
+    setDraftLevel(d => ({ ...d, [role.id]: role.level ?? 'viewer' }))
     setPermError(null)
     setSaveError(null)
   }
@@ -1232,6 +1267,29 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                       )
                     })}
                   </div>
+                </div>
+
+                {/* 層級 */}
+                <div className="mt-4 pt-4 border-t border-[rgba(122,82,48,.08)]">
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-1">層級</p>
+                  {role.is_system ? (
+                    <p className="text-sm text-[#4a3422]">
+                      {LEVEL_LABELS[role.level ?? ''] ?? role.level ?? '未設定'}
+                      <span className="ml-1.5 text-[10px] text-[#a08060]">（系統角色，層級不可修改）</span>
+                    </p>
+                  ) : (
+                    <select
+                      value={getDraftLevel(role)}
+                      onChange={e => setDraftLevel(d => ({ ...d, [role.id]: e.target.value }))}
+                      disabled={isSavingPerm}
+                      className="w-full max-w-[200px] border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-white focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] disabled:opacity-50 transition-all"
+                    >
+                      <option value="viewer">一般</option>
+                      <option value="member">成員</option>
+                      <option value="dept_admin">部門管理員</option>
+                      <option value="super_admin">管理員</option>
+                    </select>
+                  )}
                 </div>
 
                 {/* 可指派角色 */}
