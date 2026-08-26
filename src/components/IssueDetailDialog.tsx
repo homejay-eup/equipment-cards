@@ -615,7 +615,7 @@ export default function IssueDetailDialog({
                     }
                   }}
                   placeholder="新增更新紀錄…（可貼上圖片或 Excel/表格範圍，Ctrl+Enter 送出）"
-                  rows={2}
+                  rows={10}
                   className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
                 />
 

@@ -76,6 +76,7 @@ export default function TrackerClient({
 }: Props) {
   const hasMutatedRef = useRef(false)
   const recentMutationIdsRef = useRef<Map<string, number>>(new Map())
+  const dragClientYRef = useRef<number | null>(null)
   const searchParams = useSearchParams()
 
   function markMutation(id: string) {
@@ -163,6 +164,33 @@ export default function TrackerClient({
   useEffect(() => {
     try { localStorage.setItem('trackerShowFilters', String(showFilters)) } catch {}
   }, [showFilters])
+
+  // 拖曳中自動捲動：卡片/欄位的 onDragOver 有 e.stopPropagation()，事件不會冒泡到
+  // window，所以改用 dragClientYRef（在既有 onDragOver handler 裡更新）搭配 rAF 迴圈，
+  // 游標靠近視窗上/下緣時自動捲動，解決欄位卡片一多、拖曳目標超出可視範圍就卡住的問題
+  useEffect(() => {
+    if (!draggingId) return
+    const EDGE = 80
+    const MAX_SPEED = 18
+    let rafId: number
+    const tick = () => {
+      const y = dragClientYRef.current
+      if (y !== null) {
+        const vh = window.innerHeight
+        if (y < EDGE) {
+          window.scrollBy(0, -MAX_SPEED * (1 - y / EDGE))
+        } else if (y > vh - EDGE) {
+          window.scrollBy(0, MAX_SPEED * (1 - (vh - y) / EDGE))
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(rafId)
+      dragClientYRef.current = null
+    }
+  }, [draggingId])
 
   const hasActiveFilters = !!(filterPriority || filterAssignee)
   const activeFilterCount = (filterPriority ? 1 : 0) + (filterAssignee ? 1 : 0)
@@ -702,7 +730,7 @@ export default function TrackerClient({
               className={`bg-[#ede5db] rounded-xl border shadow-sm flex-col transition-colors ${
                 col.key !== activeCol ? 'hidden sm:flex' : 'flex'
               } ${dragOverCol === col.key ? 'border-2 border-[#c49a72]' : 'border border-[rgba(122,82,48,.20)]'}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); setDragOverIssueId(null); setDragOverPosition(null) }}
+              onDragOver={(e) => { e.preventDefault(); dragClientYRef.current = e.clientY; setDragOverCol(col.key); setDragOverIssueId(null); setDragOverPosition(null) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null)
               }}
@@ -760,6 +788,7 @@ export default function TrackerClient({
                             onDragOver={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
+                              dragClientYRef.current = e.clientY
                               setDragOverCol(col.key)
                               if (draggingId) {
                                 const dragged = issues.find(i => i.id === draggingId)
@@ -817,6 +846,7 @@ export default function TrackerClient({
                             onDragOver={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
+                              dragClientYRef.current = e.clientY
                               setDragOverCol(col.key)
                               if (draggingId) {
                                 const dragged = issues.find(i => i.id === draggingId)
