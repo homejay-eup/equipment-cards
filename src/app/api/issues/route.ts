@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
+import { validateRichContent } from '@/lib/richContentValidation'
 
 function getSupabase() {
   return createClient(
@@ -58,9 +59,10 @@ export async function GET(req: NextRequest) {
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
+        description_image_urls, description_table_data,
         created_by, created_at, updated_at, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, image_urls, table_data, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at, updated_at)
       `)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -118,13 +120,28 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { title, type, priority, status, due_date, description, tags, assignees } = body
+    const {
+      title, type, priority, status, due_date, description, tags, assignees,
+      description_image_urls, description_table_data,
+    } = body
 
     if (!title?.trim()) {
       return NextResponse.json({ error: '標題為必填' }, { status: 400 })
     }
     if (!type?.trim()) {
       return NextResponse.json({ error: '類型為必填' }, { status: 400 })
+    }
+
+    // 共用驗證（跟 issue_updates 的貼圖/貼表格規則一致），套用在「說明」欄位。
+    // 跟更新紀錄不同：這裡不要求三者至少一項非空，因為 description 整組本身是選填欄位
+    // （title 已經是必填內容）。
+    const descriptionValidation = validateRichContent({
+      content: description,
+      image_urls: description_image_urls,
+      table_data: description_table_data,
+    })
+    if (!descriptionValidation.ok) {
+      return NextResponse.json({ error: descriptionValidation.error }, { status: descriptionValidation.status })
     }
 
     const supabase = getSupabase()
@@ -159,7 +176,9 @@ export async function POST(req: NextRequest) {
         priority: priority ?? 'medium',
         status: status ?? '待處理',
         due_date: due_date ?? null,
-        description: description?.trim() ?? null,
+        description: descriptionValidation.content,
+        description_image_urls: descriptionValidation.images,
+        description_table_data: descriptionValidation.table,
         tags: Array.isArray(tags) ? tags : [],
         created_by: user.email!,
         department_id: creatorDepartmentId,

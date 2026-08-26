@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { v2 as cloudinary } from 'cloudinary'
 import { requirePermission, getUserRoleWithPermissions } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateRichContent } from '@/lib/richContentValidation'
 
 function getSupabase() {
   return createClient(
@@ -51,9 +52,10 @@ export async function GET(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
+        description_image_urls, description_table_data,
         created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, image_urls, table_data, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at, updated_at)
       `)
       .eq('id', params.id)
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
@@ -112,7 +114,10 @@ export async function PATCH(
     const isAuthor = issue.created_by === user.email
 
     const body = await req.json()
-    const { title, type, priority, status, due_date, description, tags, assignees, is_pinned } = body
+    const {
+      title, type, priority, status, due_date, description, tags, assignees, is_pinned,
+      description_image_urls, description_table_data,
+    } = body
 
     // 狀態更新（拖曳換欄）：有 view_tracker 即可，部門成員都能操作
     // 其他欄位更新：本人 或 有 create_issues
@@ -121,7 +126,8 @@ export async function PATCH(
       (status !== undefined || is_pinned !== undefined) &&
       title === undefined && type === undefined && priority === undefined &&
       due_date === undefined && description === undefined && tags === undefined &&
-      assignees === undefined
+      assignees === undefined &&
+      description_image_urls === undefined && description_table_data === undefined
 
     if (!onlyStatusOrPinUpdate && !hasFullEdit) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -133,8 +139,23 @@ export async function PATCH(
       if (type !== undefined) updateFields.type = type.trim()
       if (priority !== undefined) updateFields.priority = priority
       if (due_date !== undefined) updateFields.due_date = due_date ?? null
-      if (description !== undefined) updateFields.description = description?.trim() ?? null
       if (tags !== undefined) updateFields.tags = Array.isArray(tags) ? tags : []
+
+      // description 整組（文字＋圖片＋表格）共用同一套驗證規則，跟 issue_updates 一致；
+      // 只有呼叫端有送這三者之一時才驗證/寫入，避免沒送的欄位被誤覆蓋成空值。
+      if (description !== undefined || description_image_urls !== undefined || description_table_data !== undefined) {
+        const descriptionValidation = validateRichContent({
+          content: description,
+          image_urls: description_image_urls,
+          table_data: description_table_data,
+        })
+        if (!descriptionValidation.ok) {
+          return NextResponse.json({ error: descriptionValidation.error }, { status: descriptionValidation.status })
+        }
+        if (description !== undefined) updateFields.description = descriptionValidation.content
+        if (description_image_urls !== undefined) updateFields.description_image_urls = descriptionValidation.images
+        if (description_table_data !== undefined) updateFields.description_table_data = descriptionValidation.table
+      }
     }
     if (status !== undefined) {
       updateFields.status = status
@@ -190,9 +211,10 @@ export async function PATCH(
       .from('issues')
       .select(`
         id, title, type, priority, status, due_date, description, tags,
+        description_image_urls, description_table_data,
         created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
         issue_assignees(user_email),
-        issue_updates(id, content, image_urls, table_data, created_by, created_at)
+        issue_updates(id, content, image_urls, table_data, created_by, created_at, updated_at)
       `)
       .eq('id', params.id)
       .order('created_at', { referencedTable: 'issue_updates', ascending: false })
@@ -225,7 +247,7 @@ export async function DELETE(
 
     const { data: issue, error: fetchError } = await adminClient
       .from('issues')
-      .select('id, created_by')
+      .select('id, created_by, description_image_urls')
       .eq('id', params.id)
       .single()
 
@@ -239,16 +261,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // 刪除議題前先撈出所有更新紀錄的圖片，best effort 清除 Cloudinary（避免孤兒圖片累積）。
-    // 這是不可逆的破壞性操作，使用者已在前端 ConfirmDialog 確認過，這裡不需要把 Cloudinary
-    // 清除的成功/失敗結果額外回報給前端（跟單筆刪除更新紀錄的情境不同）。
+    // 刪除議題前先撈出議題本身「說明」欄位的圖片＋所有更新紀錄的圖片，best effort 清除
+    // Cloudinary（避免孤兒圖片累積）。這是不可逆的破壞性操作，使用者已在前端 ConfirmDialog
+    // 確認過，這裡不需要把 Cloudinary 清除的成功/失敗結果額外回報給前端
+    // （跟單筆刪除更新紀錄的情境不同）。
     const { data: updatesWithImages } = await adminClient
       .from('issue_updates')
       .select('image_urls')
       .eq('issue_id', params.id)
 
-    const allImages = (updatesWithImages ?? [])
-      .flatMap((u) => (u.image_urls ?? []) as { public_id: string; url: string }[])
+    const descriptionImages = (issue.description_image_urls ?? []) as { public_id: string; url: string }[]
+    const allImages = [
+      ...descriptionImages,
+      ...(updatesWithImages ?? []).flatMap((u) => (u.image_urls ?? []) as { public_id: string; url: string }[]),
+    ]
 
     if (allImages.length > 0) {
       const results = await Promise.allSettled(

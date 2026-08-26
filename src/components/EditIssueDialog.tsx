@@ -5,6 +5,9 @@ import { X, Check, Save } from 'lucide-react'
 import type { Issue } from '@/app/tracker/page'
 import SettingsPopover from '@/components/SettingsPopover'
 import DatePicker from '@/components/DatePicker'
+import RichContentEditor from '@/components/tracker/RichContentEditor'
+import type { PendingImage, TableData } from '@/components/tracker/richContentTypes'
+import { useUpdateAttachmentUpload } from '@/hooks/useUpdateAttachmentUpload'
 
 interface Props {
   open: boolean
@@ -29,6 +32,12 @@ export default function EditIssueDialog({
   const [status, setStatus] = useState(issue.status)
   const [dueDate, setDueDate] = useState(issue.due_date ?? '')
   const [description, setDescription] = useState(issue.description ?? '')
+  const [descriptionImages, setDescriptionImages] = useState<PendingImage[]>(
+    (issue.description_image_urls ?? []).map((img) => ({
+      tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url,
+    })),
+  )
+  const [descriptionTable, setDescriptionTable] = useState<TableData | null>(issue.description_table_data ?? null)
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>(issue.assignee_emails)
   const [selectedTags, setSelectedTags] = useState<string[]>(issue.tags)
   const [localIssueTypes, setLocalIssueTypes] = useState<string[]>(
@@ -38,6 +47,8 @@ export default function EditIssueDialog({
   const [error, setError] = useState<string | null>(null)
   const [assigneeInput, setAssigneeInput] = useState('')
 
+  const { upload: uploadDescriptionImage } = useUpdateAttachmentUpload('/api/issues/description-signature')
+
   // Reset form when issue changes
   useEffect(() => {
     setTitle(issue.title)
@@ -46,6 +57,10 @@ export default function EditIssueDialog({
     setStatus(issue.status)
     setDueDate(issue.due_date ?? '')
     setDescription(issue.description ?? '')
+    setDescriptionImages((issue.description_image_urls ?? []).map((img) => ({
+      tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url,
+    })))
+    setDescriptionTable(issue.description_table_data ?? null)
     setSelectedAssignees(issue.assignee_emails)
     setSelectedTags(issue.tags)
     setLocalIssueTypes(issueTypes.includes(issue.type) ? issueTypes : [...issueTypes, issue.type])
@@ -93,6 +108,10 @@ export default function EditIssueDialog({
 
     const originalIssue = issue
 
+    const descriptionImageUrls = descriptionImages
+      .filter((p) => p.public_id && p.url)
+      .map((p) => ({ public_id: p.public_id!, url: p.url! }))
+
     const optimisticIssue: Issue = {
       ...issue,
       title: title.trim(),
@@ -101,6 +120,8 @@ export default function EditIssueDialog({
       status,
       due_date: dueDate || null,
       description: description.trim() || null,
+      description_image_urls: descriptionImageUrls,
+      description_table_data: descriptionTable,
       tags: selectedTags,
       assignee_emails: selectedAssignees,
       assignees: selectedAssignees.map((e) => e.split('@')[0]),
@@ -121,6 +142,8 @@ export default function EditIssueDialog({
           status,
           due_date: dueDate || null,
           description: description.trim() || null,
+          description_image_urls: descriptionImageUrls,
+          description_table_data: descriptionTable,
           tags: selectedTags,
           assignees: selectedAssignees,
         }),
@@ -144,7 +167,7 @@ export default function EditIssueDialog({
     } catch {
       onUpdated(originalIssue)
     }
-  }, [title, type, priority, status, dueDate, description, selectedTags, selectedAssignees, issue, onUpdated, onClose, pendingTypes, onTypesChange])
+  }, [title, type, priority, status, dueDate, description, descriptionImages, descriptionTable, selectedTags, selectedAssignees, issue, onUpdated, onClose, pendingTypes, onTypesChange])
 
   if (!open) return null
 
@@ -245,11 +268,15 @@ export default function EditIssueDialog({
           {/* 說明 */}
           <div>
             <label className="text-xs font-semibold text-[#6b4f38] mb-1.5 block">說明</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <RichContentEditor
+              content={description}
+              onContentChange={setDescription}
+              images={descriptionImages}
+              onImagesChange={setDescriptionImages}
+              table={descriptionTable}
+              onTableChange={setDescriptionTable}
+              uploadImage={uploadDescriptionImage}
               rows={5}
-              className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
             />
           </div>
 
@@ -399,7 +426,8 @@ export default function EditIssueDialog({
           <button
             type="button"
             onClick={() => handleSubmit()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 transition-colors"
+            disabled={descriptionImages.some((p) => p.uploading)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Save className="h-3.5 w-3.5" />
             儲存

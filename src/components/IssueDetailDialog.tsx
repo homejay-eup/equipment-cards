@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { X, Loader2, Pencil, Trash2, Pin, Send } from 'lucide-react'
+import { X, Loader2, Pencil, Trash2, Pin, Send, Save } from 'lucide-react'
 import type { Issue, IssueUpdate } from '@/app/tracker/page'
 import EditIssueDialog from '@/components/EditIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import UpdateImageLightbox from '@/components/UpdateImageLightbox'
 import { useUpdateAttachmentUpload } from '@/hooks/useUpdateAttachmentUpload'
+import RichContentEditor from '@/components/tracker/RichContentEditor'
+import RichContentView from '@/components/tracker/RichContentView'
+import type { PendingImage, TableData } from '@/components/tracker/richContentTypes'
 
 interface Props {
   open: boolean
@@ -23,16 +26,6 @@ interface Props {
   onDeleted: (issueId: string) => void
   onTypesChange?: (types: string[]) => void
 }
-
-interface PendingImage {
-  tempId: string
-  uploading: boolean
-  public_id?: string
-  url?: string
-  error?: string
-}
-
-type TableData = { rows: string[][]; hasHeader: boolean }
 
 const PRIORITY_PILL: Record<string, { label: string; cls: string }> = {
   high:   { label: '緊急', cls: 'bg-red-50 text-red-600 border border-red-200' },
@@ -57,70 +50,6 @@ function formatDatetime(dateStr: string): string {
   return `${y}/${mo}/${day} ${h}:${mi}`
 }
 
-// 貼上偵測用：Excel/Google Sheets 複製表格範圍時 clipboard 的 text/html 會帶 <table>。
-// 解析成結構化列×欄資料；第一列若全是 <th> 視為表頭。
-function parseHtmlTable(html: string): TableData | null {
-  if (!/<table/i.test(html)) return null
-  try {
-    const doc = new DOMParser().parseFromString(html, 'text/html')
-    const table = doc.querySelector('table')
-    if (!table) return null
-    const rows: string[][] = []
-    let hasHeader = false
-    const trList = Array.from(table.querySelectorAll('tr'))
-    trList.forEach((tr, idx) => {
-      const cells = Array.from(tr.children).filter(
-        (el): el is HTMLTableCellElement => el.tagName === 'TD' || el.tagName === 'TH',
-      )
-      if (cells.length === 0) return
-      rows.push(cells.map((td) => (td.textContent ?? '').replace(/\s+/g, ' ').trim()))
-      if (idx === 0 && cells.every((c) => c.tagName === 'TH')) hasHeader = true
-    })
-    return rows.length > 0 ? { rows, hasHeader } : null
-  } catch {
-    return null
-  }
-}
-
-// 真表格渲染（非簡易文字表格），更新紀錄的送出預覽與清單顯示共用。
-function UpdateTable({ data }: { data: TableData }) {
-  const { rows, hasHeader } = data
-  const headerRow = hasHeader ? rows[0] : null
-  const bodyRows = hasHeader ? rows.slice(1) : rows
-  return (
-    <table className="w-full text-xs border-collapse">
-      {headerRow && (
-        <thead>
-          <tr>
-            {headerRow.map((cell, i) => (
-              <th
-                key={i}
-                className="border border-[rgba(122,82,48,.15)] bg-[rgba(122,82,48,.06)] px-2 py-1.5 text-left font-semibold text-[#6b4f38] whitespace-pre-wrap"
-              >
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-      )}
-      <tbody>
-        {bodyRows.map((row, ri) => (
-          <tr key={ri}>
-            {row.map((cell, ci) => (
-              <td
-                key={ci}
-                className="border border-[rgba(122,82,48,.1)] px-2 py-1.5 text-[#4a3422] whitespace-pre-wrap"
-              >
-                {cell}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
 export default function IssueDetailDialog({
   open, issue, permissions, userEmail, allowedEmails,
   issueTypes, issueTags, onClose, onUpdated, onDeleteStart, onDeleteRollback, onDeleted, onTypesChange,
@@ -138,10 +67,9 @@ export default function IssueDetailDialog({
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<{ images: { public_id: string; url: string }[]; index: number } | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { upload: uploadAttachment } = useUpdateAttachmentUpload(issue.id)
+  const { upload: uploadAttachment } = useUpdateAttachmentUpload(`/api/issues/${issue.id}/updates/signature`)
 
   const canCreateIssues = permissions.includes('create_issues')
   const canEditIssue = permissions.includes('tracker_edit_issue')
@@ -151,6 +79,13 @@ export default function IssueDetailDialog({
   const canDelete = isAuthor || canCreateIssues
 
   const [deletingUpdateId,     setDeletingUpdateId]     = useState<string | null>(null)
+
+  // Step 42：更新紀錄「修改」——同一時間只允許編輯一筆，帶入現有文字/圖片/表格
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [editImages, setEditImages] = useState<PendingImage[]>([])
+  const [editTable, setEditTable] = useState<TableData | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -170,6 +105,10 @@ export default function IssueDetailDialog({
     setUpdateContent('')
     setPendingImages([])
     setPendingTable(null)
+    setEditingUpdateId(null)
+    setEditContent('')
+    setEditImages([])
+    setEditTable(null)
 
     const hasInitialData = Array.isArray(issue.issue_updates)
     if (hasInitialData) {
@@ -208,47 +147,13 @@ export default function IssueDetailDialog({
     fetchUpdates()
   }, [open, issue.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 貼上偵測：圖片(image/*) → 上傳；表格(text/html 內含 <table>) → 解析成結構化資料。
-  // 純文字貼上不攔截，交給瀏覽器預設行為直接插入 textarea。
-  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items
-    const imageFiles: File[] = []
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const file = item.getAsFile()
-        if (file) imageFiles.push(file)
-      }
-    }
-    const html = e.clipboardData.getData('text/html')
-    const parsedTable = html ? parseHtmlTable(html) : null
-
-    if (imageFiles.length === 0 && !parsedTable) return // 純文字：交給預設行為
-
-    e.preventDefault()
-
-    if (parsedTable) setPendingTable(parsedTable)
-
-    for (const file of imageFiles) {
-      const tempId = `pending-img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      setPendingImages((prev) => [...prev, { tempId, uploading: true }])
-      const result = await uploadAttachment(file)
-      setPendingImages((prev) => prev.map((p) => {
-        if (p.tempId !== tempId) return p
-        return result
-          ? { ...p, uploading: false, public_id: result.public_id, url: result.url }
-          : { ...p, uploading: false, error: '上傳失敗' }
-      }))
-    }
-  }, [uploadAttachment])
-
-  const removePendingImage = useCallback((tempId: string) => {
-    setPendingImages((prev) => prev.filter((p) => p.tempId !== tempId))
-  }, [])
-
   const hasUploadedImage = pendingImages.some((p) => p.public_id && p.url)
   const isUploadingAny = pendingImages.some((p) => p.uploading)
   const canSubmitUpdate = (updateContent.trim().length > 0 || hasUploadedImage || !!pendingTable) && !isUploadingAny
+
+  const hasEditUploadedImage = editImages.some((p) => p.public_id && p.url)
+  const isEditUploadingAny = editImages.some((p) => p.uploading)
+  const canSaveEdit = (editContent.trim().length > 0 || hasEditUploadedImage || !!editTable) && !isEditUploadingAny
 
   const handleSubmitUpdate = useCallback(async () => {
     if (submittingUpdate || !canSubmitUpdate) return
@@ -382,16 +287,74 @@ export default function IssueDetailDialog({
         return nextUpdates
       })
       onUpdated({ ...issue, issue_updates: nextUpdates })
+      if (editingUpdateId === updateId) setEditingUpdateId(null)
     } catch {
       setError('刪除失敗，請重試')
     } finally {
       setDeletingUpdateId(null)
     }
-  }, [localIssue.id, issue, onUpdated, showToast])
+  }, [localIssue.id, issue, onUpdated, showToast, editingUpdateId])
+
+  const startEditUpdate = useCallback((upd: IssueUpdate) => {
+    setEditingUpdateId(upd.id)
+    setEditContent(upd.content ?? '')
+    setEditImages((upd.image_urls ?? []).map((img) => ({
+      tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url,
+    })))
+    setEditTable(upd.table_data ?? null)
+    setError(null)
+  }, [])
+
+  const cancelEditUpdate = useCallback(() => {
+    setEditingUpdateId(null)
+  }, [])
+
+  const handleSaveEditUpdate = useCallback(async () => {
+    if (!editingUpdateId || savingEdit || !canSaveEdit) return
+    const content = editContent.trim() || null
+    const images = editImages
+      .filter((p) => p.public_id && p.url)
+      .map((p) => ({ public_id: p.public_id!, url: p.url! }))
+    const table = editTable
+
+    setSavingEdit(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/issues/${localIssue.id}/updates/${editingUpdateId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, image_urls: images, table_data: table }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => null)
+        setError(d?.error ?? '修改更新紀錄失敗')
+        return
+      }
+      const data = await res.json()
+      const { warning, ...real } = data as IssueUpdate & { warning?: string | null }
+      if (warning) showToast(warning)
+      let nextUpdates: IssueUpdate[] = []
+      setUpdates((prev) => {
+        nextUpdates = prev.map((u) => (u.id === editingUpdateId ? (real as IssueUpdate) : u))
+        return nextUpdates
+      })
+      onUpdated({ ...issue, issue_updates: nextUpdates })
+      setEditingUpdateId(null)
+    } catch {
+      setError('修改更新紀錄失敗，請重試')
+    } finally {
+      setSavingEdit(false)
+    }
+  }, [editingUpdateId, savingEdit, canSaveEdit, editContent, editImages, editTable, localIssue.id, issue, onUpdated, showToast])
 
   const openLightbox = useCallback((images: { public_id: string; url: string }[], index: number) => {
     setLightbox({ images, index })
   }, [])
+
+  const hasDescription =
+    Boolean(localIssue.description) ||
+    (localIssue.description_image_urls ?? []).length > 0 ||
+    Boolean(localIssue.description_table_data)
 
   if (!open) return null
 
@@ -508,12 +471,17 @@ export default function IssueDetailDialog({
             )}
 
             {/* 說明 */}
-            {localIssue.description && (
+            {hasDescription && (
               <div>
                 <p className="text-xs text-[#a08060] mb-1.5">說明</p>
-                <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap bg-[rgba(122,82,48,.03)] rounded-lg px-3 py-2.5 border border-[rgba(122,82,48,.08)]">
-                  {localIssue.description}
-                </p>
+                <div className="bg-[rgba(122,82,48,.03)] rounded-lg px-3 py-2.5 border border-[rgba(122,82,48,.08)]">
+                  <RichContentView
+                    content={localIssue.description}
+                    images={localIssue.description_image_urls ?? []}
+                    table={localIssue.description_table_data ?? null}
+                    onImageClick={openLightbox}
+                  />
+                </div>
               </div>
             )}
 
@@ -541,6 +509,10 @@ export default function IssueDetailDialog({
                   {updates.map((upd) => {
                     const canDeleteThis = upd.created_by === userEmail || canCreateIssues
                     const isDeleting = deletingUpdateId === upd.id
+                    const isEditingThis = editingUpdateId === upd.id
+                    // 有其他一筆正在編輯中（尚未儲存/取消）：停用本列的編輯/刪除按鈕，
+                    // 避免使用者點另一筆的「編輯」把目前編輯中但未儲存的內容悄悄蓋掉
+                    const isOtherEditing = editingUpdateId !== null && !isEditingThis
                     const images = upd.image_urls ?? []
                     return (
                       <div
@@ -552,46 +524,71 @@ export default function IssueDetailDialog({
                             {upd.created_by.split('@')[0]}
                           </span>
                           <span className="text-xs text-[#c0a882]">
-                            {formatDatetime(upd.created_at)}
+                            {formatDatetime(upd.updated_at ?? upd.created_at)}
                           </span>
-                          {canDeleteThis && (
+                          {canDeleteThis && !isEditingThis && (
                             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
+                                onClick={() => startEditUpdate(upd)}
+                                disabled={isOtherEditing}
+                                className="p-1 rounded text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                title={isOtherEditing ? '請先儲存或取消目前編輯中的項目' : '編輯'}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
                                 onClick={() => handleDeleteUpdate(upd.id)}
-                                disabled={isDeleting}
-                                className="p-1 rounded text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.06)] transition-colors disabled:opacity-50"
-                                title="刪除"
+                                disabled={isDeleting || isOtherEditing}
+                                className="p-1 rounded text-[#a08060] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.06)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                title={isOtherEditing ? '請先儲存或取消目前編輯中的項目' : '刪除'}
                               >
                                 {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                               </button>
                             </div>
                           )}
                         </div>
-                        {upd.content && (
-                          <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">
-                            {upd.content}
-                          </p>
-                        )}
-                        {images.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {images.map((img, idx) => (
+                        {isEditingThis ? (
+                          <div className="space-y-2">
+                            <RichContentEditor
+                              content={editContent}
+                              onContentChange={setEditContent}
+                              images={editImages}
+                              onImagesChange={setEditImages}
+                              table={editTable}
+                              onTableChange={setEditTable}
+                              uploadImage={uploadAttachment}
+                              rows={5}
+                              disabled={savingEdit}
+                            />
+                            <div className="flex justify-end gap-2">
                               <button
-                                key={img.public_id}
                                 type="button"
-                                onClick={() => openLightbox(images, idx)}
-                                className="w-16 h-16 rounded-lg overflow-hidden border border-[rgba(122,82,48,.15)] hover:opacity-80 transition-opacity"
-                                title="點擊放大"
+                                onClick={cancelEditUpdate}
+                                disabled={savingEdit}
+                                className="px-3 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-50 transition-colors"
                               >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                                取消
                               </button>
-                            ))}
+                              <button
+                                type="button"
+                                onClick={handleSaveEditUpdate}
+                                disabled={!canSaveEdit || savingEdit}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {savingEdit
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <Save className="h-3 w-3" />}
+                                儲存
+                              </button>
+                            </div>
                           </div>
-                        )}
-                        {upd.table_data && (
-                          <div className="mt-2 border border-[rgba(122,82,48,.12)] rounded-lg overflow-x-auto">
-                            <UpdateTable data={upd.table_data} />
-                          </div>
+                        ) : (
+                          <RichContentView
+                            content={upd.content}
+                            images={images}
+                            table={upd.table_data}
+                            onImageClick={openLightbox}
+                          />
                         )}
                       </div>
                     )
@@ -603,67 +600,18 @@ export default function IssueDetailDialog({
             {/* 新增更新紀錄 */}
             {canViewTracker && (
               <div className="space-y-2">
-                <textarea
-                  ref={textareaRef}
-                  value={updateContent}
-                  onChange={(e) => setUpdateContent(e.target.value)}
-                  onPaste={handlePaste}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canSubmitUpdate) {
-                      e.preventDefault()
-                      handleSubmitUpdate()
-                    }
-                  }}
+                <RichContentEditor
+                  content={updateContent}
+                  onContentChange={setUpdateContent}
+                  images={pendingImages}
+                  onImagesChange={setPendingImages}
+                  table={pendingTable}
+                  onTableChange={setPendingTable}
+                  uploadImage={uploadAttachment}
                   placeholder="新增更新紀錄…（可貼上圖片或 Excel/表格範圍，Ctrl+Enter 送出）"
                   rows={10}
-                  className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#c0a882] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all resize-none"
+                  onSubmitShortcut={handleSubmitUpdate}
                 />
-
-                {pendingImages.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {pendingImages.map((img) => (
-                      <div
-                        key={img.tempId}
-                        className="relative w-16 h-16 rounded-lg overflow-hidden border border-[#e8ddd0] bg-white"
-                      >
-                        {img.uploading ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Loader2 className="h-4 w-4 animate-spin text-[#a08060]" />
-                          </div>
-                        ) : img.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={img.url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-center text-[9px] text-[#b5451b] px-1 leading-tight">
-                            {img.error ?? '失敗'}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removePendingImage(img.tempId)}
-                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                          title="移除"
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {pendingTable && (
-                  <div className="relative border border-[#e8ddd0] rounded-lg overflow-x-auto bg-white">
-                    <button
-                      type="button"
-                      onClick={() => setPendingTable(null)}
-                      className="absolute top-1 right-1 z-10 p-0.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                      title="移除表格"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                    <UpdateTable data={pendingTable} />
-                  </div>
-                )}
 
                 <div className="flex justify-end">
                   <button
@@ -753,7 +701,7 @@ export default function IssueDetailDialog({
         />
       )}
 
-      {/* 輕量 toast：刪除更新紀錄時 Cloudinary 清除失敗的非阻塞提示，2.5 秒後自動消失 */}
+      {/* 輕量 toast：刪除/修改更新紀錄時 Cloudinary 清除失敗的非阻塞提示，2.5 秒後自動消失 */}
       {toast && (
         <div
           role="status"

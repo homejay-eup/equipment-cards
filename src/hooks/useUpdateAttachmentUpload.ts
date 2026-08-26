@@ -5,18 +5,22 @@ interface UploadResult {
   url: string
 }
 
-// 任務板「更新紀錄」貼圖上傳 hook。
+// 任務板「更新紀錄」／「說明」欄位貼圖上傳 hook。
 // 跟 usePhotoUpload.ts 相同的「向自己 API 拿簽名 → 直傳 Cloudinary」風格，
-// 但只需要前兩步：public_id/url 會跟文字/表格一起包進最後送出的
-// POST /api/issues/[id]/updates body 一次寫入，不需要第三步 PATCH 寫回。
-export function useUpdateAttachmentUpload(issueId: string) {
+// 但只需要前兩步：public_id/url 會跟文字/表格一起包進最後送出的 body 一次寫入，
+// 不需要第三步 PATCH 寫回。
+//
+// Step 42：泛化成接受 signatureUrl 字串（而非硬綁 issueId），讓「更新紀錄貼圖」
+// （呼叫 /api/issues/{issueId}/updates/signature）跟「說明欄位貼圖」（呼叫
+// /api/issues/description-signature，新增任務時還沒有 issue id）共用同一個 hook。
+export function useUpdateAttachmentUpload(signatureUrl: string) {
   const [error, setError] = useState<string | null>(null)
 
   async function upload(file: File): Promise<UploadResult | null> {
     setError(null)
     try {
       // Step 1：向自己的 API 取得 Cloudinary 簽名
-      const sigRes = await fetch(`/api/issues/${issueId}/updates/signature`, {
+      const sigRes = await fetch(signatureUrl, {
         method: 'POST',
       })
       if (!sigRes.ok) throw new Error('Failed to get upload signature')

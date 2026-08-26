@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
+import { validateRichContent } from '@/lib/richContentValidation'
 
 function getSupabase() {
   return createClient(
@@ -24,63 +25,14 @@ export async function POST(
 
   try {
     const body = await req.json()
-    const { content, image_urls, table_data } = body
 
-    // ── content 驗證 ──────────────────────────────────────────
-    if (content !== undefined && content !== null && typeof content !== 'string') {
-      return NextResponse.json({ error: '更新內容格式錯誤' }, { status: 400 })
+    // 共用驗證（文字長度上限、圖片張數上限＋Cloudinary URL 前綴檢查、表格列數/欄數上限），
+    // 跟 PATCH .../updates/[updateId]、POST/PATCH /api/issues 的 description 欄位共用同一套規則。
+    const validation = validateRichContent(body, { requireNonEmpty: true })
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: validation.status })
     }
-    const trimmedContent: string | null = typeof content === 'string' && content.trim() ? content.trim() : null
-    if (trimmedContent && trimmedContent.length > 5000) {
-      return NextResponse.json({ error: '文字內容最多 5000 字' }, { status: 400 })
-    }
-
-    // ── image_urls 驗證 ────────────────────────────────────────
-    // 每個元素必須是 { public_id: string, url: string }，且 url 必須是本專案 Cloudinary
-    // 帳號下的網址，不接受任意外部網址（避免外洩隱私、避免前端渲染時因型別不符整頁壞掉）
-    if (image_urls !== undefined && !Array.isArray(image_urls)) {
-      return NextResponse.json({ error: '圖片資料格式錯誤' }, { status: 400 })
-    }
-    const images: { public_id: string; url: string }[] = Array.isArray(image_urls) ? image_urls : []
-    if (images.length > 10) {
-      return NextResponse.json({ error: '圖片最多 10 張' }, { status: 400 })
-    }
-    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-    const cloudinaryPrefix = `https://res.cloudinary.com/${cloudName}/`
-    for (const img of images) {
-      if (
-        !img ||
-        typeof img !== 'object' ||
-        typeof img.public_id !== 'string' ||
-        typeof img.url !== 'string' ||
-        !img.url.startsWith(cloudinaryPrefix)
-      ) {
-        return NextResponse.json({ error: '圖片資料格式錯誤' }, { status: 400 })
-      }
-    }
-
-    // ── table_data 驗證 ────────────────────────────────────────
-    // rows 每一列必須是 string[]，不符合直接拒絕（不嘗試自動轉型修正）
-    if (table_data !== undefined && table_data !== null) {
-      if (typeof table_data !== 'object' || !Array.isArray(table_data.rows)) {
-        return NextResponse.json({ error: '表格資料格式錯誤' }, { status: 400 })
-      }
-      if (table_data.rows.length > 500) {
-        return NextResponse.json({ error: '表格最多 500 列' }, { status: 400 })
-      }
-      for (const row of table_data.rows) {
-        if (!Array.isArray(row) || row.length > 50 || row.some((cell: unknown) => typeof cell !== 'string')) {
-          return NextResponse.json({ error: '表格資料格式錯誤' }, { status: 400 })
-        }
-      }
-    }
-    const table: { rows: string[][]; hasHeader: boolean } | null =
-      table_data && Array.isArray(table_data.rows) && table_data.rows.length > 0 ? table_data : null
-
-    // 複合留言：文字/圖片/表格三者至少要有一項，才視為有效更新
-    if (!trimmedContent && images.length === 0 && !table) {
-      return NextResponse.json({ error: '更新內容為必填（文字／圖片／表格至少一項）' }, { status: 400 })
-    }
+    const { content: trimmedContent, images, table } = validation
 
     const supabase = getSupabase()
 

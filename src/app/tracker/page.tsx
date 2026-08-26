@@ -15,6 +15,11 @@ export interface Issue {
   status: string
   due_date: string | null
   description: string | null
+  // Step 42：說明欄位支援貼圖/貼表格，跟 issue_updates.image_urls/table_data 同格式。
+  // 選填（非必填）是刻意的：既有呼叫端（Optimistic 更新等）在補齊這兩個欄位前仍要能通過型別檢查，
+  // 渲染時一律用 ?? [] / ?? null 防禦。
+  description_image_urls?: { public_id: string; url: string }[]
+  description_table_data?: { rows: string[][]; hasHeader: boolean } | null
   tags: string[]
   created_by: string
   created_at: string
@@ -35,6 +40,9 @@ export interface IssueUpdate {
   table_data: { rows: string[][]; hasHeader: boolean } | null
   created_by: string
   created_at: string
+  // Step 42：null／未定義＝從未被修改過；一旦被 PATCH 修改就會有值。
+  // 顯示時 fallback：updated_at ?? created_at
+  updated_at?: string | null
 }
 
 function getServiceClient() {
@@ -94,6 +102,8 @@ export default async function TrackerPage() {
     status: string
     due_date: string | null
     description: string | null
+    description_image_urls: { public_id: string; url: string }[] | null
+    description_table_data: { rows: string[][]; hasHeader: boolean } | null
     tags: string[]
     created_by: string
     created_at: string
@@ -109,14 +119,16 @@ export default async function TrackerPage() {
       table_data: { rows: string[][]; hasHeader: boolean } | null
       created_by: string
       created_at: string
+      updated_at: string | null
     }[]
   }
 
   const issueSelectQuery = `
     id, title, type, priority, status, due_date, description, tags,
+    description_image_urls, description_table_data,
     created_by, created_at, updated_at, updated_by, sort_order, is_pinned,
     issue_assignees(user_email),
-    issue_updates(id, content, image_urls, table_data, created_by, created_at)
+    issue_updates(id, content, image_urls, table_data, created_by, created_at, updated_at)
   `
 
   let rawIssues: RawIssue[] = []
@@ -162,6 +174,8 @@ export default async function TrackerPage() {
       status: raw.status,
       due_date: raw.due_date,
       description: raw.description,
+      description_image_urls: raw.description_image_urls ?? [],
+      description_table_data: raw.description_table_data ?? null,
       tags: raw.tags ?? [],
       created_by: raw.created_by,
       created_at: raw.created_at,
