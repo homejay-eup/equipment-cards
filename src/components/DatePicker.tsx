@@ -95,6 +95,7 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropRef}
+          data-portal-popover
           style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
           className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_4px_24px_rgba(122,82,48,.18)] overflow-hidden"
         >

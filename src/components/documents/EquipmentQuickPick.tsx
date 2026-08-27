@@ -113,6 +113,7 @@ export default function EquipmentQuickPick({
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropRef}
+          data-portal-popover
           style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
           className="w-64 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
           <div className="p-2 border-b border-[rgba(122,82,48,.1)] shrink-0">
