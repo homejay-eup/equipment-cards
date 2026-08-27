@@ -96,7 +96,10 @@ export default function DatePicker({ value, onChange, disabled }: Props) {
         <div
           ref={dropRef}
           data-portal-popover
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          // 巢狀在 Radix Dialog 內開啟時，Dialog 會把 document.body 整個設成 pointer-events:none
+          // 只留自己 auto；這個 div portal 到 body 底下、不是 DialogContent 的子節點，會繼承到 none
+          // 導致整個日曆點不到（點擊會穿透到 Dialog 遮罩，誤觸關閉整個 Dialog）。必須自己明確蓋回 auto。
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, pointerEvents: 'auto' }}
           className="bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-xl shadow-[0_4px_24px_rgba(122,82,48,.18)] overflow-hidden"
         >
           <Calendar

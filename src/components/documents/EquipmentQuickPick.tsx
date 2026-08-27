@@ -114,7 +114,11 @@ export default function EquipmentQuickPick({
         <div
           ref={dropRef}
           data-portal-popover
-          style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
+          // 巢狀在 Radix Dialog（如 RuleFormDialog）內開啟時，Dialog 會把 document.body 整個設成
+          // pointer-events:none 只留自己 auto；這個 div portal 到 body 底下、不是 DialogContent
+          // 的子節點，會繼承到 none 導致整個選單點不到（點擊會穿透到 Dialog 遮罩，誤觸關閉整個
+          // Dialog）。必須自己明確蓋回 auto。
+          style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999, pointerEvents: 'auto' }}
           className="w-64 flex flex-col bg-[#fff9f4] border border-[rgba(122,82,48,.2)] rounded-lg shadow-md overflow-hidden">
           <div className="p-2 border-b border-[rgba(122,82,48,.1)] shrink-0">
             <input
