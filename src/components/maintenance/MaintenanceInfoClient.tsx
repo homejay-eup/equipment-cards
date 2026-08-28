@@ -46,6 +46,9 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   const prevRulesVendorRef = useRef<string | null>(null)
   const pendingFocusIdRef = useRef<string | null>(null)
   useEffect(() => { pendingFocusIdRef.current = pendingFocusId }, [pendingFocusId])
+  // 從「依料號」跳轉過來時，若目標廠商還沒被選過（isSwitch），規則清單要等 refreshRules 抓回來才
+  // 找得到要打開的那筆規則；用 ref 暫存 ruleId，refreshRules 完成後檢查並直接開編輯視窗
+  const pendingOpenRuleIdRef = useRef<string | null>(null)
 
   const [vendorFormOpen, setVendorFormOpen] = useState(false)
   const [vendorFormMode, setVendorFormMode] = useState<'create' | 'edit'>('create')
@@ -100,6 +103,17 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             setPendingFocusId(null)
           }
           setExpandedIds(next)
+
+          const openRuleId = pendingOpenRuleIdRef.current
+          if (openRuleId) {
+            pendingOpenRuleIdRef.current = null
+            const matched = nextRules.find(r => r.id === openRuleId)
+            if (matched) {
+              setRuleFormMode('edit')
+              setEditingRule(matched)
+              setRuleFormOpen(true)
+            }
+          }
         }
       }
     } finally {
@@ -303,10 +317,21 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
                 equipmentName={selectedEquipmentName}
                 rules={equipmentRules}
                 loading={equipmentRulesLoading}
-                onJumpToVendor={(vendorId, equipmentId) => {
+                onJumpToVendor={(vendorId, equipmentId, ruleId) => {
                   setMode('vendor')
-                  setSelectedVendorId(vendorId)
                   setPendingFocusId(equipmentId)
+                  if (selectedVendorId === vendorId) {
+                    // 已經在這個廠商，規則清單已經是最新的，不會觸發 refreshRules，直接找規則打開
+                    const matched = rules.find(r => r.id === ruleId)
+                    if (matched) {
+                      setRuleFormMode('edit')
+                      setEditingRule(matched)
+                      setRuleFormOpen(true)
+                    }
+                  } else {
+                    setSelectedVendorId(vendorId)
+                    pendingOpenRuleIdRef.current = ruleId
+                  }
                 }}
               />
             ) : (

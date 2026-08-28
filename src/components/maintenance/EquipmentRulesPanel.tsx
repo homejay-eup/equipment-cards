@@ -9,7 +9,7 @@ interface Props {
   equipmentName: string
   rules: MaintenanceEquipmentRule[]
   loading: boolean
-  onJumpToVendor: (vendorId: string, equipmentId: string) => void
+  onJumpToVendor: (vendorId: string, equipmentId: string, ruleId: string) => void
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -94,10 +94,10 @@ export default function EquipmentRulesPanel({ equipmentId, equipmentName, rules,
                   </p>
                 </div>
                 <button
-                  onClick={() => onJumpToVendor(rule.vendor_id, equipmentId)}
+                  onClick={() => onJumpToVendor(rule.vendor_id, equipmentId, rule.id)}
                   className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#7a5230] border border-[rgba(122,82,48,.25)] rounded-lg hover:border-[rgba(122,82,48,.45)] transition-colors flex-shrink-0"
                 >
-                  前往廠商頁編輯<ArrowRight className="h-3 w-3" />
+                  前往編輯此規則<ArrowRight className="h-3 w-3" />
                 </button>
               </div>
             </div>
