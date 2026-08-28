@@ -52,7 +52,11 @@ export default function AnalyticsClient({ initialData }: Props) {
   const [sort, setSort] = useState<{ key: SortKey | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' })
 
   // ── 欄位顯示設定：全域設定（GET/PATCH /api/admin/analytics/columns），所有管理員共用 ──
+  // 改成批次勾選＋按「套用」才一次送出（原本勾一個就立刻存檔+套用一個，使用者反映每勾一次
+  // 都觸發重新整理很不順手）。draftColumns 只在開啟設定面板時同步一次，勾選期間都是本地
+  // state，關閉面板（不論按套用或點外部）才決定要不要真的送出。
   const [visibleColumns, setVisibleColumns] = useState<string[]>([])
+  const [draftColumns, setDraftColumns] = useState<string[]>([])
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [savingColumns, setSavingColumns] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
@@ -71,8 +75,14 @@ export default function AnalyticsClient({ initialData }: Props) {
     return () => { cancelled = true }
   }, [])
 
+  function openColumnSettings() {
+    setDraftColumns(visibleColumns)
+    setColumnSettingsOpen(true)
+  }
+
   useEffect(() => {
     if (!columnSettingsOpen) return
+    // 點外部＝取消，不套用這次勾選的變更（跟按「取消」等效）
     const close = (e: MouseEvent) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setColumnSettingsOpen(false)
     }
@@ -80,20 +90,23 @@ export default function AnalyticsClient({ initialData }: Props) {
     return () => document.removeEventListener('mousedown', close)
   }, [columnSettingsOpen])
 
-  async function toggleColumn(key: string) {
-    const prev = visibleColumns
-    const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    setVisibleColumns(next)
+  function toggleDraftColumn(key: string) {
+    setDraftColumns(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
+  async function applyColumnSettings() {
     setSavingColumns(true)
     try {
       const res = await fetch('/api/admin/analytics/columns', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ columns: next }),
+        body: JSON.stringify({ columns: draftColumns }),
       })
       if (!res.ok) throw new Error('儲存失敗')
+      setVisibleColumns(draftColumns)
+      setColumnSettingsOpen(false)
     } catch {
-      setVisibleColumns(prev) // 失敗回滾
+      // 失敗維持面板開啟＋現有勾選，讓使用者可以重試
     } finally {
       setSavingColumns(false)
     }
@@ -142,7 +155,7 @@ export default function AnalyticsClient({ initialData }: Props) {
         <div ref={settingsRef} className="relative">
           <button
             type="button"
-            onClick={() => setColumnSettingsOpen(v => !v)}
+            onClick={() => columnSettingsOpen ? setColumnSettingsOpen(false) : openColumnSettings()}
             title="欄位設定"
             className="flex items-center gap-1 p-1.5 rounded-lg text-[#a08060] hover:text-[#7a5230] hover:bg-[rgba(122,82,48,.06)] transition-colors"
           >
@@ -159,14 +172,32 @@ export default function AnalyticsClient({ initialData }: Props) {
                     className="flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer hover:bg-[rgba(122,82,48,.06)]">
                     <input
                       type="checkbox"
-                      checked={visibleColumns.includes(col.key)}
-                      onChange={() => toggleColumn(col.key)}
+                      checked={draftColumns.includes(col.key)}
+                      onChange={() => toggleDraftColumn(col.key)}
                       disabled={savingColumns}
                       className="accent-[#7a5230]"
                     />
                     <span className="text-[#4a3422]">{col.label}</span>
                   </label>
                 ))}
+              </div>
+              <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-[rgba(122,82,48,.1)]">
+                <button
+                  type="button"
+                  onClick={() => setColumnSettingsOpen(false)}
+                  disabled={savingColumns}
+                  className="text-xs text-[#a08060] hover:text-[#6b4f38] disabled:opacity-40 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={applyColumnSettings}
+                  disabled={savingColumns}
+                  className="px-2.5 py-1 text-xs font-medium text-white bg-[#7a5230] rounded-lg hover:bg-[#6b4530] disabled:opacity-40 transition-colors"
+                >
+                  {savingColumns ? '套用中…' : '套用'}
+                </button>
               </div>
             </div>
           )}
