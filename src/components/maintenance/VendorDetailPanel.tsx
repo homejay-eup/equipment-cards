@@ -1,15 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Search, Pencil, Trash2, Plus, Loader2, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, Pencil, Trash2, Plus, Loader2, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react'
 import { MaintenanceRule, MaintenanceVendor } from '@/types/maintenance'
 import RuleCard from '@/components/maintenance/RuleCard'
-
-interface EquipmentGroup {
-  equipmentId: string
-  name: string
-  rules: MaintenanceRule[]
-}
+import { RULE_TYPE_COLOR } from '@/lib/maintenanceFormat'
 
 interface Props {
   vendor: MaintenanceVendor
@@ -17,8 +12,9 @@ interface Props {
   rulesLoading: boolean
   canManage: boolean
   expandedIds: Set<string>
-  onToggleExpand: (equipmentId: string) => void
+  onToggleExpand: (ruleId: string) => void
   onCollapseAll: () => void
+  onExpandAll: (ruleIds: string[]) => void
   onEditVendor: () => void
   onDeleteVendor: () => void
   onAddRule: () => void
@@ -27,48 +23,28 @@ interface Props {
   onConfirmLatest: (rule: MaintenanceRule) => Promise<void>
 }
 
-const GENERAL_KEY = '__general__'
-
-// 廠商基本資料 + 依料號分組的規則列表（可展開/收合），
-// 未掛料號的規則歸到「未指定料號的一般規則」分組
+// 廠商基本資料 + 去重複的規則清單（每筆規則各自可展開/收合）。
+// 一筆規則可掛多個料號，過去依料號分組會讓同一筆規則重複出現在多組裡，
+// 改成扁平化清單後每筆只出現一次，展開時用 RuleCard 顯示完整內容（含料號標籤）。
 export default function VendorDetailPanel({
   vendor, rules, rulesLoading, canManage,
-  expandedIds, onToggleExpand, onCollapseAll,
+  expandedIds, onToggleExpand, onCollapseAll, onExpandAll,
   onEditVendor, onDeleteVendor, onAddRule, onEditRule, onDeleteRule, onConfirmLatest,
 }: Props) {
   const [query, setQuery] = useState('')
 
   const filteredRules = useMemo(() => {
     const q = query.trim()
-    if (!q) return rules
-    return rules.filter(r =>
+    const base = !q ? rules : rules.filter(r =>
       r.item.includes(q) ||
       r.content.includes(q) ||
       (r.equipment_ids ?? []).some(e => e.equipment_id.includes(q) || e.name.includes(q))
     )
+    // 未指定料號的規則排最前面，其餘維持原本順序（穩定排序，只依「有無掛料號」分兩段）
+    const unassigned = base.filter(r => (r.equipment_ids ?? []).length === 0)
+    const assigned = base.filter(r => (r.equipment_ids ?? []).length > 0)
+    return [...unassigned, ...assigned]
   }, [rules, query])
-
-  const { groups, generalRules } = useMemo(() => {
-    const map = new Map<string, EquipmentGroup>()
-    const general: MaintenanceRule[] = []
-    for (const rule of filteredRules) {
-      const ids = rule.equipment_ids ?? []
-      if (ids.length === 0) {
-        general.push(rule)
-        continue
-      }
-      for (const ref of ids) {
-        let g = map.get(ref.equipment_id)
-        if (!g) {
-          g = { equipmentId: ref.equipment_id, name: ref.name, rules: [] }
-          map.set(ref.equipment_id, g)
-        }
-        g.rules.push(rule)
-      }
-    }
-    const groups = Array.from(map.values()).sort((a, b) => a.equipmentId.localeCompare(b.equipmentId))
-    return { groups, generalRules: general }
-  }, [filteredRules])
 
   return (
     <div className="bg-white border border-[#e8ddd0] rounded-lg overflow-hidden">
@@ -110,8 +86,17 @@ export default function VendorDetailPanel({
             className="w-full pl-8 pr-2 py-1.5 border border-[#e8ddd0] rounded-lg text-xs text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]"
           />
         </div>
-        <button onClick={onCollapseAll} className="px-2.5 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors flex-shrink-0">
-          全部收合
+        <button
+          onClick={() => onExpandAll(filteredRules.map(r => r.id))}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors flex-shrink-0"
+        >
+          <Maximize2 className="h-3 w-3" />全部展開
+        </button>
+        <button
+          onClick={onCollapseAll}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-[#a08060] border border-[rgba(122,82,48,.2)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] transition-colors flex-shrink-0"
+        >
+          <Minimize2 className="h-3 w-3" />全部收合
         </button>
         {canManage && (
           <button onClick={onAddRule} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-white bg-[#7a5230] rounded-lg hover:bg-[#9c6b42] transition-colors flex-shrink-0">
@@ -120,89 +105,58 @@ export default function VendorDetailPanel({
         )}
       </div>
 
-      {/* 規則列表 */}
+      {/* 規則列表（去重複，一筆規則只出現一次） */}
       <div className="p-3 space-y-2">
         {rules.length === 0 && rulesLoading ? (
           <div className="flex items-center justify-center py-8 text-[#a08060]">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
-        ) : groups.length === 0 && generalRules.length === 0 ? (
+        ) : filteredRules.length === 0 ? (
           <p className="text-center py-8 text-sm text-[#a08060]">尚無規則{query ? '，換個關鍵字試試' : ''}</p>
         ) : (
-          <>
-            {groups.map(group => {
-              const expanded = expandedIds.has(group.equipmentId)
-              const hasReview = group.rules.some(r => r.needs_review)
-              return (
-                <div key={group.equipmentId} className="border border-[#e8ddd0] rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => onToggleExpand(group.equipmentId)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(122,82,48,.04)] hover:bg-[rgba(122,82,48,.07)] transition-colors"
-                  >
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      {expanded ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" />}
-                      <span className="text-sm font-medium text-[#4a3422] truncate">{group.equipmentId} {group.name}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 flex-shrink-0">
-                      {hasReview && (
-                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[rgba(181,69,27,.12)] text-[#b5451b] border border-[rgba(181,69,27,.3)]">
-                          <AlertTriangle className="h-2.5 w-2.5" />建議覆核
-                        </span>
-                      )}
-                      <span className="text-[10px] text-[#a08060]">{group.rules.length} 筆</span>
-                    </span>
-                  </button>
-                  {expanded && (
-                    <div className="p-2 space-y-2 bg-white">
-                      {group.rules.map(rule => (
-                        <RuleCard
-                          key={rule.id}
-                          rule={rule}
-                          canManage={canManage}
-                          onEdit={() => onEditRule(rule)}
-                          onDelete={() => onDeleteRule(rule)}
-                          onConfirmLatest={() => onConfirmLatest(rule)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {generalRules.length > 0 && (
-              <div className="border border-[#e8ddd0] rounded-lg overflow-hidden">
+          filteredRules.map(rule => {
+            const expanded = expandedIds.has(rule.id)
+            const equipmentCount = (rule.equipment_ids ?? []).length
+            return (
+              <div key={rule.id} className="border border-[#e8ddd0] rounded-lg overflow-hidden">
                 <button
-                  onClick={() => onToggleExpand(GENERAL_KEY)}
+                  onClick={() => onToggleExpand(rule.id)}
                   className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-[rgba(122,82,48,.04)] hover:bg-[rgba(122,82,48,.07)] transition-colors"
                 >
                   <span className="flex items-center gap-1.5 min-w-0">
-                    {expandedIds.has(GENERAL_KEY) ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" />}
-                    <span className="text-sm font-medium text-[#4a3422]">未指定料號的一般規則</span>
+                    {expanded ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-[#a08060]" />}
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border flex-shrink-0 ${RULE_TYPE_COLOR[rule.rule_type] ?? RULE_TYPE_COLOR['其他']}`}>
+                      {rule.rule_type}
+                    </span>
+                    <span className="text-sm font-medium text-[#4a3422] truncate">{rule.item}</span>
                   </span>
-                  <span className="text-[10px] text-[#a08060] flex-shrink-0">{generalRules.length} 筆</span>
+                  <span className="flex items-center gap-1.5 flex-shrink-0">
+                    {rule.needs_review && (
+                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[rgba(181,69,27,.12)] text-[#b5451b] border border-[rgba(181,69,27,.3)]">
+                        <AlertTriangle className="h-2.5 w-2.5" />建議覆核
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[#a08060]">
+                      {equipmentCount > 0 ? `${equipmentCount} 個料號` : '未指定料號'}
+                    </span>
+                  </span>
                 </button>
-                {expandedIds.has(GENERAL_KEY) && (
-                  <div className="p-2 space-y-2 bg-white">
-                    {generalRules.map(rule => (
-                      <RuleCard
-                        key={rule.id}
-                        rule={rule}
-                        canManage={canManage}
-                        onEdit={() => onEditRule(rule)}
-                        onDelete={() => onDeleteRule(rule)}
-                        onConfirmLatest={() => onConfirmLatest(rule)}
-                      />
-                    ))}
+                {expanded && (
+                  <div className="p-2 bg-white">
+                    <RuleCard
+                      rule={rule}
+                      canManage={canManage}
+                      onEdit={() => onEditRule(rule)}
+                      onDelete={() => onDeleteRule(rule)}
+                      onConfirmLatest={() => onConfirmLatest(rule)}
+                    />
                   </div>
                 )}
               </div>
-            )}
-          </>
+            )
+          })
         )}
       </div>
     </div>
   )
 }
-
-export { GENERAL_KEY }

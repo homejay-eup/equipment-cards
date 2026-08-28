@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
-import { MaintenanceVendor, MaintenanceRule, MaintenanceEquipmentStats, MaintenanceEquipmentRule } from '@/types/maintenance'
+import { MaintenanceVendor, MaintenanceRule, MaintenanceEquipmentStats } from '@/types/maintenance'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import VendorListPanel from '@/components/maintenance/VendorListPanel'
-import VendorDetailPanel, { GENERAL_KEY } from '@/components/maintenance/VendorDetailPanel'
+import VendorDetailPanel from '@/components/maintenance/VendorDetailPanel'
 import VendorFormDialog from '@/components/maintenance/VendorFormDialog'
 import RuleFormDialog from '@/components/maintenance/RuleFormDialog'
-import EquipmentSearchPanel from '@/components/maintenance/EquipmentSearchPanel'
-import EquipmentRulesPanel from '@/components/maintenance/EquipmentRulesPanel'
+import EquipmentRuleListPanel from '@/components/maintenance/EquipmentRuleListPanel'
 
 interface Props {
   isActive: boolean
@@ -35,17 +34,16 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
 
   // 依料號查詢模式：預設 'vendor'，切換分頁不清空另一模式的選取狀態
   const [mode, setMode] = useState<'vendor' | 'equipment'>('vendor')
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState<string | null>(null)
-  const [equipmentRules, setEquipmentRules] = useState<MaintenanceEquipmentRule[]>([])
-  const [equipmentRulesLoading, setEquipmentRulesLoading] = useState(false)
 
+  // expandedIds 現在是以 rule.id 為 key（原本是依 equipment_id/GENERAL_KEY 分組時的 key）
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
+  // 從「依料號」模式跳轉過來、或首次選定廠商時，要強制展開的一批 rule id
+  const [pendingFocusRuleIds, setPendingFocusRuleIds] = useState<string[] | null>(null)
   // 目前展開狀態是依哪個 vendorId 算出來的預設值——只有切換到不同廠商才重算，
   // 同廠商內因確認最新/新增/編輯/刪除規則觸發的背景重新整理不能覆蓋使用者手動展開/收合狀態
   const prevRulesVendorRef = useRef<string | null>(null)
-  const pendingFocusIdRef = useRef<string | null>(null)
-  useEffect(() => { pendingFocusIdRef.current = pendingFocusId }, [pendingFocusId])
+  const pendingFocusRuleIdsRef = useRef<string[] | null>(null)
+  useEffect(() => { pendingFocusRuleIdsRef.current = pendingFocusRuleIds }, [pendingFocusRuleIds])
   // 從「依料號」跳轉過來時，若目標廠商還沒被選過（isSwitch），規則清單要等 refreshRules 抓回來才
   // 找得到要打開的那筆規則；用 ref 暫存 ruleId，refreshRules 完成後檢查並直接開編輯視窗
   const pendingOpenRuleIdRef = useRef<string | null>(null)
@@ -91,16 +89,13 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         if (isSwitch) {
           const next = new Set<string>()
           for (const rule of nextRules) {
-            if (!rule.needs_review) continue
-            const ids = rule.equipment_ids ?? []
-            if (ids.length === 0) { next.add(GENERAL_KEY); continue }
-            for (const ref of ids) next.add(ref.equipment_id)
+            if (rule.needs_review) next.add(rule.id)
           }
-          const focusId = pendingFocusIdRef.current
-          if (focusId) {
-            next.add(focusId)
-            pendingFocusIdRef.current = null
-            setPendingFocusId(null)
+          const focusIds = pendingFocusRuleIdsRef.current
+          if (focusIds && focusIds.length > 0) {
+            for (const id of focusIds) next.add(id)
+            pendingFocusRuleIdsRef.current = null
+            setPendingFocusRuleIds(null)
           }
           setExpandedIds(next)
 
@@ -139,9 +134,13 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         if (cancelled || !res.ok) return
         const relatedRules = data.rules ?? []
         if (relatedRules.length === 0) return
+        const targetVendorId = relatedRules[0].vendor_id
+        const focusRuleIds = relatedRules
+          .filter((r: { vendor_id: string }) => r.vendor_id === targetVendorId)
+          .map((r: { id: string }) => r.id)
         setMode('vendor')
-        setSelectedVendorId(relatedRules[0].vendor_id)
-        setPendingFocusId(filter.equipmentId)
+        setSelectedVendorId(targetVendorId)
+        setPendingFocusRuleIds(focusRuleIds)
       } catch { /* 靜默失敗，維持原本畫面 */ }
     })()
     return () => { cancelled = true }
@@ -155,35 +154,16 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     refreshRules(selectedVendorId, isSwitch)
   }, [selectedVendorId, refreshRules])
 
-  // 依料號查詢模式：選定料號後抓取橫跨所有廠商的相關規則。
-  // mode 也列入 deps：切去「依廠商」編輯規則後再切回「依料號」時要重新抓最新資料，
-  // 否則唯讀畫面會停留在切換當下的舊快照（例如剛在廠商頁確認最新/編輯過內容）。
-  // 這也讓「跳轉去廠商頁」與「依料號查詢」兩個 fetch 不會互相汙染彼此的 state：
-  // mode 一變動，前一個 effect 的 cleanup 就會把還在飛行中的舊 fetch 標記為 cancelled。
-  useEffect(() => {
-    if (!selectedEquipmentId) { setEquipmentRules([]); return }
-    if (mode !== 'equipment') return
-    let cancelled = false
-    setEquipmentRulesLoading(true)
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/maintenance/rules/by-equipment?equipment_id=${encodeURIComponent(selectedEquipmentId)}`)
-        const data = await res.json().catch(() => ({}))
-        if (cancelled) return
-        if (res.ok) setEquipmentRules(data.rules ?? [])
-      } finally {
-        if (!cancelled) setEquipmentRulesLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [selectedEquipmentId, mode])
-
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
+  }
+
+  function expandAll(ids: string[]) {
+    setExpandedIds(new Set(ids))
   }
 
   function collapseAll() {
@@ -261,7 +241,6 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   }
 
   const selectedVendor = vendors.find(v => v.id === selectedVendorId)
-  const selectedEquipmentName = allCards.find(c => c.equipment_id === selectedEquipmentId)?.name ?? ''
 
   return (
     <div className="max-w-5xl mx-auto px-4 pt-4 pb-16">
@@ -273,27 +252,50 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex p-0.5 bg-[rgba(122,82,48,.06)] rounded-lg">
-              <button
-                onClick={() => setMode('vendor')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  mode === 'vendor' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
-                }`}
-              >
-                依廠商
-              </button>
-              <button
-                onClick={() => setMode('equipment')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  mode === 'equipment' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
-                }`}
-              >
-                依料號
-              </button>
-            </div>
-            {mode === 'vendor' ? (
+        <>
+          <div className="inline-flex p-0.5 mb-3 bg-[rgba(122,82,48,.06)] rounded-lg">
+            <button
+              onClick={() => setMode('vendor')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                mode === 'vendor' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
+              }`}
+            >
+              依廠商
+            </button>
+            <button
+              onClick={() => setMode('equipment')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                mode === 'equipment' ? 'bg-white text-[#7a5230] shadow-sm' : 'text-[#a08060] hover:text-[#7a5230]'
+              }`}
+            >
+              依料號
+            </button>
+          </div>
+
+          {mode === 'equipment' ? (
+            <EquipmentRuleListPanel
+              allCards={allCards}
+              equipmentStats={equipmentStats}
+              onJumpToVendor={(vendorId, equipmentId, ruleId) => {
+                setMode('vendor')
+                if (selectedVendorId === vendorId) {
+                  // 已經在這個廠商，規則清單已經是最新的，不會觸發 refreshRules，直接找規則打開
+                  setExpandedIds(prev => new Set(prev).add(ruleId))
+                  const matched = rules.find(r => r.id === ruleId)
+                  if (matched) {
+                    setRuleFormMode('edit')
+                    setEditingRule(matched)
+                    setRuleFormOpen(true)
+                  }
+                } else {
+                  setSelectedVendorId(vendorId)
+                  pendingOpenRuleIdRef.current = ruleId
+                  setPendingFocusRuleIds([ruleId])
+                }
+              }}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
               <VendorListPanel
                 vendors={vendors}
                 selectedVendorId={selectedVendorId}
@@ -301,66 +303,31 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
                 canManage={canManage}
                 onAddVendor={openCreateVendor}
               />
-            ) : (
-              <EquipmentSearchPanel
-                allCards={allCards}
-                equipmentStats={equipmentStats}
-                selectedEquipmentId={selectedEquipmentId}
-                onSelect={setSelectedEquipmentId}
-              />
-            )}
-          </div>
-          {mode === 'equipment' ? (
-            selectedEquipmentId ? (
-              <EquipmentRulesPanel
-                equipmentId={selectedEquipmentId}
-                equipmentName={selectedEquipmentName}
-                rules={equipmentRules}
-                loading={equipmentRulesLoading}
-                onJumpToVendor={(vendorId, equipmentId, ruleId) => {
-                  setMode('vendor')
-                  setPendingFocusId(equipmentId)
-                  if (selectedVendorId === vendorId) {
-                    // 已經在這個廠商，規則清單已經是最新的，不會觸發 refreshRules，直接找規則打開
-                    const matched = rules.find(r => r.id === ruleId)
-                    if (matched) {
-                      setRuleFormMode('edit')
-                      setEditingRule(matched)
-                      setRuleFormOpen(true)
-                    }
-                  } else {
-                    setSelectedVendorId(vendorId)
-                    pendingOpenRuleIdRef.current = ruleId
-                  }
-                }}
-              />
-            ) : (
-              <div className="bg-white border border-[#e8ddd0] rounded-lg flex items-center justify-center py-16 text-sm text-[#a08060]">
-                請從左側搜尋料號或品名
-              </div>
-            )
-          ) : selectedVendor ? (
-            <VendorDetailPanel
-              vendor={selectedVendor}
-              rules={rules}
-              rulesLoading={rulesLoading}
-              canManage={canManage}
-              expandedIds={expandedIds}
-              onToggleExpand={toggleExpand}
-              onCollapseAll={collapseAll}
-              onEditVendor={() => openEditVendor(selectedVendor)}
-              onDeleteVendor={() => handleDeleteVendor(selectedVendor)}
-              onAddRule={openCreateRule}
-              onEditRule={openEditRule}
-              onDeleteRule={handleDeleteRule}
-              onConfirmLatest={handleConfirmLatest}
-            />
-          ) : (
-            <div className="bg-white border border-[#e8ddd0] rounded-lg flex items-center justify-center py-16 text-sm text-[#a08060]">
-              {vendors.length === 0 ? '尚無廠商，請先新增一家廠商' : '請從左側選擇一家廠商'}
+              {selectedVendor ? (
+                <VendorDetailPanel
+                  vendor={selectedVendor}
+                  rules={rules}
+                  rulesLoading={rulesLoading}
+                  canManage={canManage}
+                  expandedIds={expandedIds}
+                  onToggleExpand={toggleExpand}
+                  onCollapseAll={collapseAll}
+                  onExpandAll={expandAll}
+                  onEditVendor={() => openEditVendor(selectedVendor)}
+                  onDeleteVendor={() => handleDeleteVendor(selectedVendor)}
+                  onAddRule={openCreateRule}
+                  onEditRule={openEditRule}
+                  onDeleteRule={handleDeleteRule}
+                  onConfirmLatest={handleConfirmLatest}
+                />
+              ) : (
+                <div className="bg-white border border-[#e8ddd0] rounded-lg flex items-center justify-center py-16 text-sm text-[#a08060]">
+                  {vendors.length === 0 ? '尚無廠商，請先新增一家廠商' : '請從左側選擇一家廠商'}
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </>
       )}
 
       <VendorFormDialog

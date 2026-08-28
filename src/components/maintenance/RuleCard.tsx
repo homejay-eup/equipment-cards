@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, Pencil, Trash2, Loader2, Truck, ShieldCheck } from 'lucide-react'
 import { MaintenanceRule } from '@/types/maintenance'
-import { formatWarrantyPeriod } from '@/lib/maintenanceFormat'
+import { formatWarrantyPeriod, RULE_TYPE_COLOR, fmtDateTime, emailPrefix } from '@/lib/maintenanceFormat'
 
 interface Props {
   rule: MaintenanceRule
@@ -11,25 +11,6 @@ interface Props {
   onEdit: () => void
   onDelete: () => void
   onConfirmLatest: () => Promise<void>
-}
-
-function fmtDateTime(iso: string | null | undefined) {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-  } catch { return iso }
-}
-
-function emailPrefix(email: string | null | undefined) {
-  if (!email) return null
-  return email.split('@')[0]
-}
-
-const RULE_TYPE_COLOR: Record<string, string> = {
-  '送修規則': 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border-[rgba(122,82,48,.2)]',
-  '保固說明': 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border-[rgba(156,107,66,.25)]',
-  '報廢條件': 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border-[rgba(181,69,27,.25)]',
-  '其他': 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)]',
 }
 
 // 單筆維修規則卡片：類型標籤、內容、掛載料號 chips、最後更新時間+人、

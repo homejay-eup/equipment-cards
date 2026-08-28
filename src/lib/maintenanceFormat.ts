@@ -42,3 +42,29 @@ export function formatWarrantyPeriod(months: number | null | undefined): string 
   if (months % 12 === 0) return `${months / 12} 年`
   return `${Math.floor(months / 12)} 年 ${months % 12} 個月`
 }
+
+/**
+ * 規則類型 → 徽章樣式。原本 RuleCard/VendorDetailPanel/EquipmentRuleListPanel 三處
+ * 各自定義一份幾乎一樣的常數（Step 38b 依料號模式重構時新增了後兩份），集中放這裡避免以後
+ * 新增規則類型時漏改其中一處導致顏色不一致。
+ */
+export const RULE_TYPE_COLOR: Record<string, string> = {
+  '送修規則': 'bg-[rgba(122,82,48,.08)] text-[#7a5230] border-[rgba(122,82,48,.2)]',
+  '保固說明': 'bg-[rgba(156,107,66,.08)] text-[#9c6b42] border-[rgba(156,107,66,.25)]',
+  '報廢條件': 'bg-[rgba(181,69,27,.08)] text-[#b5451b] border-[rgba(181,69,27,.25)]',
+  '其他': 'bg-[rgba(122,82,48,.05)] text-[#a08060] border-[rgba(122,82,48,.15)]',
+}
+
+/** 規則的「最後更新」/「已確認」時間顯示格式，統一用台北時區。 */
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch { return iso }
+}
+
+/** email 去掉網域只顯示帳號前半，用於「最後更新／已確認」欄位的簡短署名。 */
+export function emailPrefix(email: string | null | undefined): string | null {
+  if (!email) return null
+  return email.split('@')[0]
+}
