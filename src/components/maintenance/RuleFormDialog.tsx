@@ -170,7 +170,13 @@ export default function RuleFormDialog({ open, mode, vendorId, rule, allCards, o
 
   return (
     <>
-    <Dialog open={open} onOpenChange={v => !v && !submitting && onClose()}>
+    {/* modal=false：EquipmentQuickPick／DatePicker 為了避開 overflow-hidden 裁切，用 createPortal
+        直接掛到 document.body，DOM 位置上不是 DialogContent 的子節點。Radix 預設 modal=true 會啟用
+        FocusScope 焦點陷阱（focus 移到 Dialog 外的元素會被強制拉回）+ RemoveScroll 捲動鎖定（只放行
+        DialogContent 內部的捲動），兩者都用 DOM containment 判斷「在不在 Dialog 裡」，portal 出去的
+        內容一律判定為外部而被攔截，導致搜尋欄位點了對焦不到、清單滾輪也捲不動。modal=false 關掉這兩個
+        機制即可修正，遮罩/點外部關閉等其餘行為不受影響。 */}
+    <Dialog open={open} onOpenChange={v => !v && !submitting && onClose()} modal={false}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-[#5a3820]">{mode === 'create' ? '新增規則' : '編輯規則'}</DialogTitle>
