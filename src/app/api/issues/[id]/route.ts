@@ -103,7 +103,7 @@ export async function PATCH(
     // 取得議題確認存在並檢查權限
     const { data: issue, error: fetchError } = await adminClient
       .from('issues')
-      .select('id, created_by, status')
+      .select('id, created_by, status, sort_order')
       .eq('id', params.id)
       .single()
 
@@ -159,6 +159,17 @@ export async function PATCH(
     }
     if (status !== undefined) {
       updateFields.status = status
+      // 換到別的欄位（拖曳／編輯視窗／狀態下拉選單皆適用）：固定放在目標欄位最上方
+      if (status !== issue.status) {
+        const { data: topIssue } = await adminClient
+          .from('issues')
+          .select('sort_order')
+          .eq('status', status)
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .limit(1)
+          .maybeSingle()
+        updateFields.sort_order = typeof topIssue?.sort_order === 'number' ? topIssue.sort_order - 1000 : 1000
+      }
     }
     if (is_pinned !== undefined) updateFields.is_pinned = Boolean(is_pinned)
 

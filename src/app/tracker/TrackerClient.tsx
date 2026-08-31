@@ -429,12 +429,19 @@ export default function TrackerClient({
     setDragOverIssueId(null)
     setDragOverPosition(null)
 
-    // ── 跨欄拖曳（原有邏輯）──
+    // ── 跨欄拖曳：固定放在目標欄位最上方（不論拖放在該欄的哪個位置）──
     if (issue.status !== targetStatus) {
       const originalStatus = issue.status
+      const originalSortOrder = issue.sort_order
+      const targetColOrders = issues
+        .filter(i => i.status === targetStatus)
+        .map(i => i.sort_order)
+        .filter((n): n is number => typeof n === 'number')
+      const optimisticSortOrder = targetColOrders.length > 0 ? Math.min(...targetColOrders) - 1000 : 1000
+
       hasMutatedRef.current = true
       markMutation(id)
-      setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus } : i))
+      setIssues(prev => prev.map(i => i.id === id ? { ...i, status: targetStatus, sort_order: optimisticSortOrder } : i))
       try {
         const res = await fetch(`/api/issues/${id}`, {
           method: 'PATCH',
@@ -442,8 +449,10 @@ export default function TrackerClient({
           body: JSON.stringify({ status: targetStatus }),
         })
         if (!res.ok) throw new Error('Failed')
+        const updated = await res.json()
+        setIssues(prev => prev.map(i => i.id === id ? { ...i, status: updated.status, sort_order: updated.sort_order ?? optimisticSortOrder } : i))
       } catch {
-        setIssues(prev => prev.map(i => i.id === id ? { ...i, status: originalStatus } : i))
+        setIssues(prev => prev.map(i => i.id === id ? { ...i, status: originalStatus, sort_order: originalSortOrder } : i))
       }
       return
     }

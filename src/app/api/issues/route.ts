@@ -146,6 +146,17 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase()
 
+    // 新卡片固定放在目標欄位最上方：取該欄現有最小 sort_order 再減 1000
+    const targetStatus = status ?? '待處理'
+    const { data: topIssue } = await supabase
+      .from('issues')
+      .select('sort_order')
+      .eq('status', targetStatus)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    const newSortOrder = typeof topIssue?.sort_order === 'number' ? topIssue.sort_order - 1000 : 1000
+
     // 查詢建立者的 department_id（失敗不阻斷建立流程）
     let creatorDepartmentId: string | null = null
     try {
@@ -174,7 +185,7 @@ export async function POST(req: NextRequest) {
         title: title.trim(),
         type: type.trim(),
         priority: priority ?? 'medium',
-        status: status ?? '待處理',
+        status: targetStatus,
         due_date: due_date ?? null,
         description: descriptionValidation.content,
         description_image_urls: descriptionValidation.images,
@@ -182,6 +193,7 @@ export async function POST(req: NextRequest) {
         tags: Array.isArray(tags) ? tags : [],
         created_by: user.email!,
         department_id: creatorDepartmentId,
+        sort_order: newSortOrder,
       })
       .select()
       .single()
