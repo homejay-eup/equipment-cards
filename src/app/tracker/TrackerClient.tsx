@@ -111,8 +111,6 @@ export default function TrackerClient({
   const [dragOverPosition,     setDragOverPosition]     = useState<DropPosition | null>(null)
   const [confirmClearOpen,     setConfirmClearOpen]     = useState(false)
   const [confirmDeleteIssueId, setConfirmDeleteIssueId] = useState<string | null>(null)
-  const [clearingCompleted,    setClearingCompleted]    = useState(false)
-  const [deletingIssueId,      setDeletingIssueId]      = useState<string | null>(null)
   const [activeCol,            setActiveCol]            = useState<string>(COLUMNS[0].key)
 
   // 刪除任務失敗提示：樂觀關閉視窗後若 API 失敗才用這個輕量 toast 通知（此時詳情視窗已關閉）
@@ -381,45 +379,53 @@ export default function TrackerClient({
     setSelectedIssue(issue)
   }, [])
 
+  // 樂觀關閉：立即清空看板上所有已完成任務、關閉確認視窗，不等 API 全部回應
+  // （同任務詳情視窗刪除的修法，避免 Vercel 冷啟動時感覺卡住）。逐筆檢查回應，
+  // 失敗的筆數補回看板並用 toast 告知，而不是整批一起回滾（部分成功不該連累已成功的）
   const handleClearCompleted = useCallback(async () => {
     const completedIssues = issues.filter(i => i.status === '已完成')
-    setClearingCompleted(true)
-    try {
-      await Promise.all(
-        completedIssues.map(issue =>
-          fetch(`/api/issues/${issue.id}`, { method: 'DELETE' })
-        )
-      )
-      hasMutatedRef.current = true
-      completedIssues.forEach(i => markMutation(i.id))
-      setIssues(prev => prev.filter(i => i.status !== '已完成'))
-    } finally {
-      setClearingCompleted(false)
-      setConfirmClearOpen(false)
+    setConfirmClearOpen(false)
+    hasMutatedRef.current = true
+    completedIssues.forEach(i => markMutation(i.id))
+    setIssues(prev => prev.filter(i => i.status !== '已完成'))
+
+    const results = await Promise.allSettled(
+      completedIssues.map(issue =>
+        fetch(`/api/issues/${issue.id}`, { method: 'DELETE' }).then(res => {
+          if (!res.ok) throw new Error('delete failed')
+        }),
+      ),
+    )
+    const failedIssues = completedIssues.filter((_, i) => results[i].status === 'rejected')
+    if (failedIssues.length > 0) {
+      setIssues(prev => {
+        const existingIds = new Set(prev.map(i => i.id))
+        return [...failedIssues.filter(i => !existingIds.has(i.id)), ...prev]
+      })
+      if (deleteErrorToastTimerRef.current) clearTimeout(deleteErrorToastTimerRef.current)
+      setDeleteErrorToast(`${failedIssues.length} 筆刪除失敗，已還原`)
+      deleteErrorToastTimerRef.current = setTimeout(() => setDeleteErrorToast(null), 3500)
     }
   }, [issues])
 
+  // 樂觀關閉：立即從看板移除卡片並關閉確認視窗，不等 API 回應
   const handleDeleteIssue = useCallback(async (id: string) => {
-    setDeletingIssueId(id)
-    // 樂觀更新：立即從本地狀態移除，確保 Banner 即時消失
+    const issue = issues.find(i => i.id === id)
+    setConfirmDeleteIssueId(null)
     hasMutatedRef.current = true
     markMutation(id)
     setIssues(prev => prev.filter(i => i.id !== id))
     try {
       const res = await fetch(`/api/issues/${id}`, { method: 'DELETE' })
       if (!res.ok) {
-        // API 失敗：回滾（重新向 server 取最新資料補回）
-        const refetch = await fetch(`/api/issues/${id}`)
-        if (refetch.ok) {
-          const issue = await refetch.json()
-          setIssues(prev => prev.some(i => i.id === id) ? prev : [issue, ...prev])
-        }
+        const d = await res.json().catch(() => null)
+        if (issue) handleIssueDeleteRollback(issue, d?.error ?? '刪除失敗，請重試')
+        return
       }
-    } finally {
-      setDeletingIssueId(null)
-      setConfirmDeleteIssueId(null)
+    } catch {
+      if (issue) handleIssueDeleteRollback(issue, '刪除失敗，請重試')
     }
-  }, [])
+  }, [issues, handleIssueDeleteRollback])
 
   const handleDrop = useCallback(async (targetStatus: string) => {
     if (!draggingId) return
@@ -834,7 +840,6 @@ export default function TrackerClient({
                                 onClick={(e) => { e.stopPropagation(); setConfirmDeleteIssueId(issue.id) }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-0.5 rounded text-[#c0a882] hover:text-[#b5451b] hover:bg-[rgba(181,69,27,.06)]"
                                 title="刪除"
-                                disabled={deletingIssueId === issue.id}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -973,7 +978,7 @@ export default function TrackerClient({
         title="清空已完成任務"
         message={`確定要刪除全部 ${issues.filter(i => i.status === '已完成').length} 筆已完成任務嗎？此操作無法復原。`}
         danger={true}
-        confirmLabel={clearingCompleted ? '刪除中…' : '確定刪除'}
+        confirmLabel="確定刪除"
         onConfirm={handleClearCompleted}
         onCancel={() => setConfirmClearOpen(false)}
       />
@@ -987,7 +992,7 @@ export default function TrackerClient({
             title="刪除任務"
             message={`確定要刪除「${targetIssue?.title ?? ''}」嗎？`}
             danger={true}
-            confirmLabel={deletingIssueId === confirmDeleteIssueId ? '刪除中…' : '確定刪除'}
+            confirmLabel="確定刪除"
             onConfirm={() => { void handleDeleteIssue(confirmDeleteIssueId) }}
             onCancel={() => setConfirmDeleteIssueId(null)}
           />
