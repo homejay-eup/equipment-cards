@@ -115,6 +115,11 @@ export default function TrackerClient({
   const [deletingIssueId,      setDeletingIssueId]      = useState<string | null>(null)
   const [activeCol,            setActiveCol]            = useState<string>(COLUMNS[0].key)
 
+  // 刪除任務失敗提示：樂觀關閉視窗後若 API 失敗才用這個輕量 toast 通知（此時詳情視窗已關閉）
+  const [deleteErrorToast,     setDeleteErrorToast]     = useState<string | null>(null)
+  const deleteErrorToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (deleteErrorToastTimerRef.current) clearTimeout(deleteErrorToastTimerRef.current) }, [])
+
   const myPendingCount = useMemo(() =>
     issues.filter(i => i.status !== '已完成' && i.assignee_emails.includes(userEmail)).length,
   [issues, userEmail])
@@ -341,9 +346,12 @@ export default function TrackerClient({
     setIssues(prev => prev.filter(i => i.id !== id))
   }, [])
 
-  // 回滾：API 失敗時補回 issue，dialog 仍可顯示錯誤
-  const handleIssueDeleteRollback = useCallback((issue: Issue) => {
+  // 回滾：API 失敗時補回 issue；視窗已樂觀關閉，改用 toast 通知失敗原因
+  const handleIssueDeleteRollback = useCallback((issue: Issue, errorMessage: string) => {
     setIssues(prev => prev.some(i => i.id === issue.id) ? prev : [issue, ...prev])
+    if (deleteErrorToastTimerRef.current) clearTimeout(deleteErrorToastTimerRef.current)
+    setDeleteErrorToast(errorMessage)
+    deleteErrorToastTimerRef.current = setTimeout(() => setDeleteErrorToast(null), 3500)
   }, [])
 
   // 成功後：關閉 dialog
@@ -985,6 +993,17 @@ export default function TrackerClient({
           />
         )
       })()}
+
+      {/* 刪除任務失敗提示：詳情視窗已樂觀關閉，用輕量 toast 通知，3.5 秒後自動消失 */}
+      {deleteErrorToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[210] bg-[#4a3422] text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg"
+        >
+          {deleteErrorToast}
+        </div>
+      )}
     </div>
   )
 }

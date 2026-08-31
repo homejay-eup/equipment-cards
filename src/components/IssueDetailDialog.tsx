@@ -22,7 +22,7 @@ interface Props {
   onClose: () => void
   onUpdated: (updated: Issue) => void
   onDeleteStart: (issueId: string) => void
-  onDeleteRollback: (issue: Issue) => void
+  onDeleteRollback: (issue: Issue, errorMessage: string) => void
   onDeleted: (issueId: string) => void
   onTypesChange?: (types: string[]) => void
 }
@@ -63,7 +63,6 @@ export default function IssueDetailDialog({
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<{ images: { public_id: string; url: string }[]; index: number } | null>(null)
@@ -218,25 +217,21 @@ export default function IssueDetailDialog({
   }, [submittingUpdate, canSubmitUpdate, updateContent, pendingImages, pendingTable, localIssue.id, userEmail, issue, onUpdated])
 
   const handleDelete = useCallback(async () => {
-    setDeleting(true)
-    setError(null)
-    // 樂觀更新：立即從 banner 移除，dialog 保持開著
+    setConfirmDeleteOpen(false)
+    // 樂觀關閉：立即從看板移除卡片並關閉視窗，不等 API 回應——
+    // Vercel serverless 冷啟動時 DELETE 可能要等 10 秒以上，讓視窗留著等同於「感覺卡住」。
+    // 失敗才把卡片補回去，並用看板上的 toast 通知（此時視窗已關閉，無法在這裡顯示錯誤）。
     onDeleteStart(localIssue.id)
+    onDeleted(localIssue.id)
     try {
       const res = await fetch(`/api/issues/${localIssue.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const d = await res.json()
-        setError(d.error ?? '刪除失敗')
-        onDeleteRollback(localIssue)
+        const d = await res.json().catch(() => null)
+        onDeleteRollback(localIssue, d?.error ?? '刪除失敗，請重試')
         return
       }
-      onDeleted(localIssue.id)
     } catch {
-      setError('刪除失敗，請重試')
-      onDeleteRollback(localIssue)
-    } finally {
-      setDeleting(false)
-      setConfirmDeleteOpen(false)
+      onDeleteRollback(localIssue, '刪除失敗，請重試')
     }
   }, [localIssue, onDeleteStart, onDeleteRollback, onDeleted])
 
@@ -651,12 +646,9 @@ export default function IssueDetailDialog({
               {canDelete && (
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}
-                  disabled={deleting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#b5451b] border border-[rgba(181,69,27,.25)] rounded-lg hover:bg-[rgba(181,69,27,.06)] disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#b5451b] border border-[rgba(181,69,27,.25)] rounded-lg hover:bg-[rgba(181,69,27,.06)] transition-colors"
                 >
-                  {deleting
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Trash2 className="h-3.5 w-3.5" />}
+                  <Trash2 className="h-3.5 w-3.5" />
                   刪除
                 </button>
               )}
