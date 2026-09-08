@@ -3,6 +3,7 @@ import { v2 as cloudinary } from 'cloudinary'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin, getUserRoleWithPermissions } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateRichContent } from '@/lib/richContentValidation'
 
 function getSupabase() {
   return createClient(
@@ -42,7 +43,11 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { equipment_id: newId, name, category, vendor, status, tags, notes, is_new, detail_photo_captions, net_weight, updated_fields } = body
+    const {
+      equipment_id: newId, name, category, vendor, status, tags, notes,
+      notes_image_urls, notes_table_data,
+      is_new, detail_photo_captions, net_weight, updated_fields,
+    } = body
 
     const supabase = getSupabase()
 
@@ -69,7 +74,22 @@ export async function PATCH(
       if (tags !== undefined) allowedUpdates.tags = Array.isArray(tags) ? tags : []
     }
     if (isFullAdmin || permissions.includes('edit_card_notes')) {
-      if (notes !== undefined) allowedUpdates.notes = notes?.trim() || null
+      // notes／notes_image_urls／notes_table_data 是同一份「備註」複合內容，只要三者之一有
+      // 送到就整批用 validateRichContent 驗證後寫入，避免只改文字沒改圖片時把已存在的圖片
+      // 意外清空（比照 PATCH /api/issues/[id] 對 description 三個欄位的處理方式）
+      if (notes !== undefined || notes_image_urls !== undefined || notes_table_data !== undefined) {
+        const notesValidation = validateRichContent({
+          content: notes,
+          image_urls: notes_image_urls,
+          table_data: notes_table_data,
+        })
+        if (!notesValidation.ok) {
+          return NextResponse.json({ error: notesValidation.error }, { status: notesValidation.status })
+        }
+        if (notes !== undefined) allowedUpdates.notes = notesValidation.content
+        if (notes_image_urls !== undefined) allowedUpdates.notes_image_urls = notesValidation.images
+        if (notes_table_data !== undefined) allowedUpdates.notes_table_data = notesValidation.table
+      }
     }
     if (isFullAdmin || permissions.includes('edit_card_weight')) {
       if (net_weight !== undefined) allowedUpdates.net_weight = (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null

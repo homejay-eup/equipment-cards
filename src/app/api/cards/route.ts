@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin'
+import { validateRichContent } from '@/lib/richContentValidation'
 
 function getSupabase() {
   return createClient(
@@ -18,10 +19,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { equipment_id, name, category, vendor, status, tags, notes, is_new, net_weight } = body
+    const { equipment_id, name, category, vendor, status, tags, notes, notes_image_urls, notes_table_data, is_new, net_weight } = body
 
     if (!equipment_id || !name) {
       return NextResponse.json({ error: '料號和品名為必填' }, { status: 400 })
+    }
+
+    const notesValidation = validateRichContent({
+      content: notes,
+      image_urls: notes_image_urls,
+      table_data: notes_table_data,
+    })
+    if (!notesValidation.ok) {
+      return NextResponse.json({ error: notesValidation.error }, { status: notesValidation.status })
     }
 
     const supabase = getSupabase()
@@ -34,7 +44,9 @@ export async function POST(req: NextRequest) {
         vendor: vendor?.trim() || null,
         status: status ?? 'active',
         tags: Array.isArray(tags) ? tags : [],
-        notes: notes?.trim() || null,
+        notes: notesValidation.content,
+        notes_image_urls: notesValidation.images,
+        notes_table_data: notesValidation.table,
         is_new: is_new !== false,
         detail_photos: [],
         net_weight: (typeof net_weight === 'number' && !isNaN(net_weight)) ? net_weight : null,

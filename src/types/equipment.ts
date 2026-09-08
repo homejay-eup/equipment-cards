@@ -1,3 +1,5 @@
+import { RichContentImage, RichContentTable } from '@/lib/richContentValidation'
+
 export interface BookmarkRecord {
   id: string
   equipment_id: string
@@ -25,6 +27,8 @@ export interface EquipmentCard {
   status: string
   tags: string[]
   notes: string | null
+  notes_image_urls: RichContentImage[]
+  notes_table_data: RichContentTable | null
   main_photo: string | null
   main_photo_public_id: string | null
   detail_photos: DetailPhoto[]

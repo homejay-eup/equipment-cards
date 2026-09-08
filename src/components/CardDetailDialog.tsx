@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink, Wrench } from 'lucide-react'
 import { logUsageEvent } from '@/lib/analyticsClient'
+import RichContentView from '@/components/tracker/RichContentView'
+import UpdateImageLightbox from '@/components/UpdateImageLightbox'
 
 interface Props {
   card: EquipmentCard
@@ -49,6 +51,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const [expanded, setExpanded] = useState(false)
+  const [lightbox, setLightbox] = useState<{ images: { public_id: string; url: string }[]; index: number } | null>(null)
+  const openLightbox = useCallback((images: { public_id: string; url: string }[], index: number) => setLightbox({ images, index }), [])
 
   // 使用統計埋點：Dialog 開啟時記錄一次料卡瀏覽
   useEffect(() => {
@@ -182,6 +186,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       {/* 手機：overflow-y-auto 可上下捲動；桌機：overflow-hidden 固定高 */}
       <DialogContent className={`w-full p-0 transition-all duration-200 ${
@@ -272,10 +277,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     />
                   </div>
                 )}
-                {permissions.includes('read_notes') && card.notes && (
+                {permissions.includes('read_notes') && (card.notes || (card.notes_image_urls ?? []).length > 0 || card.notes_table_data) && (
                   <div>
                     <p className="text-xs text-[#a08060] mb-1">備註</p>
-                    <p className="text-xs text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                    <RichContentView
+                      content={card.notes}
+                      images={card.notes_image_urls ?? []}
+                      table={card.notes_table_data ?? null}
+                      onImageClick={openLightbox}
+                    />
                   </div>
                 )}
                 {permissions.includes('read_weight') && card.net_weight != null && (
@@ -390,10 +400,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                         />
                       </div>
                     )}
-                    {permissions.includes('read_notes') && card.notes && (
+                    {permissions.includes('read_notes') && (card.notes || (card.notes_image_urls ?? []).length > 0 || card.notes_table_data) && (
                       <div>
                         <p className="text-xs text-[#a08060] mb-1">備註</p>
-                        <p className="text-sm text-[#4a3422] whitespace-pre-wrap leading-relaxed">{card.notes}</p>
+                        <RichContentView
+                          content={card.notes}
+                          images={card.notes_image_urls ?? []}
+                          table={card.notes_table_data ?? null}
+                          onImageClick={openLightbox}
+                        />
                       </div>
                     )}
                     {permissions.includes('read_weight') && card.net_weight != null && (
@@ -456,5 +471,14 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         )}
       </DialogContent>
     </Dialog>
+    {lightbox && (
+      <UpdateImageLightbox
+        images={lightbox.images}
+        index={lightbox.index}
+        onIndexChange={i => setLightbox(prev => prev ? { ...prev, index: i } : prev)}
+        onClose={() => setLightbox(null)}
+      />
+    )}
+    </>
   )
 }

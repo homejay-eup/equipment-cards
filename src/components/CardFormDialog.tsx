@@ -8,6 +8,9 @@ import { EquipmentCard, DetailPhoto, AppSettings, Document as EquipmentDocument 
 import SettingsPopover from '@/components/SettingsPopover'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useDocumentUpload, DocumentSearchResult } from '@/hooks/useDocumentUpload'
+import { useUpdateAttachmentUpload } from '@/hooks/useUpdateAttachmentUpload'
+import RichContentEditor from '@/components/tracker/RichContentEditor'
+import type { PendingImage, TableData } from '@/components/tracker/richContentTypes'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -249,6 +252,14 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   // 儲存成功但 Google Drive 檔案清除失敗時的警示（跟一般 error 視覺區分，不是紅色錯誤）
   const [driveWarning, setDriveWarning] = useState<string | null>(null)
 
+  // 備註欄位貼圖/貼表格：跟任務板「更新紀錄」同一套機制，圖片直傳 Cloudinary
+  // （不走照片牆的暫存機制），但送出時機仍跟隨整張表單一起在「建立」/「儲存」才寫入 DB
+  const [noteImages, setNoteImages] = useState<PendingImage[]>(
+    (card?.notes_image_urls ?? []).map(img => ({ tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url })),
+  )
+  const [noteTable, setNoteTable] = useState<TableData | null>(card?.notes_table_data ?? null)
+  const { upload: uploadNoteImage } = useUpdateAttachmentUpload('/api/cards/notes-signature')
+
   const [saving, setSaving]           = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
@@ -270,6 +281,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       net_weight:   card?.net_weight?.toString() ?? '',
     })
     setIsNew(card?.is_new ?? true)
+    setNoteImages((card?.notes_image_urls ?? []).map(img => ({ tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url })))
+    setNoteTable(card?.notes_table_data ?? null)
     setMainPhoto(card?.main_photo ?? null)
     setMainPhotoId(card?.main_photo_public_id ?? null)
     setDetailPhotos(card?.detail_photos ?? [])
@@ -414,6 +427,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           tags: parseTags(form.tags),
           is_new: isNew,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
+          notes_image_urls: noteImages.filter(p => p.public_id && p.url).map(p => ({ public_id: p.public_id!, url: p.url! })),
+          notes_table_data: noteTable,
         }),
       })
       const data = await res.json()
@@ -511,7 +526,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
       if ((form.vendor?.trim() || null) !== orig.vendor) changedFields.push('廠商')
       if (form.status !== orig.status) changedFields.push('狀態')
       if (JSON.stringify([...newTags].sort()) !== JSON.stringify([...orig.tags].sort())) changedFields.push('標籤')
-      if ((form.notes?.trim() || null) !== orig.notes) changedFields.push('備註')
+      const newNoteImages = noteImages.filter(p => p.public_id && p.url).map(p => ({ public_id: p.public_id!, url: p.url! }))
+      const notesChanged =
+        (form.notes?.trim() || null) !== orig.notes ||
+        JSON.stringify(newNoteImages) !== JSON.stringify(orig.notes_image_urls ?? []) ||
+        JSON.stringify(noteTable) !== JSON.stringify(orig.notes_table_data ?? null)
+      if (notesChanged) changedFields.push('備註')
       // 文件已改為透過 /api/documents/* 即時生效（不再等按「儲存」），此處不再需要比對變更
       if (newNetWeight !== orig.net_weight) changedFields.push('淨重')
       if (isNew !== !!orig.is_new) changedFields.push('新品標記')
@@ -526,6 +546,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           ...form, tags: parseTags(form.tags), is_new: isNew,
           detail_photo_captions: detailCaptions,
           net_weight: form.net_weight !== '' ? parseFloat(form.net_weight) : null,
+          notes_image_urls: newNoteImages,
+          notes_table_data: noteTable,
           updated_fields: changedFields,
         }),
       })
@@ -1138,10 +1160,17 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           {/* 備註 */}
           <div>
             <label className="block text-sm font-medium text-[#6b4f38] mb-1">備註</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              rows={5} placeholder="補充說明…"
+            <RichContentEditor
+              content={form.notes}
+              onContentChange={v => set('notes', v)}
+              images={noteImages}
+              onImagesChange={setNoteImages}
+              table={noteTable}
+              onTableChange={setNoteTable}
+              uploadImage={uploadNoteImage}
+              placeholder="補充說明…"
+              rows={5}
               disabled={!canEdit('edit_card_notes')}
-              className={`${inputCls} resize-none disabled:opacity-50 disabled:cursor-not-allowed`}
             />
           </div>
 
