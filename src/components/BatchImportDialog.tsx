@@ -169,7 +169,7 @@ function csvToRows(text: string, settings: AppSettings): ParsedRow[] {
     const isNewRaw = col(cols, 'is_new', '新品')
 
     const status = (statusRaw && statusRaw !== null) ? statusRaw : validStatuses[0]
-    const tags = tagsRaw === undefined ? undefined : tagsRaw === null ? null : tagsRaw.split('|').map(t => t.trim()).filter(Boolean)
+    const tags = tagsRaw === undefined ? undefined : tagsRaw === null ? null : tagsRaw.split(/[、|]/).map(t => t.trim()).filter(Boolean)
     const net_weight: number | null | undefined = netWeightRaw === undefined
       ? undefined
       : netWeightRaw === null
@@ -352,7 +352,7 @@ export default function BatchImportDialog({ open, onClose, settings }: Props) {
                   <span className="text-[#8a6a4a]">分類（選填）</span>
                   <span className="text-[#8a6a4a]">廠商（選填）</span>
                   <span className="text-[#8a6a4a]">狀態（選填，預設「現役」）</span>
-                  <span className="text-[#8a6a4a]">標籤（選填，用 <code className="bg-[#ede5db] px-1 rounded text-xs">|</code> 分隔）</span>
+                  <span className="text-[#8a6a4a]">標籤（選填，用 <code className="bg-[#ede5db] px-1 rounded text-xs">、</code> 分隔）</span>
                   <span className="text-[#8a6a4a]">備註（選填）</span>
                   <span className="text-[#8a6a4a]">淨重kg（選填）</span>
                   <span className="text-[#8a6a4a]">is_new（選填，true/false）</span>

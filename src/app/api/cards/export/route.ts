@@ -42,7 +42,7 @@ export async function GET() {
     csvEscape(card.category),
     csvEscape(card.vendor),
     csvEscape(card.status),
-    csvEscape((card.tags ?? []).join('|')),
+    csvEscape((card.tags ?? []).join('、')),
     csvEscape(card.notes),
     card.net_weight != null ? String(card.net_weight) : '',
     card.is_new === true ? 'true' : 'false',
