@@ -343,6 +343,25 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         className="bg-[#f2ebe0] w-full relative overflow-hidden"
         style={{ paddingBottom: '80%' }}
       >
+        {/* 預先載入左右鄰居照片：不然滑動當下才臨時去抓圖，網路/解碼還沒跑完
+            就先放手了，畫面才會在滑到定點後又跳出「圖片剛載入」的閃爍感。
+            用跟主圖一樣的 sizes，確保 Next/Image 產生同一個尺寸的資源，
+            瀏覽器才吃得到同一份快取。用 1x1px 藏起來但不是 display:none，
+            確保瀏覽器還是會真的去載入。 */}
+        {allPhotos.length > 1 && (
+          <div style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+            {photoIndex > 0 && (
+              <div style={{ position: 'relative', width: 1, height: 1 }}>
+                <Image src={allPhotos[photoIndex - 1].url} alt="" fill sizes="100vw" priority />
+              </div>
+            )}
+            {photoIndex < allPhotos.length - 1 && (
+              <div style={{ position: 'relative', width: 1, height: 1 }}>
+                <Image src={allPhotos[photoIndex + 1].url} alt="" fill sizes="100vw" priority />
+              </div>
+            )}
+          </div>
+        )}
         {mobilePreviewIndex !== null && (
           <div
             ref={mobileBehindRef}
