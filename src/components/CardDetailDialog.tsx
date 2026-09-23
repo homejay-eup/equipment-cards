@@ -97,6 +97,164 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     touchStartY.current = null
   }
 
+  /* ── 手機版燈箱照片左右滑（跟手拖曳＋物理回饋），只用在 MobilePhotoArea，桌機箭頭/縮圖/DesktopPhotoArea 的簡易滑動不受影響 ── */
+  const mobileDragStart = useRef<{ x: number; y: number; t: number } | null>(null)
+  const mobileDragDx = useRef(0)
+  const mobileDragDy = useRef(0)
+  const mobileDragDir = useRef<'prev' | 'next' | null>(null)
+  const mobileActiveRef = useRef<HTMLDivElement>(null)
+  const mobileBehindRef = useRef<HTMLDivElement>(null)
+  const mobileHintLeftRef = useRef<HTMLDivElement>(null)
+  const mobileHintRightRef = useRef<HTMLDivElement>(null)
+  const mobileToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [mobilePreviewIndex, setMobilePreviewIndex] = useState<number | null>(null)
+  const [mobileToast, setMobileToast] = useState<string | null>(null)
+
+  useEffect(() => () => { if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current) }, [])
+
+  function showMobileToast(msg: string) {
+    setMobileToast(msg)
+    if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
+    mobileToastTimer.current = setTimeout(() => setMobileToast(null), 900)
+  }
+
+  function handleMobileTouchStart(e: React.TouchEvent) {
+    if (allPhotos.length <= 1) return
+    mobileDragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() }
+    mobileDragDx.current = 0
+    mobileDragDy.current = 0
+    mobileDragDir.current = null
+    if (mobileActiveRef.current) mobileActiveRef.current.style.transition = 'none'
+  }
+
+  function handleMobileTouchMove(e: React.TouchEvent) {
+    if (!mobileDragStart.current || allPhotos.length <= 1) return
+    const dx = e.touches[0].clientX - mobileDragStart.current.x
+    const dy = e.touches[0].clientY - mobileDragStart.current.y
+    mobileDragDx.current = dx
+    mobileDragDy.current = dy
+    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
+    if (dir !== mobileDragDir.current) {
+      mobileDragDir.current = dir
+      const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
+      setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
+    }
+    const active = mobileActiveRef.current
+    const behind = mobileBehindRef.current
+    const hintL = mobileHintLeftRef.current
+    const hintR = mobileHintRightRef.current
+    const fadeFrac = Math.min(1, Math.abs(dx) / 160)
+    if (active) {
+      active.style.transform = `translate(${dx}px, ${dy * 0.35}px) rotate(${dx / 18}deg)`
+      active.style.opacity = String(1 - 0.65 * fadeFrac)
+    }
+    const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
+    if (behind) {
+      behind.style.transition = 'none'
+      behind.style.opacity = atBoundary ? '0' : '1'
+    }
+    const hintFrac = Math.min(1, Math.abs(dx) / 120)
+    if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
+    if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
+  }
+
+  function springBackMobilePhoto() {
+    const active = mobileActiveRef.current
+    const behind = mobileBehindRef.current
+    if (active) {
+      active.style.transition = 'transform .32s cubic-bezier(.2,1.2,.4,1), opacity .32s cubic-bezier(.2,1.2,.4,1)'
+      active.style.transform = 'translate(0px,0px) rotate(0deg)'
+      active.style.opacity = '1'
+    }
+    if (behind) {
+      behind.style.transition = 'opacity .2s'
+      behind.style.opacity = '0'
+    }
+    setTimeout(() => setMobilePreviewIndex(null), 200)
+  }
+
+  function bounceMobileBoundary(dir: 'prev' | 'next') {
+    const active = mobileActiveRef.current
+    const behind = mobileBehindRef.current
+    const bounceX = dir === 'next' ? -14 : 14
+    if (active) {
+      active.style.transition = 'transform .12s ease-out'
+      active.style.transform = `translate(${bounceX}px,0px) rotate(${bounceX / 18}deg)`
+      active.style.opacity = '1'
+    }
+    if (behind) {
+      behind.style.transition = 'opacity .15s'
+      behind.style.opacity = '0'
+    }
+    setTimeout(() => {
+      if (active) {
+        active.style.transition = 'transform .28s cubic-bezier(.2,1.2,.4,1)'
+        active.style.transform = 'translate(0px,0px) rotate(0deg)'
+      }
+    }, 120)
+    setTimeout(() => setMobilePreviewIndex(null), 200)
+    showMobileToast(dir === 'next' ? '已經是最後一張' : '已經是第一張')
+  }
+
+  function flyOffMobilePhoto(dir: 'prev' | 'next', targetIdx: number, dy: number) {
+    const active = mobileActiveRef.current
+    const behind = mobileBehindRef.current
+    const stageWidth = active?.clientWidth ?? 320
+    const flyX = (dir === 'next' ? -1 : 1) * (stageWidth * 1.3)
+    const rot = dir === 'next' ? -18 : 18
+    if (active) {
+      active.style.transition = 'transform .22s ease-in, opacity .22s ease-in'
+      active.style.transform = `translate(${flyX}px, ${dy * 0.35}px) rotate(${rot}deg)`
+      active.style.opacity = '0'
+    }
+    if (behind) {
+      behind.style.transition = 'transform .22s ease-out, filter .22s ease-out'
+      behind.style.transform = 'scale(1) translateY(0px)'
+      behind.style.filter = 'brightness(1)'
+    }
+    setTimeout(() => {
+      setPhotoIndex(targetIdx)
+      setMobilePreviewIndex(null)
+      if (active) {
+        active.style.transition = 'none'
+        active.style.transform = 'translate(0px,0px) rotate(0deg)'
+        active.style.opacity = '1'
+      }
+      if (behind) {
+        behind.style.transition = 'none'
+        behind.style.transform = 'scale(.94) translateY(10px)'
+        behind.style.filter = 'brightness(.85)'
+        behind.style.opacity = '0'
+      }
+    }, 220)
+  }
+
+  function handleMobileTouchEnd() {
+    if (!mobileDragStart.current || allPhotos.length <= 1) { mobileDragStart.current = null; return }
+    const dx = mobileDragDx.current
+    const dy = mobileDragDy.current
+    const elapsed = Math.max(1, performance.now() - mobileDragStart.current.t)
+    const velocity = Math.abs(dx) / elapsed
+    const stageWidth = mobileActiveRef.current?.clientWidth ?? 320
+    const thresholdPx = Math.min(stageWidth * 0.22, 120)
+    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
+    const passedThreshold = Math.abs(dx) > thresholdPx || velocity > 0.55
+    const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
+    const inBounds = targetIdx >= 0 && targetIdx < allPhotos.length
+
+    if (mobileHintLeftRef.current) { mobileHintLeftRef.current.style.transition = 'opacity .2s'; mobileHintLeftRef.current.style.opacity = '0' }
+    if (mobileHintRightRef.current) { mobileHintRightRef.current.style.transition = 'opacity .2s'; mobileHintRightRef.current.style.opacity = '0' }
+
+    if (passedThreshold && inBounds) {
+      flyOffMobilePhoto(dir, targetIdx, dy)
+    } else if (passedThreshold && !inBounds) {
+      bounceMobileBoundary(dir)
+    } else {
+      springBackMobilePhoto()
+    }
+    mobileDragStart.current = null
+  }
+
   /* ── 照片內容（共用） ── */
   function PhotoContent({ sizes }: { sizes: string }) {
     if (allPhotos.length === 0) {
@@ -134,16 +292,55 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     )
   }
 
-  /* ── 手機照片區：padding-bottom 自適應比例 ── */
+  /* ── 手機照片區：padding-bottom 自適應比例，左右滑跟手拖曳＋物理回饋 ── */
   function MobilePhotoArea() {
     return (
       <div
-        className="bg-[#f2ebe0] w-full relative"
-        style={{ paddingBottom: '80%', touchAction: 'pan-y' }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        className="bg-[#f2ebe0] w-full relative overflow-hidden"
+        style={{ paddingBottom: '80%' }}
       >
-        <PhotoContent sizes="100vw" />
+        {mobilePreviewIndex !== null && (
+          <div
+            ref={mobileBehindRef}
+            className="absolute inset-0 pointer-events-none"
+            style={{ transform: 'scale(.94) translateY(10px)', filter: 'brightness(.85)', opacity: 0 }}
+          >
+            <Image src={allPhotos[mobilePreviewIndex].url} alt="" fill sizes="100vw" className="object-contain" />
+          </div>
+        )}
+        <div
+          ref={mobileActiveRef}
+          className="absolute inset-0"
+          style={{ touchAction: 'pan-y' }}
+          onTouchStart={handleMobileTouchStart}
+          onTouchMove={handleMobileTouchMove}
+          onTouchEnd={handleMobileTouchEnd}
+        >
+          <PhotoContent sizes="100vw" />
+        </div>
+        {allPhotos.length > 1 && (
+          <>
+            <div
+              ref={mobileHintLeftRef}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.6)] text-white text-xs font-medium px-2.5 py-1 rounded-full pointer-events-none"
+              style={{ opacity: 0 }}
+            >
+              ‹ 上一張
+            </div>
+            <div
+              ref={mobileHintRightRef}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.6)] text-white text-xs font-medium px-2.5 py-1 rounded-full pointer-events-none"
+              style={{ opacity: 0 }}
+            >
+              下一張 ›
+            </div>
+          </>
+        )}
+        {mobileToast && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[rgba(44,30,18,.8)] text-white text-xs px-3 py-1 rounded-full pointer-events-none whitespace-nowrap">
+            {mobileToast}
+          </div>
+        )}
       </div>
     )
   }
