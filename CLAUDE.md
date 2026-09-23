@@ -137,19 +137,23 @@
 
 ### CodeGraph 工作規範（強制）
 
-本專案已安裝 **CodeGraph**（`npm i -g codegraph`），並設定為 Claude Code MCP server。
+本專案已安裝 **CodeGraph**（npm 套件 `@colbymchenry/codegraph`），並設定為 Claude Code MCP server。
 
-**換機器時的初始化步驟**：
+**換機器時的初始化步驟**（在 Git Bash 執行）：
 ```bash
-npm install -g codegraph
+npm install -g @colbymchenry/codegraph
 cd 設備料卡
-codegraph init        # 建立索引（約 2–3 秒）
+codegraph init        # 建立索引（約 2–3 秒）；舊版索引可用 codegraph index . 整個重建
 # ⚠️ 用 CCD（Claude Desktop App）時必須用 claude mcp add，不能用 codegraph install
-claude mcp add --scope user codegraph -- codegraph serve --mcp
+# ⚠️ Windows 要包 cmd /c；Git Bash 要加 MSYS_NO_PATHCONV=1，否則 /c 會被轉成 C:/
+MSYS_NO_PATHCONV=1 claude mcp add --scope user codegraph -- cmd /c codegraph serve --mcp
+claude mcp list       # 確認 codegraph 顯示 ✔ Connected
 # 重新開啟 session 讓 MCP tools 生效
 ```
 
 > **背景**：`codegraph install` 把設定寫入 `~/.claude/settings.json`（舊格式），但 CCD 只讀 `~/.claude.json`（新格式）。`claude mcp add --scope user` 才是正確路徑。
+>
+> ⚠️ **不要裝 npm 上的 `codegraph`**（無 scope）：那是只有 `package.json` 的空殼套件，裝了也沒有 `codegraph` 指令。在 PowerShell 執行 `claude mcp add ... -- ...` 也會因為 `--` 被吃掉而報錯 `unknown option '--mcp'`，請改用 Git Bash。
 
 **這是預設行為，不需要使用者每次提醒才執行。** 每次要修改程式碼前，主 session 要主動照下面流程走，不要等使用者說「記得用 CodeGraph」才做。
 
