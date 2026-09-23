@@ -231,21 +231,29 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     const commit = () => {
       if (committed) return
       committed = true
+      // 先換 photoIndex，但先不動 active/behind 的樣式：這時候「新照片」還是靠
+      // behind 這層在畫面上（已經是全尺寸全不透明），active 裡還沒被 React 換成新照片。
+      // 等兩個 rAF、確定新照片已經畫出來了，才把 active 收回中間定位、behind 收掉，
+      // 不然舊照片會在這個空檔被 active 蓋回去，變成一閃。
       setPhotoIndex(targetIdx)
-      setMobilePreviewIndex(null)
-      if (active) {
-        active.style.transition = 'none'
-        active.style.transform = 'translate(0px,0px) rotate(0deg)'
-        active.style.opacity = '1'
-        active.style.willChange = 'auto'
-      }
-      if (behind) {
-        behind.style.transition = 'none'
-        behind.style.transform = 'scale(.94) translateY(10px)'
-        behind.style.filter = 'brightness(.85)'
-        behind.style.opacity = '0'
-        behind.style.willChange = 'auto'
-      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (active) {
+            active.style.transition = 'none'
+            active.style.transform = 'translate(0px,0px) rotate(0deg)'
+            active.style.opacity = '1'
+            active.style.willChange = 'auto'
+          }
+          setMobilePreviewIndex(null)
+          if (behind) {
+            behind.style.transition = 'none'
+            behind.style.transform = 'scale(.94) translateY(10px)'
+            behind.style.filter = 'brightness(.85)'
+            behind.style.opacity = '0'
+            behind.style.willChange = 'auto'
+          }
+        })
+      })
     }
     if (active) {
       active.style.transition = 'transform .22s ease-in, opacity .22s ease-in'
