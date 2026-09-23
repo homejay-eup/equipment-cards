@@ -18,7 +18,9 @@ import DocumentsClient from '@/components/DocumentsClient'
 import PackagesClient from '@/components/PackagesClient'
 import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
 import SystemAdminClient from '@/components/admin/SystemAdminClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings } from 'lucide-react'
+import StandardPricesClient from '@/components/standard-prices/StandardPricesClient'
+import type { StandardPriceItem } from '@/types/standardPrice'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -54,6 +56,7 @@ interface Props {
   subfilterConfig?: Record<string, string[]>
   quoteItems?: QuoteItem[]
   packagesData?: PackagesData
+  standardPrices?: StandardPriceItem[]
 }
 
 const SORT_OPTIONS = [
@@ -62,7 +65,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData, standardPrices = [] }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -136,7 +139,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin' | 'prices'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -151,6 +154,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [quotesMounted, setQuotesMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'quotes') setQuotesMounted(true)
+  }, [activeTab])
+  // 首次切到「標準售價」才 mount StandardPricesClient，之後保持常駐（CSS hide/show）保留 state
+  const [pricesMounted, setPricesMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'prices') setPricesMounted(true)
   }, [activeTab])
   // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
   const [documentsMounted, setDocumentsMounted] = useState(false)
@@ -669,6 +677,18 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">人為配件報價</span>
               </button>
             )}
+            <button
+              onClick={() => setActiveTab('prices')}
+              title="標準售價"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                activeTab === 'prices'
+                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+              }`}
+            >
+              <Tags className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">標準售價</span>
+            </button>
             {permissions.includes('use_bookmarks') && (
               <button
                 onClick={() => setActiveTab('bookmarks')}
@@ -766,7 +786,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' || activeTab === 'admin' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' || activeTab === 'admin' || activeTab === 'prices' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1102,6 +1122,16 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             initialItems={quoteItems}
             categories={settings.quoteCategories}
             permissions={permissions}
+          />
+        </div>
+      )}
+
+      {/* 標準售價：首次進入後保持常駐（CSS hide/show），所有登入者可看，edit_quotes 可編輯 */}
+      {pricesMounted && (
+        <div className={activeTab !== 'prices' ? 'hidden' : ''}>
+          <StandardPricesClient
+            initialItems={standardPrices}
+            canEdit={permissions.includes('edit_quotes')}
           />
         </div>
       )}
