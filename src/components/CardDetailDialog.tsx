@@ -128,6 +128,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   function handleMobileTouchStart(e: React.TouchEvent) {
     if (allPhotos.length <= 1) return
+    // 觸控起點在箭頭按鈕上就不啟動拖曳判斷，讓按鈕的 tap/click 單純處理，
+    // 不然按鈕在拖曳範圍內，手指按下去同時被我們判成一次微小拖曳，
+    // 放開時瀏覽器又補發 click 呼叫 prev()/next()，兩邊各換一次相互打架。
+    if ((e.target as HTMLElement).closest('button')) return
     mobileDragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() }
     mobileDragDx.current = 0
     mobileDragDy.current = 0
