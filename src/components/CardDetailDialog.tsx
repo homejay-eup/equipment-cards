@@ -103,7 +103,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const mobileDragDy = useRef(0)
   const mobileDragDir = useRef<'prev' | 'next' | null>(null)
   const mobileStageWidth = useRef(320)
-  const mobileRafId = useRef<number | null>(null)
   const mobileActiveRef = useRef<HTMLDivElement>(null)
   const mobileBehindRef = useRef<HTMLDivElement>(null)
   const mobileHintLeftRef = useRef<HTMLDivElement>(null)
@@ -114,7 +113,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
 
   useEffect(() => () => {
     if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
-    if (mobileRafId.current !== null) cancelAnimationFrame(mobileRafId.current)
   }, [])
 
   function showMobileToast(msg: string) {
@@ -140,13 +138,21 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     setMobileWillChange('transform, opacity, filter')
   }
 
-  /* 拖曳中的視覺更新集中放進 rAF，跟觸控事件頻率脫鉤，避免掉幀跟手指跟不上 */
-  function applyMobileDragFrame() {
-    mobileRafId.current = null
-    const dir = mobileDragDir.current
-    if (!dir) return
-    const dx = mobileDragDx.current
-    const dy = mobileDragDy.current
+  /* 直接同步更新 style，不透過 requestAnimationFrame 批次處理：
+     實測發現 rAF 批次會讓跟手拖曳多一點延遲感，比不上一開始「觸控事件
+     來一次就直接寫 style」的即時感，改回同步寫法。 */
+  function handleMobileTouchMove(e: React.TouchEvent) {
+    if (!mobileDragStart.current || allPhotos.length <= 1) return
+    const dx = e.touches[0].clientX - mobileDragStart.current.x
+    const dy = e.touches[0].clientY - mobileDragStart.current.y
+    mobileDragDx.current = dx
+    mobileDragDy.current = dy
+    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
+    if (dir !== mobileDragDir.current) {
+      mobileDragDir.current = dir
+      const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
+      setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
+    }
     const active = mobileActiveRef.current
     const behind = mobileBehindRef.current
     const hintL = mobileHintLeftRef.current
@@ -163,31 +169,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
   }
 
-  /* 用回 React 的 passive onTouchMove，不擋瀏覽器預設行為：
-     實測發現用非 passive listener + preventDefault 會讓部分手機瀏覽器
-     判斷手勢衝突而直接送出 touchcancel，導致拖到一半放手卻沒有任何
-     後續事件、卡片凍結在拖曳中的位置。改靠 touch-action:'pan-y' 這個
-     CSS 層級的宣告去降低跟垂直捲動打架的機率，行為更穩定。 */
-  function handleMobileTouchMove(e: React.TouchEvent) {
-    if (!mobileDragStart.current || allPhotos.length <= 1) return
-    const dx = e.touches[0].clientX - mobileDragStart.current.x
-    const dy = e.touches[0].clientY - mobileDragStart.current.y
-    mobileDragDx.current = dx
-    mobileDragDy.current = dy
-    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
-    if (dir !== mobileDragDir.current) {
-      mobileDragDir.current = dir
-      const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
-      setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
-    }
-    if (mobileRafId.current === null) {
-      mobileRafId.current = requestAnimationFrame(applyMobileDragFrame)
-    }
-  }
-
   /* 保險：手勢被系統中途取消（touchcancel）時也要收尾，避免卡片凍結在拖曳中途的位置 */
   function handleMobileTouchCancel() {
-    if (mobileRafId.current !== null) { cancelAnimationFrame(mobileRafId.current); mobileRafId.current = null }
     if (!mobileDragStart.current) return
     mobileDragStart.current = null
     if (mobileHintLeftRef.current) mobileHintLeftRef.current.style.opacity = '0'
@@ -280,7 +263,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   }
 
   function handleMobileTouchEnd() {
-    if (mobileRafId.current !== null) { cancelAnimationFrame(mobileRafId.current); mobileRafId.current = null }
     if (!mobileDragStart.current || allPhotos.length <= 1) { mobileDragStart.current = null; return }
     const dx = mobileDragDx.current
     const dy = mobileDragDy.current
