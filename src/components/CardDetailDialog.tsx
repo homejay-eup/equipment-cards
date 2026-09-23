@@ -140,57 +140,60 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     setMobileWillChange('transform, opacity, filter')
   }
 
-  /* 原生（非 passive）touchmove：確定是水平滑動才 preventDefault，
-     避免跟 Dialog 本身的上下捲動、或手機瀏覽器邊緣返回手勢搶手勢 */
-  useEffect(() => {
-    const el = mobileActiveRef.current
-    if (!el || allPhotos.length <= 1) return
-
-    /* 拖曳中的視覺更新集中放進 rAF，跟觸控事件頻率脫鉤，避免掉幀跟手指跟不上 */
-    function applyMobileDragFrame() {
-      mobileRafId.current = null
-      const dir = mobileDragDir.current
-      if (!dir) return
-      const dx = mobileDragDx.current
-      const dy = mobileDragDy.current
-      const active = mobileActiveRef.current
-      const behind = mobileBehindRef.current
-      const hintL = mobileHintLeftRef.current
-      const hintR = mobileHintRightRef.current
-      const fadeFrac = Math.min(1, Math.abs(dx) / 160)
-      if (active) {
-        active.style.transform = `translate(${dx}px, ${dy * 0.35}px) rotate(${dx / 18}deg)`
-        active.style.opacity = String(1 - 0.65 * fadeFrac)
-      }
-      const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
-      if (behind) behind.style.opacity = atBoundary ? '0' : '1'
-      const hintFrac = Math.min(1, Math.abs(dx) / 120)
-      if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
-      if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
+  /* 拖曳中的視覺更新集中放進 rAF，跟觸控事件頻率脫鉤，避免掉幀跟手指跟不上 */
+  function applyMobileDragFrame() {
+    mobileRafId.current = null
+    const dir = mobileDragDir.current
+    if (!dir) return
+    const dx = mobileDragDx.current
+    const dy = mobileDragDy.current
+    const active = mobileActiveRef.current
+    const behind = mobileBehindRef.current
+    const hintL = mobileHintLeftRef.current
+    const hintR = mobileHintRightRef.current
+    const fadeFrac = Math.min(1, Math.abs(dx) / 160)
+    if (active) {
+      active.style.transform = `translate(${dx}px, ${dy * 0.35}px) rotate(${dx / 18}deg)`
+      active.style.opacity = String(1 - 0.65 * fadeFrac)
     }
+    const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
+    if (behind) behind.style.opacity = atBoundary ? '0' : '1'
+    const hintFrac = Math.min(1, Math.abs(dx) / 120)
+    if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
+    if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
+  }
 
-    function onNativeTouchMove(e: TouchEvent) {
-      if (!mobileDragStart.current) return
-      const dx = e.touches[0].clientX - mobileDragStart.current.x
-      const dy = e.touches[0].clientY - mobileDragStart.current.y
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6 && e.cancelable) {
-        e.preventDefault()
-      }
-      mobileDragDx.current = dx
-      mobileDragDy.current = dy
-      const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
-      if (dir !== mobileDragDir.current) {
-        mobileDragDir.current = dir
-        const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
-        setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
-      }
-      if (mobileRafId.current === null) {
-        mobileRafId.current = requestAnimationFrame(applyMobileDragFrame)
-      }
+  /* 用回 React 的 passive onTouchMove，不擋瀏覽器預設行為：
+     實測發現用非 passive listener + preventDefault 會讓部分手機瀏覽器
+     判斷手勢衝突而直接送出 touchcancel，導致拖到一半放手卻沒有任何
+     後續事件、卡片凍結在拖曳中的位置。改靠 touch-action:'pan-y' 這個
+     CSS 層級的宣告去降低跟垂直捲動打架的機率，行為更穩定。 */
+  function handleMobileTouchMove(e: React.TouchEvent) {
+    if (!mobileDragStart.current || allPhotos.length <= 1) return
+    const dx = e.touches[0].clientX - mobileDragStart.current.x
+    const dy = e.touches[0].clientY - mobileDragStart.current.y
+    mobileDragDx.current = dx
+    mobileDragDy.current = dy
+    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
+    if (dir !== mobileDragDir.current) {
+      mobileDragDir.current = dir
+      const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
+      setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
     }
-    el.addEventListener('touchmove', onNativeTouchMove, { passive: false })
-    return () => el.removeEventListener('touchmove', onNativeTouchMove)
-  }, [photoIndex, allPhotos.length])
+    if (mobileRafId.current === null) {
+      mobileRafId.current = requestAnimationFrame(applyMobileDragFrame)
+    }
+  }
+
+  /* 保險：手勢被系統中途取消（touchcancel）時也要收尾，避免卡片凍結在拖曳中途的位置 */
+  function handleMobileTouchCancel() {
+    if (mobileRafId.current !== null) { cancelAnimationFrame(mobileRafId.current); mobileRafId.current = null }
+    if (!mobileDragStart.current) return
+    mobileDragStart.current = null
+    if (mobileHintLeftRef.current) mobileHintLeftRef.current.style.opacity = '0'
+    if (mobileHintRightRef.current) mobileHintRightRef.current.style.opacity = '0'
+    springBackMobilePhoto()
+  }
 
   function springBackMobilePhoto() {
     const active = mobileActiveRef.current
@@ -360,7 +363,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           className="absolute inset-0"
           style={{ touchAction: 'pan-y' }}
           onTouchStart={handleMobileTouchStart}
+          onTouchMove={handleMobileTouchMove}
           onTouchEnd={handleMobileTouchEnd}
+          onTouchCancel={handleMobileTouchCancel}
         >
           <PhotoContent sizes="100vw" />
         </div>
