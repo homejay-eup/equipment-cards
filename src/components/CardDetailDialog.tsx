@@ -102,6 +102,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const mobileDragDx = useRef(0)
   const mobileDragDy = useRef(0)
   const mobileDragDir = useRef<'prev' | 'next' | null>(null)
+  const mobileStageWidth = useRef(320)
+  const mobileRafId = useRef<number | null>(null)
   const mobileActiveRef = useRef<HTMLDivElement>(null)
   const mobileBehindRef = useRef<HTMLDivElement>(null)
   const mobileHintLeftRef = useRef<HTMLDivElement>(null)
@@ -110,12 +112,20 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const [mobilePreviewIndex, setMobilePreviewIndex] = useState<number | null>(null)
   const [mobileToast, setMobileToast] = useState<string | null>(null)
 
-  useEffect(() => () => { if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current) }, [])
+  useEffect(() => () => {
+    if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
+    if (mobileRafId.current !== null) cancelAnimationFrame(mobileRafId.current)
+  }, [])
 
   function showMobileToast(msg: string) {
     setMobileToast(msg)
     if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
     mobileToastTimer.current = setTimeout(() => setMobileToast(null), 900)
+  }
+
+  function setMobileWillChange(v: string) {
+    if (mobileActiveRef.current) mobileActiveRef.current.style.willChange = v
+    if (mobileBehindRef.current) mobileBehindRef.current.style.willChange = v === 'auto' ? 'auto' : 'transform, opacity, filter'
   }
 
   function handleMobileTouchStart(e: React.TouchEvent) {
@@ -124,39 +134,63 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     mobileDragDx.current = 0
     mobileDragDy.current = 0
     mobileDragDir.current = null
+    mobileStageWidth.current = mobileActiveRef.current?.clientWidth ?? 320
     if (mobileActiveRef.current) mobileActiveRef.current.style.transition = 'none'
+    if (mobileBehindRef.current) mobileBehindRef.current.style.transition = 'none'
+    setMobileWillChange('transform, opacity, filter')
   }
 
-  function handleMobileTouchMove(e: React.TouchEvent) {
-    if (!mobileDragStart.current || allPhotos.length <= 1) return
-    const dx = e.touches[0].clientX - mobileDragStart.current.x
-    const dy = e.touches[0].clientY - mobileDragStart.current.y
-    mobileDragDx.current = dx
-    mobileDragDy.current = dy
-    const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
-    if (dir !== mobileDragDir.current) {
-      mobileDragDir.current = dir
-      const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
-      setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
+  /* 原生（非 passive）touchmove：確定是水平滑動才 preventDefault，
+     避免跟 Dialog 本身的上下捲動、或手機瀏覽器邊緣返回手勢搶手勢 */
+  useEffect(() => {
+    const el = mobileActiveRef.current
+    if (!el || allPhotos.length <= 1) return
+
+    /* 拖曳中的視覺更新集中放進 rAF，跟觸控事件頻率脫鉤，避免掉幀跟手指跟不上 */
+    function applyMobileDragFrame() {
+      mobileRafId.current = null
+      const dir = mobileDragDir.current
+      if (!dir) return
+      const dx = mobileDragDx.current
+      const dy = mobileDragDy.current
+      const active = mobileActiveRef.current
+      const behind = mobileBehindRef.current
+      const hintL = mobileHintLeftRef.current
+      const hintR = mobileHintRightRef.current
+      const fadeFrac = Math.min(1, Math.abs(dx) / 160)
+      if (active) {
+        active.style.transform = `translate(${dx}px, ${dy * 0.35}px) rotate(${dx / 18}deg)`
+        active.style.opacity = String(1 - 0.65 * fadeFrac)
+      }
+      const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
+      if (behind) behind.style.opacity = atBoundary ? '0' : '1'
+      const hintFrac = Math.min(1, Math.abs(dx) / 120)
+      if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
+      if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
     }
-    const active = mobileActiveRef.current
-    const behind = mobileBehindRef.current
-    const hintL = mobileHintLeftRef.current
-    const hintR = mobileHintRightRef.current
-    const fadeFrac = Math.min(1, Math.abs(dx) / 160)
-    if (active) {
-      active.style.transform = `translate(${dx}px, ${dy * 0.35}px) rotate(${dx / 18}deg)`
-      active.style.opacity = String(1 - 0.65 * fadeFrac)
+
+    function onNativeTouchMove(e: TouchEvent) {
+      if (!mobileDragStart.current) return
+      const dx = e.touches[0].clientX - mobileDragStart.current.x
+      const dy = e.touches[0].clientY - mobileDragStart.current.y
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6 && e.cancelable) {
+        e.preventDefault()
+      }
+      mobileDragDx.current = dx
+      mobileDragDy.current = dy
+      const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
+      if (dir !== mobileDragDir.current) {
+        mobileDragDir.current = dir
+        const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
+        setMobilePreviewIndex(targetIdx >= 0 && targetIdx < allPhotos.length ? targetIdx : null)
+      }
+      if (mobileRafId.current === null) {
+        mobileRafId.current = requestAnimationFrame(applyMobileDragFrame)
+      }
     }
-    const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
-    if (behind) {
-      behind.style.transition = 'none'
-      behind.style.opacity = atBoundary ? '0' : '1'
-    }
-    const hintFrac = Math.min(1, Math.abs(dx) / 120)
-    if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
-    if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
-  }
+    el.addEventListener('touchmove', onNativeTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onNativeTouchMove)
+  }, [photoIndex, allPhotos.length])
 
   function springBackMobilePhoto() {
     const active = mobileActiveRef.current
@@ -170,7 +204,10 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
       behind.style.transition = 'opacity .2s'
       behind.style.opacity = '0'
     }
-    setTimeout(() => setMobilePreviewIndex(null), 200)
+    setTimeout(() => {
+      setMobilePreviewIndex(null)
+      setMobileWillChange('auto')
+    }, 320)
   }
 
   function bounceMobileBoundary(dir: 'prev' | 'next') {
@@ -192,51 +229,61 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         active.style.transform = 'translate(0px,0px) rotate(0deg)'
       }
     }, 120)
-    setTimeout(() => setMobilePreviewIndex(null), 200)
+    setTimeout(() => {
+      setMobilePreviewIndex(null)
+      setMobileWillChange('auto')
+    }, 320)
     showMobileToast(dir === 'next' ? '已經是最後一張' : '已經是第一張')
   }
 
   function flyOffMobilePhoto(dir: 'prev' | 'next', targetIdx: number, dy: number) {
     const active = mobileActiveRef.current
     const behind = mobileBehindRef.current
-    const stageWidth = active?.clientWidth ?? 320
-    const flyX = (dir === 'next' ? -1 : 1) * (stageWidth * 1.3)
+    const flyX = (dir === 'next' ? -1 : 1) * (mobileStageWidth.current * 1.3)
     const rot = dir === 'next' ? -18 : 18
-    if (active) {
-      active.style.transition = 'transform .22s ease-in, opacity .22s ease-in'
-      active.style.transform = `translate(${flyX}px, ${dy * 0.35}px) rotate(${rot}deg)`
-      active.style.opacity = '0'
-    }
-    if (behind) {
-      behind.style.transition = 'transform .22s ease-out, filter .22s ease-out'
-      behind.style.transform = 'scale(1) translateY(0px)'
-      behind.style.filter = 'brightness(1)'
-    }
-    setTimeout(() => {
+    let committed = false
+    const commit = () => {
+      if (committed) return
+      committed = true
       setPhotoIndex(targetIdx)
       setMobilePreviewIndex(null)
       if (active) {
         active.style.transition = 'none'
         active.style.transform = 'translate(0px,0px) rotate(0deg)'
         active.style.opacity = '1'
+        active.style.willChange = 'auto'
       }
       if (behind) {
         behind.style.transition = 'none'
         behind.style.transform = 'scale(.94) translateY(10px)'
         behind.style.filter = 'brightness(.85)'
         behind.style.opacity = '0'
+        behind.style.willChange = 'auto'
       }
-    }, 220)
+    }
+    if (active) {
+      active.style.transition = 'transform .22s ease-in, opacity .22s ease-in'
+      active.style.transform = `translate(${flyX}px, ${dy * 0.35}px) rotate(${rot}deg)`
+      active.style.opacity = '0'
+      active.addEventListener('transitionend', commit, { once: true })
+    }
+    if (behind) {
+      behind.style.transition = 'transform .22s ease-out, filter .22s ease-out'
+      behind.style.transform = 'scale(1) translateY(0px)'
+      behind.style.filter = 'brightness(1)'
+    }
+    // 保險：萬一 transitionend 沒觸發（例如系統關閉動畫效果），還是要換張
+    setTimeout(commit, 280)
   }
 
   function handleMobileTouchEnd() {
+    if (mobileRafId.current !== null) { cancelAnimationFrame(mobileRafId.current); mobileRafId.current = null }
     if (!mobileDragStart.current || allPhotos.length <= 1) { mobileDragStart.current = null; return }
     const dx = mobileDragDx.current
     const dy = mobileDragDy.current
     const elapsed = Math.max(1, performance.now() - mobileDragStart.current.t)
     const velocity = Math.abs(dx) / elapsed
-    const stageWidth = mobileActiveRef.current?.clientWidth ?? 320
-    const thresholdPx = Math.min(stageWidth * 0.22, 120)
+    const thresholdPx = Math.min(mobileStageWidth.current * 0.22, 120)
     const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
     const passedThreshold = Math.abs(dx) > thresholdPx || velocity > 0.55
     const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
@@ -313,7 +360,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           className="absolute inset-0"
           style={{ touchAction: 'pan-y' }}
           onTouchStart={handleMobileTouchStart}
-          onTouchMove={handleMobileTouchMove}
           onTouchEnd={handleMobileTouchEnd}
         >
           <PhotoContent sizes="100vw" />
