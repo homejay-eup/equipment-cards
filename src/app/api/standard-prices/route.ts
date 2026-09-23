@@ -12,12 +12,17 @@ function getSupabase() {
   )
 }
 
-// GET /api/standard-prices — 登入即可（所有人都看得到定價/業務價/主管價，不分級）
+// GET /api/standard-prices — 需 view_standard_prices 或 edit_standard_prices（看得到的人三層價格全部顯示，不分級）
 // 回傳全部版本，前端自行計算每個產品的現行版本（同 name 中 effective_date 最大者）
 export async function GET() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { permissions } = await getUserRoleWithPermissions(user.email)
+  if (!permissions.includes('view_standard_prices') && !permissions.includes('edit_standard_prices')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { data, error } = await getSupabase()
     .from('standard_price_items')
@@ -30,7 +35,7 @@ export async function GET() {
   return NextResponse.json({ items: data ?? [] })
 }
 
-// POST /api/standard-prices — 需 edit_quotes；新增一筆（新產品或既有產品的新版本）
+// POST /api/standard-prices — 需 edit_standard_prices；新增一筆（新產品或既有產品的新版本）
 // (name, effective_date) 重複回 409
 export async function POST(req: NextRequest) {
   const supabase = createSupabaseServerClient()
@@ -38,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!user?.email) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { permissions } = await getUserRoleWithPermissions(user.email)
-  if (!permissions.includes('edit_quotes')) {
+  if (!permissions.includes('edit_standard_prices')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

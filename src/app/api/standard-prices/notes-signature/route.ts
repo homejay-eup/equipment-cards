@@ -16,7 +16,7 @@ function getCloudinary() {
 // 標準售價「備註」欄位貼圖用的 Cloudinary 簽名端點（比照 /api/cards/notes-signature）。
 // 不綁 standard_price_items.id：新增產品/另存新版本當下還沒有 id，新增與編輯共用同一個端點。
 // 標準售價是全公司共用資料（非部門隔離），全部放同一個 folder，不需要查呼叫者部門。
-// 權限：edit_quotes（跟新增/修改標準售價一致）。
+// 權限：edit_standard_prices（跟新增/修改標準售價一致）。
 export async function POST() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,7 +25,7 @@ export async function POST() {
   }
 
   const { permissions } = await getUserRoleWithPermissions(user.email)
-  if (!permissions.includes('edit_quotes')) {
+  if (!permissions.includes('edit_standard_prices')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

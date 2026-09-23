@@ -677,18 +677,20 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">人為配件報價</span>
               </button>
             )}
-            <button
-              onClick={() => setActiveTab('prices')}
-              title="標準售價"
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                activeTab === 'prices'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
-            >
-              <Tags className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">標準售價</span>
-            </button>
+            {(permissions.includes('view_standard_prices') || permissions.includes('edit_standard_prices')) && (
+              <button
+                onClick={() => setActiveTab('prices')}
+                title="標準售價"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'prices'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Tags className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">標準售價</span>
+              </button>
+            )}
             {permissions.includes('use_bookmarks') && (
               <button
                 onClick={() => setActiveTab('bookmarks')}
@@ -1126,12 +1128,12 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
       )}
 
-      {/* 標準售價：首次進入後保持常駐（CSS hide/show），所有登入者可看，edit_quotes 可編輯 */}
+      {/* 標準售價：首次進入後保持常駐（CSS hide/show），view/edit_standard_prices 可看，edit_standard_prices 可編輯 */}
       {pricesMounted && (
         <div className={activeTab !== 'prices' ? 'hidden' : ''}>
           <StandardPricesClient
             initialItems={standardPrices}
-            canEdit={permissions.includes('edit_quotes')}
+            canEdit={permissions.includes('edit_standard_prices')}
           />
         </div>
       )}

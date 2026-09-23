@@ -22,6 +22,7 @@ const VALID_PERMISSION_KEYS = [
   'view_tracker', 'view_my_tasks', 'create_issues', 'tracker_edit_issue',
   'manage_subfilter_tags',
   'view_quotes', 'view_quotes_manager_price', 'edit_quotes',
+  'view_standard_prices', 'edit_standard_prices',
   'manage_documents',
   'view_analytics',
   'view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages',

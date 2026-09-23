@@ -33,14 +33,14 @@ const versionKey = (name: string, effectiveDate: string) => `${name}\u0000${effe
 //   - 覆蓋時一律保留既有 notes_image_urls / notes_table_data（CSV 沒有這兩欄）
 //   - 覆蓋時 notes 為空 → 保留既有備註（不清空）；列物件沒帶某個 key → 該欄位沿用既有值
 // 回傳：{ inserted, updated, items }
-// 權限：edit_quotes
+// 權限：edit_standard_prices
 export async function POST(req: NextRequest) {
   const supabaseAuth = createSupabaseServerClient()
   const { data: { user } } = await supabaseAuth.auth.getUser()
   if (!user?.email) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { permissions } = await getUserRoleWithPermissions(user.email)
-  if (!permissions.includes('edit_quotes')) {
+  if (!permissions.includes('edit_standard_prices')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

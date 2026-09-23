@@ -22,12 +22,12 @@ function getCloudinary() {
   return cloudinary
 }
 
-async function checkEditQuotes() {
+async function checkEditStandardPrices() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return null
   const { permissions } = await getUserRoleWithPermissions(user.email)
-  return permissions.includes('edit_quotes') ? user : null
+  return permissions.includes('edit_standard_prices') ? user : null
 }
 
 type NotesImage = { public_id: string; url: string }
@@ -50,7 +50,7 @@ async function destroyUnreferencedImages(
   actionLabel: string,
 ): Promise<string | null> {
   // 只清本功能 folder 下的圖片：public_id 由前端送來（validateRichContent 只檢查 url 前綴），
-  // 不加這道限制的話，有 edit_quotes 的人可以把任意 public_id（例如料卡主照片）寫進備註再移除，
+  // 不加這道限制的話，有 edit_standard_prices 的人可以把任意 public_id（例如料卡主照片）寫進備註再移除，
   // 藉此刪掉 Cloudinary 上不屬於標準售價的圖片。
   const ownImages = candidates.filter(
     (img) => typeof img?.public_id === 'string' && img.public_id.startsWith(NOTES_FOLDER_PREFIX),
@@ -88,12 +88,12 @@ async function destroyUnreferencedImages(
 
 // ── PATCH /api/standard-prices/[id] ───────────────────────────
 // 修改該版本（部分更新：只寫入有送到的欄位）；改 name/effective_date 撞到既有版本回 409
-// 權限：edit_quotes
+// 權限：edit_standard_prices
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const user = await checkEditQuotes()
+  const user = await checkEditStandardPrices()
   if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
@@ -155,12 +155,12 @@ export async function PATCH(
 
 // ── DELETE /api/standard-prices/[id] ──────────────────────────
 // 刪除該版本（只刪這一個版本，同名其他版本不受影響），並 best effort 清除 Cloudinary 備註圖片
-// 權限：edit_quotes
+// 權限：edit_standard_prices
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const user = await checkEditQuotes()
+  const user = await checkEditStandardPrices()
   if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {

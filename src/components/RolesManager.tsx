@@ -80,6 +80,9 @@ const PERM_LABELS: Record<string, string> = {
   view_quotes:                '可看人為配件報價',
   view_quotes_manager_price:  '可看主管權限價',
   edit_quotes:                '新增/編輯報價品項與價格',
+  // 標準售價
+  view_standard_prices:       '可看標準售價',
+  edit_standard_prices:       '新增/編輯/刪除/批次匯入標準售價（隱含可看）',
   // 使用統計
   view_analytics:             '可看使用統計',
   // 設備組合
@@ -134,6 +137,12 @@ const QUOTE_PERMS = [
   'view_quotes',
   'view_quotes_manager_price',
   'edit_quotes',
+] as const
+
+// 標準售價分組：兩個獨立 key（edit 在 API/頁籤判斷上隱含可看，UI 扁平列出，比照 PACKAGE_PERMS）
+const STANDARD_PRICE_PERMS = [
+  'view_standard_prices',
+  'edit_standard_prices',
 ] as const
 
 // 使用統計分組：獨立單一權限，不需父子連動
@@ -808,6 +817,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
               {[
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
                 { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
+                { label: '標準售價', keys: STANDARD_PRICE_PERMS, radio: false },
                 { label: '設備組合', keys: PACKAGE_PERMS, radio: false },
                 { label: '使用統計', keys: ANALYTICS_PERMS, radio: false },
               ].map(section => renderNewRolePermSection(section))}
@@ -1186,6 +1196,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                             if (key === 'view_quotes_manager_price') return handleQuoteManagerPriceToggle(role)
                             return handleDetailToggle(role, key)
                           }}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 標準售價 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">標準售價</p>
+                  <div className="space-y-1.5">
+                    {STANDARD_PRICE_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
                           disabled={isSavingPerm}
                           className="accent-[#7a5230]"
                         />

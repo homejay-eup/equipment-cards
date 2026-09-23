@@ -118,7 +118,7 @@ async function getQuoteItems(): Promise<QuoteItem[]> {
   return data ?? []
 }
 
-// Step 46：標準售價（所有登入者可看，不分權限）。全部版本一次抓回，現行版本由前端計算。
+// Step 46：標準售價（需 view_standard_prices 或 edit_standard_prices）。全部版本一次抓回，現行版本由前端計算。
 // 查詢失敗（例如正式 DB 尚未執行 step46 SQL migration）回空陣列，不影響首頁其他功能。
 async function getStandardPrices(): Promise<StandardPriceItem[]> {
   const supabase = createClient(
@@ -347,6 +347,7 @@ export default async function HomePage() {
 
   const hasTrackerPermission = permissions.includes('view_tracker')
   const hasQuotesPermission = permissions.includes('view_quotes') || permissions.includes('edit_quotes')
+  const hasStandardPricesPermission = permissions.includes('view_standard_prices') || permissions.includes('edit_standard_prices')
   const canViewManagerPrice = permissions.includes('view_quotes_manager_price')
   const PACKAGE_PERM_KEYS = ['view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages']
   const hasPackagesPermission = PACKAGE_PERM_KEYS.some(k => permissions.includes(k))
@@ -356,7 +357,7 @@ export default async function HomePage() {
     hasTrackerPermission ? getTrackerData(user.email ?? '') : Promise.resolve(undefined),
     hasQuotesPermission ? getQuoteItems() : Promise.resolve([] as QuoteItem[]),
     hasPackagesPermission ? getPackagesData(user.email ?? '', permissions) : Promise.resolve(undefined),
-    getStandardPrices(),
+    hasStandardPricesPermission ? getStandardPrices() : Promise.resolve([] as StandardPriceItem[]),
   ])
 
   const quoteItems = canViewManagerPrice
