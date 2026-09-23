@@ -102,7 +102,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const mobileDragDx = useRef(0)
   const mobileDragDy = useRef(0)
   const mobileDragDir = useRef<'prev' | 'next' | null>(null)
-  const mobileStageWidth = useRef(320)
   const mobileActiveRef = useRef<HTMLDivElement>(null)
   const mobileBehindRef = useRef<HTMLDivElement>(null)
   const mobileHintLeftRef = useRef<HTMLDivElement>(null)
@@ -111,9 +110,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const [mobilePreviewIndex, setMobilePreviewIndex] = useState<number | null>(null)
   const [mobileToast, setMobileToast] = useState<string | null>(null)
 
-  useEffect(() => () => {
-    if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
-  }, [])
+  useEffect(() => () => { if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current) }, [])
 
   function showMobileToast(msg: string) {
     setMobileToast(msg)
@@ -121,30 +118,15 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     mobileToastTimer.current = setTimeout(() => setMobileToast(null), 900)
   }
 
-  function setMobileWillChange(v: string) {
-    if (mobileActiveRef.current) mobileActiveRef.current.style.willChange = v
-    if (mobileBehindRef.current) mobileBehindRef.current.style.willChange = v === 'auto' ? 'auto' : 'transform, opacity, filter'
-  }
-
   function handleMobileTouchStart(e: React.TouchEvent) {
     if (allPhotos.length <= 1) return
-    // 觸控起點在箭頭按鈕上就不啟動拖曳判斷，讓按鈕的 tap/click 單純處理，
-    // 不然按鈕在拖曳範圍內，手指按下去同時被我們判成一次微小拖曳，
-    // 放開時瀏覽器又補發 click 呼叫 prev()/next()，兩邊各換一次相互打架。
-    if ((e.target as HTMLElement).closest('button')) return
     mobileDragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now() }
     mobileDragDx.current = 0
     mobileDragDy.current = 0
     mobileDragDir.current = null
-    mobileStageWidth.current = mobileActiveRef.current?.clientWidth ?? 320
     if (mobileActiveRef.current) mobileActiveRef.current.style.transition = 'none'
-    if (mobileBehindRef.current) mobileBehindRef.current.style.transition = 'none'
-    setMobileWillChange('transform, opacity, filter')
   }
 
-  /* 直接同步更新 style，不透過 requestAnimationFrame 批次處理：
-     實測發現 rAF 批次會讓跟手拖曳多一點延遲感，比不上一開始「觸控事件
-     來一次就直接寫 style」的即時感，改回同步寫法。 */
   function handleMobileTouchMove(e: React.TouchEvent) {
     if (!mobileDragStart.current || allPhotos.length <= 1) return
     const dx = e.touches[0].clientX - mobileDragStart.current.x
@@ -167,19 +149,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
       active.style.opacity = String(1 - 0.65 * fadeFrac)
     }
     const atBoundary = (dir === 'next' && photoIndex === allPhotos.length - 1) || (dir === 'prev' && photoIndex === 0)
-    if (behind) behind.style.opacity = atBoundary ? '0' : '1'
+    if (behind) {
+      behind.style.transition = 'none'
+      behind.style.opacity = atBoundary ? '0' : '1'
+    }
     const hintFrac = Math.min(1, Math.abs(dx) / 120)
     if (hintL) hintL.style.opacity = dir === 'prev' ? String(hintFrac) : '0'
     if (hintR) hintR.style.opacity = dir === 'next' ? String(hintFrac) : '0'
-  }
-
-  /* 保險：手勢被系統中途取消（touchcancel）時也要收尾，避免卡片凍結在拖曳中途的位置 */
-  function handleMobileTouchCancel() {
-    if (!mobileDragStart.current) return
-    mobileDragStart.current = null
-    if (mobileHintLeftRef.current) mobileHintLeftRef.current.style.opacity = '0'
-    if (mobileHintRightRef.current) mobileHintRightRef.current.style.opacity = '0'
-    springBackMobilePhoto()
   }
 
   function springBackMobilePhoto() {
@@ -194,10 +170,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
       behind.style.transition = 'opacity .2s'
       behind.style.opacity = '0'
     }
-    setTimeout(() => {
-      setMobilePreviewIndex(null)
-      setMobileWillChange('auto')
-    }, 320)
+    setTimeout(() => setMobilePreviewIndex(null), 200)
   }
 
   function bounceMobileBoundary(dir: 'prev' | 'next') {
@@ -219,59 +192,41 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         active.style.transform = 'translate(0px,0px) rotate(0deg)'
       }
     }, 120)
-    setTimeout(() => {
-      setMobilePreviewIndex(null)
-      setMobileWillChange('auto')
-    }, 320)
+    setTimeout(() => setMobilePreviewIndex(null), 200)
     showMobileToast(dir === 'next' ? '已經是最後一張' : '已經是第一張')
   }
 
   function flyOffMobilePhoto(dir: 'prev' | 'next', targetIdx: number, dy: number) {
     const active = mobileActiveRef.current
     const behind = mobileBehindRef.current
-    const flyX = (dir === 'next' ? -1 : 1) * (mobileStageWidth.current * 1.3)
+    const stageWidth = active?.clientWidth ?? 320
+    const flyX = (dir === 'next' ? -1 : 1) * (stageWidth * 1.3)
     const rot = dir === 'next' ? -18 : 18
-    let committed = false
-    const commit = () => {
-      if (committed) return
-      committed = true
-      // 先換 photoIndex，但先不動 active/behind 的樣式：這時候「新照片」還是靠
-      // behind 這層在畫面上（已經是全尺寸全不透明），active 裡還沒被 React 換成新照片。
-      // 等兩個 rAF、確定新照片已經畫出來了，才把 active 收回中間定位、behind 收掉，
-      // 不然舊照片會在這個空檔被 active 蓋回去，變成一閃。
-      setPhotoIndex(targetIdx)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (active) {
-            active.style.transition = 'none'
-            active.style.transform = 'translate(0px,0px) rotate(0deg)'
-            active.style.opacity = '1'
-            active.style.willChange = 'auto'
-          }
-          setMobilePreviewIndex(null)
-          if (behind) {
-            behind.style.transition = 'none'
-            behind.style.transform = 'scale(.94) translateY(10px)'
-            behind.style.filter = 'brightness(.85)'
-            behind.style.opacity = '0'
-            behind.style.willChange = 'auto'
-          }
-        })
-      })
-    }
     if (active) {
       active.style.transition = 'transform .22s ease-in, opacity .22s ease-in'
       active.style.transform = `translate(${flyX}px, ${dy * 0.35}px) rotate(${rot}deg)`
       active.style.opacity = '0'
-      active.addEventListener('transitionend', commit, { once: true })
     }
     if (behind) {
       behind.style.transition = 'transform .22s ease-out, filter .22s ease-out'
       behind.style.transform = 'scale(1) translateY(0px)'
       behind.style.filter = 'brightness(1)'
     }
-    // 保險：萬一 transitionend 沒觸發（例如系統關閉動畫效果），還是要換張
-    setTimeout(commit, 280)
+    setTimeout(() => {
+      setPhotoIndex(targetIdx)
+      setMobilePreviewIndex(null)
+      if (active) {
+        active.style.transition = 'none'
+        active.style.transform = 'translate(0px,0px) rotate(0deg)'
+        active.style.opacity = '1'
+      }
+      if (behind) {
+        behind.style.transition = 'none'
+        behind.style.transform = 'scale(.94) translateY(10px)'
+        behind.style.filter = 'brightness(.85)'
+        behind.style.opacity = '0'
+      }
+    }, 220)
   }
 
   function handleMobileTouchEnd() {
@@ -280,7 +235,8 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     const dy = mobileDragDy.current
     const elapsed = Math.max(1, performance.now() - mobileDragStart.current.t)
     const velocity = Math.abs(dx) / elapsed
-    const thresholdPx = Math.min(mobileStageWidth.current * 0.22, 120)
+    const stageWidth = mobileActiveRef.current?.clientWidth ?? 320
+    const thresholdPx = Math.min(stageWidth * 0.22, 120)
     const dir: 'prev' | 'next' = dx < 0 ? 'next' : 'prev'
     const passedThreshold = Math.abs(dx) > thresholdPx || velocity > 0.55
     const targetIdx = dir === 'next' ? photoIndex + 1 : photoIndex - 1
@@ -343,25 +299,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         className="bg-[#f2ebe0] w-full relative overflow-hidden"
         style={{ paddingBottom: '80%' }}
       >
-        {/* 預先載入左右鄰居照片：不然滑動當下才臨時去抓圖，網路/解碼還沒跑完
-            就先放手了，畫面才會在滑到定點後又跳出「圖片剛載入」的閃爍感。
-            用跟主圖一樣的 sizes，確保 Next/Image 產生同一個尺寸的資源，
-            瀏覽器才吃得到同一份快取。用 1x1px 藏起來但不是 display:none，
-            確保瀏覽器還是會真的去載入。 */}
-        {allPhotos.length > 1 && (
-          <div style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
-            {photoIndex > 0 && (
-              <div style={{ position: 'relative', width: 1, height: 1 }}>
-                <Image src={allPhotos[photoIndex - 1].url} alt="" fill sizes="100vw" priority />
-              </div>
-            )}
-            {photoIndex < allPhotos.length - 1 && (
-              <div style={{ position: 'relative', width: 1, height: 1 }}>
-                <Image src={allPhotos[photoIndex + 1].url} alt="" fill sizes="100vw" priority />
-              </div>
-            )}
-          </div>
-        )}
         {mobilePreviewIndex !== null && (
           <div
             ref={mobileBehindRef}
@@ -378,7 +315,6 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           onTouchStart={handleMobileTouchStart}
           onTouchMove={handleMobileTouchMove}
           onTouchEnd={handleMobileTouchEnd}
-          onTouchCancel={handleMobileTouchCancel}
         >
           <PhotoContent sizes="100vw" />
         </div>
