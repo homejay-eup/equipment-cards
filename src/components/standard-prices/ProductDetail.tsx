@@ -5,7 +5,7 @@ import { ArrowLeft, Pencil, Trash2, History, CalendarDays, FileText } from 'luci
 import type { StandardPriceItem } from '@/types/standardPrice'
 import RichContentView from '@/components/tracker/RichContentView'
 import UpdateImageLightbox from '@/components/UpdateImageLightbox'
-import { formatDate, formatNumber, formatWithUnit, headlinePrice } from './standardPriceUtils'
+import { formatMonth, formatNumber, formatWithUnit, headlinePrice } from './standardPriceUtils'
 
 interface Props {
   item: StandardPriceItem
@@ -103,7 +103,7 @@ export default function ProductDetail({ item, versions, canEdit, onSelectVersion
       {!isCurrent && current && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#e8c9a0] bg-[#fdf3e3] px-3 py-2 text-xs text-[#8a5a1c]">
           <History className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="flex-1 min-w-0">查看歷史版本（{formatDate(item.effective_date)}），非目前現行價格</span>
+          <span className="flex-1 min-w-0">查看歷史版本（{formatMonth(item.effective_date)}），非目前現行價格</span>
           <button
             type="button"
             onClick={() => onSelectVersion(current.id)}
@@ -137,7 +137,7 @@ export default function ProductDetail({ item, versions, canEdit, onSelectVersion
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[#faf6f0] text-[#6b4f38] border border-[#e8ddd0]">
             <CalendarDays className="h-3 w-3" />
-            生效 {formatDate(item.effective_date)}
+            生效 {formatMonth(item.effective_date)}
           </span>
           {isCurrent ? (
             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#7a5230] text-white">現行</span>
@@ -201,7 +201,7 @@ export default function ProductDetail({ item, versions, canEdit, onSelectVersion
                   active ? 'bg-[rgba(122,82,48,.08)]' : 'hover:bg-[rgba(122,82,48,.04)]'
                 }`}
               >
-                <span className={`text-sm ${active ? 'text-[#7a5230] font-semibold' : 'text-[#2c1e12]'}`}>{formatDate(v.effective_date)}</span>
+                <span className={`text-sm ${active ? 'text-[#7a5230] font-semibold' : 'text-[#2c1e12]'}`}>{formatMonth(v.effective_date)}</span>
                 {idx === 0 && <span className="px-1.5 py-px rounded-full text-[10px] font-medium bg-[#7a5230] text-white">現行</span>}
                 <span className="flex-1" />
                 {price && <span className="text-xs text-[#a08060]">{price}</span>}

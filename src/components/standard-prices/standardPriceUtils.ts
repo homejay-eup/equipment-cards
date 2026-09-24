@@ -18,6 +18,11 @@ export function formatDate(date: string): string {
   return date.replace(/-/g, '/')
 }
 
+/** 查看畫面只顯示到月份（使用者要求以月份為主）：2025-09-01 → 2025/09。編輯/匯入/刪除確認仍用 formatDate 顯示完整日期 */
+export function formatMonth(date: string): string {
+  return date.slice(0, 7).replace('-', '/')
+}
+
 /** 依 effective_date 由新到舊排序（YYYY-MM-DD 字串可直接比較） */
 function byDateDesc(a: StandardPriceItem, b: StandardPriceItem): number {
   return b.effective_date.localeCompare(a.effective_date)
