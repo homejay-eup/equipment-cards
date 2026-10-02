@@ -18,8 +18,7 @@ import DocumentsClient from '@/components/DocumentsClient'
 import PackagesClient from '@/components/PackagesClient'
 import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
 import SystemAdminClient from '@/components/admin/SystemAdminClient'
-import StandardPricesClient from '@/components/standard-prices/StandardPricesClient'
-import type { StandardPriceItem } from '@/types/standardPrice'
+import StandardPriceSheetClient from '@/components/standard-prices/StandardPriceSheetClient'
 import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
@@ -56,7 +55,6 @@ interface Props {
   subfilterConfig?: Record<string, string[]>
   quoteItems?: QuoteItem[]
   packagesData?: PackagesData
-  standardPrices?: StandardPriceItem[]
 }
 
 const SORT_OPTIONS = [
@@ -65,7 +63,7 @@ const SORT_OPTIONS = [
   { value: 'date', label: '新增日期' },
 ]
 
-export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData, standardPrices = [] }: Props) {
+export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData }: Props) {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -1128,13 +1126,10 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
       )}
 
-      {/* 標準售價：首次進入後保持常駐（CSS hide/show），view/edit_standard_prices 可看，edit_standard_prices 可編輯 */}
+      {/* 標準售價（Step 47 改為 HTML 價目表）：首次進入後保持常駐（CSS hide/show），view/edit_standard_prices 可看，edit_standard_prices 可上傳/刪除版本 */}
       {pricesMounted && (
         <div className={activeTab !== 'prices' ? 'hidden' : ''}>
-          <StandardPricesClient
-            initialItems={standardPrices}
-            canEdit={permissions.includes('edit_standard_prices')}
-          />
+          <StandardPriceSheetClient canEdit={permissions.includes('edit_standard_prices')} />
         </div>
       )}
 

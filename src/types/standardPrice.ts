@@ -106,3 +106,20 @@ export interface StandardPriceImportRowError {
   index: number
   message: string
 }
+
+// ── Step 47：標準售價「價目表」（整份 HTML 原樣顯示） ─────────────
+
+/** 價目表版本清單項目（不含 html 本文，清單用） */
+export interface StandardPriceSheetMeta {
+  id: string
+  title: string
+  effective_date: string // YYYY-MM-DD（畫面只顯示到月份）
+  file_name: string | null
+  uploaded_by: string | null
+  created_at: string
+}
+
+/** 單一價目表版本（含 html 本文） */
+export interface StandardPriceSheet extends StandardPriceSheetMeta {
+  html: string
+}

@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { EquipmentCard } from '@/types/equipment'
 import type { UserGroup, QuoteItem } from '@/types/equipment'
-import type { StandardPriceItem } from '@/types/standardPrice'
 import PhotoWall from '@/components/PhotoWall'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { assertStillAuthorized, getUserRoleWithPermissions } from '@/lib/admin'
@@ -116,25 +115,6 @@ async function getQuoteItems(): Promise<QuoteItem[]> {
 
   if (error) return []
   return data ?? []
-}
-
-// Step 46：標準售價（需 view_standard_prices 或 edit_standard_prices）。全部版本一次抓回，現行版本由前端計算。
-// 查詢失敗（例如正式 DB 尚未執行 step46 SQL migration）回空陣列，不影響首頁其他功能。
-async function getStandardPrices(): Promise<StandardPriceItem[]> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
-  const { data, error } = await supabase
-    .from('standard_price_items')
-    .select('*')
-    .order('category')
-    .order('name')
-    .order('effective_date', { ascending: false })
-
-  if (error) return []
-  return (data ?? []) as StandardPriceItem[]
 }
 
 async function getSubfilterConfig(): Promise<Record<string, string[]>> {
@@ -347,17 +327,15 @@ export default async function HomePage() {
 
   const hasTrackerPermission = permissions.includes('view_tracker')
   const hasQuotesPermission = permissions.includes('view_quotes') || permissions.includes('edit_quotes')
-  const hasStandardPricesPermission = permissions.includes('view_standard_prices') || permissions.includes('edit_standard_prices')
   const canViewManagerPrice = permissions.includes('view_quotes_manager_price')
   const PACKAGE_PERM_KEYS = ['view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages']
   const hasPackagesPermission = PACKAGE_PERM_KEYS.some(k => permissions.includes(k))
 
   // 三者互不依賴，原本依序 await 會疊加等待時間，改平行抓取
-  const [trackerData, rawQuoteItems, packagesData, standardPrices] = await Promise.all([
+  const [trackerData, rawQuoteItems, packagesData] = await Promise.all([
     hasTrackerPermission ? getTrackerData(user.email ?? '') : Promise.resolve(undefined),
     hasQuotesPermission ? getQuoteItems() : Promise.resolve([] as QuoteItem[]),
     hasPackagesPermission ? getPackagesData(user.email ?? '', permissions) : Promise.resolve(undefined),
-    hasStandardPricesPermission ? getStandardPrices() : Promise.resolve([] as StandardPriceItem[]),
   ])
 
   const quoteItems = canViewManagerPrice
@@ -384,7 +362,6 @@ export default async function HomePage() {
           subfilterConfig={subfilterConfig}
           quoteItems={quoteItems}
           packagesData={packagesData}
-          standardPrices={standardPrices}
         />
       </Suspense>
     </main>
