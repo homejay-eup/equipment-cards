@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileUp, History, Loader2, Trash2, AlertTriangle } from 'lucide-react'
+import { FileUp, History, Loader2, Trash2, AlertTriangle, Pencil } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { StandardPriceSheet, StandardPriceSheetMeta } from '@/types/standardPrice'
+import { extractSheetData, isLegacySheet, type SheetData } from '@/lib/priceSheetTemplate'
 import SheetUploadDialog from './SheetUploadDialog'
+import SheetEditor from './SheetEditor'
+import { importLegacySheet } from './legacySheetImport'
 import { formatMonth, readApiError } from './standardPriceUtils'
 
 interface Props {
@@ -32,6 +35,9 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Step 48：編輯器（editing 有值＝開啟中）
+  const [editing, setEditing] = useState<{ data: SheetData; base: StandardPriceSheetMeta } | null>(null)
+  const [opening, setOpening] = useState(false)
 
   const loadList = useCallback(async (selectId?: string) => {
     setListLoading(true)
@@ -71,6 +77,20 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
   const isCurrent = !!selectedMeta && sheets[0]?.id === selectedMeta.id
   const selectedSheet = selectedId ? cache[selectedId] : undefined
   const srcDoc = useMemo(() => (selectedSheet ? forceLightTheme(selectedSheet.html) : ''), [selectedSheet])
+
+  // 用編輯器存的版本直接讀內嵌資料；2026/10/1 原始版另外轉換；其他手動上傳的 HTML 無法編輯
+  async function openEditor() {
+    if (!selectedSheet || !selectedMeta) return
+    setSheetError(null)
+    let data = extractSheetData(selectedSheet.html)
+    if (!data && isLegacySheet(selectedSheet.html)) {
+      setOpening(true)
+      data = await importLegacySheet(selectedSheet.html)
+      setOpening(false)
+    }
+    if (!data) { setSheetError('這個版本不是用編輯器格式製作的 HTML，無法直接編輯，請改用「上傳新版」'); return }
+    setEditing({ data, base: selectedMeta })
+  }
 
   async function confirmDelete() {
     if (!selectedMeta) return
@@ -137,6 +157,16 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
             刪除此版本
           </button>
         )}
+        {canEdit && selectedSheet && (
+          <button
+            onClick={openEditor}
+            disabled={opening}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#e8ddd0] bg-white text-sm text-[#7a5230] hover:border-[#c49a72] disabled:opacity-50 transition-colors"
+          >
+            {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            編輯
+          </button>
+        )}
         {canEdit && (
           <button
             onClick={() => setUploadOpen(true)}
@@ -182,6 +212,15 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
           open={uploadOpen}
           onClose={() => setUploadOpen(false)}
           onUploaded={(sheet) => { setUploadOpen(false); loadList(sheet.id) }}
+        />
+      )}
+
+      {editing && (
+        <SheetEditor
+          initial={editing.data}
+          baseMeta={editing.base}
+          onClose={() => setEditing(null)}
+          onSaved={(sheet) => { setEditing(null); loadList(sheet.id) }}
         />
       )}
 
