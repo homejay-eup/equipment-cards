@@ -82,7 +82,7 @@ const PERM_LABELS: Record<string, string> = {
   edit_quotes:                '新增/編輯報價品項與價格',
   // 標準售價
   view_standard_prices:       '可看標準售價',
-  edit_standard_prices:       '新增/編輯/刪除/批次匯入標準售價（隱含可看）',
+  edit_standard_prices:       '編輯價目表：儲存修改、另存新版本、上傳、刪除版本、修改紀錄還原（隱含可看）',
   // 使用統計
   view_analytics:             '可看使用統計',
   // 設備組合
