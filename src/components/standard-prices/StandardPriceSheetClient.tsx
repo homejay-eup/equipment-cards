@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileUp, History, Loader2, Trash2, AlertTriangle, Pencil } from 'lucide-react'
+import { FileUp, History, Loader2, Trash2, AlertTriangle, Pencil, ClipboardList } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { StandardPriceSheet, StandardPriceSheetMeta } from '@/types/standardPrice'
 import { extractSheetData, isLegacySheet, type SheetData } from '@/lib/priceSheetTemplate'
 import SheetUploadDialog from './SheetUploadDialog'
 import SheetEditor from './SheetEditor'
+import SheetRevisionsDialog from './SheetRevisionsDialog'
 import { importLegacySheet } from './legacySheetImport'
-import { formatMonth, readApiError } from './standardPriceUtils'
+import { emailName, formatDateTime, formatMonth, readApiError } from './standardPriceUtils'
 
 interface Props {
   canEdit: boolean
@@ -36,8 +37,9 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   // Step 48：編輯器（editing 有值＝開啟中）
-  const [editing, setEditing] = useState<{ data: SheetData; base: StandardPriceSheetMeta } | null>(null)
+  const [editing, setEditing] = useState<{ data: SheetData; base: StandardPriceSheetMeta; current: boolean } | null>(null)
   const [opening, setOpening] = useState(false)
+  const [revisionsOpen, setRevisionsOpen] = useState(false)
 
   const loadList = useCallback(async (selectId?: string) => {
     setListLoading(true)
@@ -89,7 +91,13 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
       setOpening(false)
     }
     if (!data) { setSheetError('這個版本不是用編輯器格式製作的 HTML，無法直接編輯，請改用「上傳新版」'); return }
-    setEditing({ data, base: selectedMeta })
+    setEditing({ data, base: selectedMeta, current: isCurrent })
+  }
+
+  // 存檔／還原後：該版本的 html 快取作廢，重新抓清單（會帶回新的最後修改時間）
+  function afterSaved(sheet: StandardPriceSheetMeta) {
+    setCache(c => { const next = { ...c }; delete next[sheet.id]; return next })
+    loadList(sheet.id)
   }
 
   async function confirmDelete() {
@@ -125,6 +133,11 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
               {isCurrent
                 ? <span className="text-xs text-white bg-[#7a5230] rounded-full px-2 py-0.5 whitespace-nowrap">現行</span>
                 : <span className="text-xs text-[#8a5a1c] bg-[#fdf3e3] rounded-full px-2 py-0.5 whitespace-nowrap">歷史版本</span>}
+              {selectedMeta.updated_at && (
+                <span className="text-xs text-[#a08060] whitespace-nowrap" title="細節修改不會新增版本">
+                  最後修改 {formatDateTime(selectedMeta.updated_at)} · {emailName(selectedMeta.updated_by)}
+                </span>
+              )}
             </>
           ) : (
             <span className="text-sm text-[#a08060]">{listLoading ? '載入中…' : '尚未上傳價目表'}</span>
@@ -148,6 +161,15 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
           </label>
         )}
 
+        {canEdit && selectedMeta?.updated_at && (
+          <button
+            onClick={() => setRevisionsOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-[#e8ddd0] bg-white text-sm text-[#6b4f38] hover:border-[#c49a72] transition-colors"
+          >
+            <ClipboardList className="h-4 w-4" />
+            修改紀錄
+          </button>
+        )}
         {canEdit && selectedMeta && (
           <button
             onClick={() => setDeleteOpen(true)}
@@ -219,8 +241,18 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
         <SheetEditor
           initial={editing.data}
           baseMeta={editing.base}
+          canOverwrite={editing.current}
           onClose={() => setEditing(null)}
-          onSaved={(sheet) => { setEditing(null); loadList(sheet.id) }}
+          onSaved={(sheet) => { setEditing(null); afterSaved(sheet) }}
+        />
+      )}
+
+      {revisionsOpen && selectedMeta && (
+        <SheetRevisionsDialog
+          sheet={selectedMeta}
+          canRestore={isCurrent}
+          onClose={() => setRevisionsOpen(false)}
+          onRestored={(sheet) => { setRevisionsOpen(false); afterSaved(sheet) }}
         />
       )}
 

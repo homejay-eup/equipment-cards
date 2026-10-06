@@ -22,7 +22,12 @@ function dbErrorMessage(error: { code?: string; message: string }): string {
 
 // HTML 本文上限 2MB（目前 2026/10/1 版約 29KB，留足空間給內嵌圖片的版本）
 const MAX_HTML_LENGTH = 2 * 1024 * 1024
-const META_COLUMNS = 'id, title, effective_date, file_name, uploaded_by, created_at'
+const BASE_COLUMNS = 'id, title, effective_date, file_name, uploaded_by, created_at'
+const META_COLUMNS = `${BASE_COLUMNS}, updated_at, updated_by`
+
+// Step 48b 的 updated_at/updated_by 欄位：正式 DB 還沒執行 step48 SQL 時查不到，退回舊欄位，避免整個頁籤壞掉
+const isMissingColumn = (error: { code?: string; message: string }) =>
+  error.code === '42703' || error.code === 'PGRST204' || /updated_(at|by)/.test(error.message)
 
 // GET /api/standard-prices/sheets — 需 view_standard_prices 或 edit_standard_prices
 // 回傳全部版本（不含 html 本文），依生效日期、上傳時間由新到舊；第 0 筆＝現行版本
@@ -36,11 +41,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { data, error } = await getSupabase()
+  const list = (columns: string) => getSupabase()
     .from('standard_price_sheets')
-    .select(META_COLUMNS)
+    .select(columns)
     .order('effective_date', { ascending: false })
     .order('created_at', { ascending: false })
+  let { data, error } = await list(META_COLUMNS)
+  if (error && isMissingColumn(error)) ({ data, error } = await list(BASE_COLUMNS))
 
   if (error) return NextResponse.json({ error: dbErrorMessage(error) }, { status: 500 })
   return NextResponse.json({ sheets: data ?? [] })
@@ -72,7 +79,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await getSupabase()
     .from('standard_price_sheets')
     .insert({ title, effective_date: date.value, file_name: fileName || null, html, uploaded_by: user.email })
-    .select(META_COLUMNS)
+    .select(BASE_COLUMNS)
     .single()
 
   if (error) return NextResponse.json({ error: dbErrorMessage(error) }, { status: 500 })

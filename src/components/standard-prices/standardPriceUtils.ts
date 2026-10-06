@@ -69,3 +69,16 @@ export async function readApiError(res: Response, fallback: string): Promise<str
   }
   return fallback
 }
+
+/** Step 48b：ISO 時間 → 2026/10/06 14:20（台灣時區） */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** email → @ 前的名稱 */
+export function emailName(email: string | null | undefined): string {
+  return email ? email.split('@')[0] : '—'
+}

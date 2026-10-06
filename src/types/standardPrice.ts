@@ -117,9 +117,20 @@ export interface StandardPriceSheetMeta {
   file_name: string | null
   uploaded_by: string | null
   created_at: string
+  /** Step 48b：最後細節修改時間/修改者（null＝上傳後沒修改過；正式 DB 未執行 step48 SQL 前不會有這兩個欄位） */
+  updated_at?: string | null
+  updated_by?: string | null
 }
 
 /** 單一價目表版本（含 html 本文） */
 export interface StandardPriceSheet extends StandardPriceSheetMeta {
   html: string
+}
+
+/** Step 48b：價目表修改紀錄（清單不含 html） */
+export interface StandardPriceSheetRevision {
+  id: string
+  saved_by: string | null
+  saved_at: string
+  note: string | null
 }

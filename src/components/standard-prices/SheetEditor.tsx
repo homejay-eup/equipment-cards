@@ -15,6 +15,7 @@ import SheetItemForm from './SheetItemForm'
 interface Props {
   initial: SheetData
   baseMeta: StandardPriceSheetMeta // 以哪個版本為基礎（帶入預設標題/生效月份）
+  canOverwrite: boolean // Step 48b：現行版本才能「儲存修改」；歷史版本只能另存新版本
   onClose: () => void
   onSaved: (sheet: StandardPriceSheetMeta) => void
 }
@@ -36,8 +37,10 @@ const forceLight = (html: string) => html.replace(/<html(?=[\s>])/i, '<html data
 const itemChanged = (it: SheetItem) => JSON.stringify(it).includes('«')
 
 // Step 48：標準售價價目表編輯器（全頁）。左：目錄；中：編輯表單；右：即時預覽。
-// 存檔＝用 renderSheetHtml() 產生完整 HTML，走既有 POST /api/standard-prices/sheets 存成新版本。
-export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Props) {
+// 存檔＝用 renderSheetHtml() 產生完整 HTML：
+// - 儲存修改（Step 48b）：PATCH 覆蓋現行版本內容，不新增版本，舊內容留在修改紀錄
+// - 另存為新版本：POST 新增一個版本（調價、換新價目表時用）
+export default function SheetEditor({ initial, baseMeta, canOverwrite, onClose, onSaved }: Props) {
   const [data, setData] = useState<SheetData>(initial)
   const [sel, setSel] = useState<Sel>(() => (initial.cats[0]?.items[0] ? { kind: 'item', ci: 0, ii: 0 } : { kind: 'meta' }))
   const [previewMode, setPreviewMode] = useState<'page' | 'item'>('item')
@@ -45,6 +48,8 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ message: string; run: () => void } | null>(null)
   const [saveOpen, setSaveOpen] = useState(false)
+  const [overwriting, setOverwriting] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const activeToggle = useRef<(() => void) | null>(null)
   const markCtx = useMemo(() => ({ setActive: (fn: (() => void) | null) => { activeToggle.current = fn } }), [])
 
@@ -110,7 +115,7 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
   function deleteCat(ci: number) {
     const cat = data.cats[ci]
     setConfirmDelete({
-      message: `「${cat.name}」${cat.items.length ? `底下的 ${cat.items.length} 個產品會一起刪除。` : ''}存成新版本前都可以按「取消」放棄修改。`,
+      message: `「${cat.name}」${cat.items.length ? `底下的 ${cat.items.length} 個產品會一起刪除。` : ''}存檔前都可以按「取消」放棄修改。`,
       run: () => { setCats(cats => removeAt(cats, ci)); setSel({ kind: 'meta' }) },
     })
   }
@@ -131,7 +136,7 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
   function deleteItem(ci: number, ii: number) {
     const it = data.cats[ci].items[ii]
     setConfirmDelete({
-      message: `「${it.name.replace(/[«»]/g, '')}」會從價目表移除。存成新版本前都可以按「取消」放棄修改。`,
+      message: `「${it.name.replace(/[«»]/g, '')}」會從價目表移除。存檔前都可以按「取消」放棄修改。`,
       run: () => {
         setCat(ci, { items: removeAt(data.cats[ci].items, ii) })
         setSel(data.cats[ci].items.length > 1 ? { kind: 'item', ci, ii: Math.max(0, ii - 1) } : { kind: 'cat', ci })
@@ -144,6 +149,26 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
     setCats(cats => cats.map((c, k) =>
       k === ci ? { ...c, items: removeAt(c.items, ii) } : k === target ? { ...c, items: [...c.items, it] } : c))
     setSel({ kind: 'item', ci: target, ii: data.cats[target].items.length })
+  }
+
+  async function saveOverwrite() {
+    setOverwriting(true)
+    setSaveError(null)
+    try {
+      const res = await fetch(`/api/standard-prices/sheets/${baseMeta.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: renderSheetHtml(data), base: baseMeta.updated_at ?? baseMeta.created_at }),
+      })
+      if (!res.ok) { setSaveError(await readApiError(res, '儲存失敗')); return }
+      const json = await res.json()
+      setDirty(false)
+      onSaved(json.sheet)
+    } catch {
+      setSaveError('儲存失敗')
+    } finally {
+      setOverwriting(false)
+    }
   }
 
   const totalChanged = data.cats.reduce((n, c) => n + c.items.filter(itemChanged).length, 0)
@@ -167,7 +192,7 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
             onMouseDown={e => e.preventDefault()} // 保留輸入框的焦點與選取範圍
             onClick={() => activeToggle.current?.()}
             title="先點一個欄位（或選取其中幾個字），再按這裡切換紅底"
-            className="h-9 px-3 rounded-lg border bg-white text-sm flex items-center gap-1.5 hover:bg-[#eef0f4]"
+            className="h-9 whitespace-nowrap shrink-0 px-3 rounded-lg border bg-white text-sm flex items-center gap-1.5 hover:bg-[#eef0f4]"
             style={{ borderColor: C.line }}
           >
             <mark className="rounded px-1 font-bold" style={{ background: C.chgBg, color: C.chg }}>紅底</mark>
@@ -177,16 +202,37 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
           <button
             type="button"
             onClick={() => (dirty ? setConfirmLeave(true) : onClose())}
-            className="h-9 px-4 rounded-lg border bg-white text-sm hover:bg-[#eef0f4]"
+            className="h-9 whitespace-nowrap shrink-0 px-4 rounded-lg border bg-white text-sm hover:bg-[#eef0f4]"
             style={{ borderColor: C.line }}
           >取消</button>
           <button
             type="button"
             onClick={() => setSaveOpen(true)}
-            className="h-9 px-4 rounded-lg text-sm font-bold text-white hover:opacity-90"
-            style={{ background: C.ink }}
-          >存成新版本</button>
+            disabled={overwriting}
+            className={canOverwrite
+              ? 'h-9 whitespace-nowrap shrink-0 px-4 rounded-lg border bg-white text-sm hover:bg-[#eef0f4] disabled:opacity-50'
+              : 'h-9 whitespace-nowrap shrink-0 px-4 rounded-lg text-sm font-bold text-white hover:opacity-90'}
+            style={canOverwrite ? { borderColor: C.line, color: C.ink } : { background: C.ink }}
+            title="調價、換新價目表時使用：新增一個版本，原版本保留在歷史版本"
+          >另存為新版本</button>
+          {canOverwrite && (
+            <button
+              type="button"
+              onClick={saveOverwrite}
+              disabled={overwriting || !dirty}
+              className="h-9 whitespace-nowrap shrink-0 px-4 rounded-lg text-sm font-bold text-white hover:opacity-90 flex items-center gap-1.5 disabled:opacity-50"
+              style={{ background: C.ink }}
+              title="細節修改：直接更新目前這個版本，不新增版本；修改前的內容留在修改紀錄"
+            >
+              {overwriting && <Loader2 className="h-4 w-4 animate-spin" />}儲存修改
+            </button>
+          )}
         </header>
+        {(saveError || !canOverwrite) && (
+          <div className="px-5 py-1.5 text-xs" style={saveError ? { background: C.chgBg, color: C.chg } : { background: '#fdf3e3', color: '#8a5a1c' }}>
+            {saveError ?? '你正在看歷史版本：歷史版本維持當時核決的內容不能修改，改完只能「另存為新版本」。'}
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: '230px minmax(0,1fr) minmax(0,0.9fr)' }}>
           {/* 左：目錄 */}
@@ -282,7 +328,7 @@ export default function SheetEditor({ initial, baseMeta, onClose, onSaved }: Pro
         <ConfirmDialog
           open={confirmLeave}
           title="放棄這次的修改？"
-          message="還沒存成新版本的修改都會消失。"
+          message="還沒儲存的修改都會消失。"
           confirmLabel="放棄修改"
           danger
           onConfirm={() => { setConfirmLeave(false); onClose() }}
@@ -431,7 +477,7 @@ function CatForm({ cat, index, count, onChange, onMove, onDelete, onAddItem, onO
   )
 }
 
-// ── 存成新版本 ──
+// ── 另存為新版本 ──
 function SaveDialog({ data, baseMeta, onCancel, onSaved }: {
   data: SheetData; baseMeta: StandardPriceSheetMeta; onCancel: () => void; onSaved: (s: StandardPriceSheetMeta) => void
 }) {
@@ -471,7 +517,7 @@ function SaveDialog({ data, baseMeta, onCancel, onSaved }: {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: 'rgba(27,34,48,.45)' }}>
       <div className="w-[400px] bg-white rounded-xl border p-5 shadow-xl" style={{ borderColor: C.line }}>
-        <h3 className="text-base font-black mb-3" style={{ color: C.ink }}>存成新版本</h3>
+        <h3 className="text-base font-black mb-3" style={{ color: C.ink }}>另存為新版本</h3>
         <div className="space-y-3">
           <div>
             <label className="block text-xs mb-1" style={{ color: C.muted }}>標題</label>
@@ -481,7 +527,7 @@ function SaveDialog({ data, baseMeta, onCancel, onSaved }: {
             <label className="block text-xs mb-1" style={{ color: C.muted }}>生效月份</label>
             <input type="month" value={month} onChange={e => setMonth(e.target.value)} disabled={saving} className={inputCls} style={{ borderColor: C.line }} />
           </div>
-          <p className="text-xs" style={{ color: C.muted }}>會新增一個版本，原本的版本保留在「歷史版本」。生效月份最新的版本會成為現行版本。</p>
+          <p className="text-xs" style={{ color: C.muted }}>用於調價或換新價目表：會新增一個版本，原本的版本保留在「歷史版本」，生效月份最新的版本會成為現行版本。只是修正細節請改按「儲存修改」。</p>
           {error && <p className="text-xs" style={{ color: C.chg }}>{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onCancel} disabled={saving}
