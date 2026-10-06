@@ -2,6 +2,7 @@
 
 import type { RichImage, TableData } from './richContentTypes'
 import RichTable from './RichTable'
+import LinkifiedText from './LinkifiedText'
 
 interface Props {
   content: string | null
@@ -17,7 +18,9 @@ export default function RichContentView({ content, images, table, onImageClick }
   return (
     <>
       {content && (
-        <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap">{content}</p>
+        <p className="text-sm text-[#4a3422] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+          <LinkifiedText text={content} />
+        </p>
       )}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
