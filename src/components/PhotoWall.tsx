@@ -7,6 +7,7 @@ import { EquipmentCard, AppSettings, UserGroup, QuoteItem } from '@/types/equipm
 import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
+import { printCards } from '@/components/print/printCards'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
@@ -19,7 +20,7 @@ import PackagesClient from '@/components/PackagesClient'
 import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
 import SystemAdminClient from '@/components/admin/SystemAdminClient'
 import StandardPriceSheetClient from '@/components/standard-prices/StandardPriceSheetClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -72,6 +73,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const canManage        = permissions.includes('manage_users')
   const canEditCard      = permissions.includes('create_delete_cards') || permissions.some(p => p.startsWith('edit_card_'))
   const canUseBookmarks  = permissions.includes('use_bookmarks')
+  const canPrint         = permissions.includes('print_cards')
 
   const [localSubfilterConfig, setLocalSubfilterConfig] = useState<Record<string, string[]>>(subfilterConfig ?? {})
 
@@ -577,6 +579,13 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       },
     })
   }, [selectedIds, filtered, router]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 批次列印：依畫面目前篩選＋排序後的順序（filtered）輸出，每張 1 份
+  function handleBatchPrint() {
+    const list = filtered.filter(c => selectedIds.has(c.equipment_id))
+    if (list.length === 0) return
+    void printCards(list)
+  }
 
   const categories = ['全部', ...settings.categories]
   const statusOptions = [
@@ -1204,11 +1213,12 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             setMaintenanceFilter({ equipmentId })
             setSelected(null)
           } : undefined}
+          onPrint={canPrint ? () => { void printCards([selected]) } : undefined}
         />
       )}
 
       {/* 管理員浮動按鈕區（僅全部料卡 tab 顯示，我的關注與任務板不適用） */}
-      {isAdmin && activeTab === 'all' && (
+      {(isAdmin || canPrint) && activeTab === 'all' && (
         <>
           {/* 批次選取 action bar：全寬固定底部 */}
           {selectMode && (
@@ -1232,26 +1242,39 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               >
                 取消
               </button>
-              <button
-                onClick={handleBatchDelete}
-                disabled={batchDeleting || selectedIds.size === 0}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#b5451b] hover:bg-[#9a3a16] text-white text-sm font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0 whitespace-nowrap"
-              >
-                {batchDeleting
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Trash2 className="h-4 w-4" />
-                }
-                刪除（{selectedIds.size}）
-              </button>
+              {canPrint && (
+                <button
+                  onClick={handleBatchPrint}
+                  disabled={selectedIds.size === 0}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[#7a5230] hover:bg-[#9c6b42] text-white text-sm font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0 whitespace-nowrap"
+                >
+                  <Printer className="h-4 w-4" />
+                  列印（{selectedIds.size}）
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={handleBatchDelete}
+                  disabled={batchDeleting || selectedIds.size === 0}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[#b5451b] hover:bg-[#9a3a16] text-white text-sm font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0 whitespace-nowrap"
+                >
+                  {batchDeleting
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Trash2 className="h-4 w-4" />
+                  }
+                  刪除（{selectedIds.size}）
+                </button>
+              )}
             </div>
           )}
 
           {/* 批次選取 + 批次匯入 + 匯出 CSV + 新增料卡（僅限有 CRUD 權限者）：收合成 speed dial，
               收合時只有一顆圓形按鈕，展開才往上彈出 4 個操作項目 */}
-          {canEditCard && (
+          {((isAdmin && canEditCard) || canPrint) && (
             <div ref={fabRef} className={`fixed ${selectMode ? 'bottom-20' : 'bottom-6'} right-4 sm:right-6 z-40 transition-all duration-200`}>
               {fabOpen && (
                 <div className="absolute bottom-full right-0 mb-3 flex flex-col items-end gap-2">
+                  {isAdmin && canEditCard && (<>
                   <button onClick={() => { setFabOpen(false); window.location.href = '/api/cards/export' }}
                     title="匯出 CSV"
                     className="flex items-center gap-2 bg-white hover:bg-[#faf6f0] text-[#7a5230] border border-[rgba(122,82,48,.32)] font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none hover:shadow-[0_0_10px_rgba(122,82,48,.3)] whitespace-nowrap">
@@ -1264,6 +1287,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                     <FileUp className="h-5 w-5" />
                     <span>批次匯入</span>
                   </button>
+                  </>)}
                   <button
                     onClick={() => { setFabOpen(false); if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
                     title={selectMode ? '取消選取' : '批次選取'}
@@ -1276,12 +1300,14 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                     <CheckSquare className="h-5 w-5" />
                     <span>{selectMode ? '取消選取' : '批次選取'}</span>
                   </button>
+                  {isAdmin && canEditCard && (
                   <button onClick={() => { setFabOpen(false); openCreate() }}
                     title="新增料卡"
                     className="flex items-center gap-2 bg-[#7a5230] hover:bg-[#9c6b42] text-white font-medium px-4 py-3 rounded-full shadow-lg transition-all duration-200 focus:outline-none shadow-[0_0_10px_rgba(122,82,48,.45)] hover:shadow-[0_0_16px_rgba(122,82,48,.6)] whitespace-nowrap">
                     <Plus className="h-5 w-5" />
                     <span>新增料卡</span>
                   </button>
+                  )}
                 </div>
               )}
               <button
@@ -1296,19 +1322,23 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             </div>
           )}
 
-          <CardFormDialog
-            mode={formMode}
-            card={editingCard}
-            open={formOpen}
-            onClose={() => setFormOpen(false)}
-            settings={settings}
-            permissions={permissions}
-          />
-          <BatchImportDialog
-            open={importOpen}
-            onClose={() => setImportOpen(false)}
-            settings={settings}
-          />
+          {isAdmin && (
+            <>
+              <CardFormDialog
+                mode={formMode}
+                card={editingCard}
+                open={formOpen}
+                onClose={() => setFormOpen(false)}
+                settings={settings}
+                permissions={permissions}
+              />
+              <BatchImportDialog
+                open={importOpen}
+                onClose={() => setImportOpen(false)}
+                settings={settings}
+              />
+            </>
+          )}
         </>
       )}
 

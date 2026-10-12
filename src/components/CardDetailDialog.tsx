@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, FileText, ExternalLink, Wrench } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, Printer, FileText, ExternalLink, Wrench } from 'lucide-react'
 import { logUsageEvent } from '@/lib/analyticsClient'
 import RichContentView from '@/components/tracker/RichContentView'
 import UpdateImageLightbox from '@/components/UpdateImageLightbox'
@@ -20,6 +20,7 @@ interface Props {
   bookmarkNotes?: string
   onBookmarkNotesChange?: (notes: string) => void
   onViewMaintenanceInfo?: (equipmentId: string) => void
+  onPrint?: () => void
 }
 
 const SWIPE_THRESHOLD = 50
@@ -41,7 +42,7 @@ function emailPrefix(email: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange, onViewMaintenanceInfo }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange, onViewMaintenanceInfo, onPrint }: Props) {
   const canEditCard = permissions.includes('create_delete_cards')
     || permissions.some(p => p.startsWith('edit_card_'))
   const allPhotos = [
@@ -400,6 +401,18 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
             aria-label="編輯料卡"
           >
             <Pencil className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* 列印按鈕（有列印權限才傳 onPrint）：有編輯鈕時在其左側，否則佔編輯鈕位置 */}
+        {onPrint && (
+          <button
+            onClick={onPrint}
+            className={`absolute top-3 ${canEditCard && onEdit ? 'right-[7.25rem]' : 'right-[4.75rem]'} z-50 rounded-full bg-[#fff9f4]/90 backdrop-blur-sm p-1.5 shadow text-[#a08060] opacity-90 hover:opacity-100 hover:text-[#7a5230] transition-opacity`}
+            aria-label="列印料卡"
+            title="列印料卡"
+          >
+            <Printer className="h-4 w-4" />
           </button>
         )}
 
