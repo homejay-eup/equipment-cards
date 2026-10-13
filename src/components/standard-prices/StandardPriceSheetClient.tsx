@@ -87,8 +87,10 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
     let data = extractSheetData(selectedSheet.html)
     if (!data && isLegacySheet(selectedSheet.html)) {
       setOpening(true)
-      data = await importLegacySheet(selectedSheet.html)
+      const result = await importLegacySheet(selectedSheet.html)
       setOpening(false)
+      if (!result.ok) { setSheetError(result.reason); return }
+      data = result.data
     }
     if (!data) { setSheetError('這個版本不是用編輯器格式製作的 HTML，無法直接編輯，請改用「上傳新版」'); return }
     setEditing({ data, base: selectedMeta, current: isCurrent })

@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Copy, Plus, Trash2, X } from 'lucide-react'
-import type { SheetCat, SheetCol, SheetItem } from '@/lib/priceSheetTemplate'
+import type { SheetBox, SheetCat, SheetCol, SheetItem } from '@/lib/priceSheetTemplate'
 import { AddBtn, C, Field, IconBtn, Section, StringList, move, removeAt, setAt } from './SheetEditorFields'
 
 interface Props {
@@ -73,12 +73,57 @@ export default function SheetItemForm({ item, cats, catIndex, itemIndex, itemCou
         </div>
       </Section>
 
+      <BoxEditor
+        title="黃色重點框（產品名稱右側）"
+        hint="例如「影像主機重購 8CH 18,000 元」"
+        addLabel="加入右側黃色重點框"
+        box={item.callout}
+        onChange={b => set({ callout: b })}
+      />
+
       <PriceTable item={item} onChange={onChange} />
+
+      <BoxEditor
+        title="黃色方案框（表格下方）"
+        hint="例如「高雄廚餘方案：方案 F6N 全租方案、月租 1,400 元/月」"
+        addLabel="加入下方黃色方案框"
+        box={item.plan}
+        onChange={b => set({ plan: b })}
+      />
 
       <Section title="備註" hint="表格下方的條列說明">
         <StringList items={item.notes} onChange={v => set({ notes: v })} addLabel="新增備註" multiline />
       </Section>
     </div>
+  )
+}
+
+// 黃色框：標題＋多列「項目／內容」；沒有框時只顯示「加入」按鈕
+function BoxEditor({ title, hint, addLabel, box, onChange }: {
+  title: string; hint: string; addLabel: string; box: SheetBox | undefined; onChange: (b: SheetBox | undefined) => void
+}) {
+  if (!box) {
+    return <div className="mb-5"><AddBtn onClick={() => onChange({ t: '', rows: [['', '']] })}>{addLabel}</AddBtn></div>
+  }
+  return (
+    <Section
+      title={title}
+      hint={hint}
+      actions={<IconBtn title="移除這個黃色框" danger onClick={() => onChange(undefined)}><Trash2 className="h-3.5 w-3.5" /></IconBtn>}
+    >
+      <div className="rounded-lg border p-2.5 space-y-1.5" style={{ background: '#fff4b8', borderColor: '#e3b600' }}>
+        <Field value={box.t} onChange={t => onChange({ ...box, t })} placeholder="標題" bold />
+        {box.rows.map(([k, v], i) => (
+          <div key={i} className="flex items-start gap-1">
+            <div className="w-40 shrink-0"><Field value={k} onChange={nk => onChange({ ...box, rows: setAt(box.rows, i, [nk, v]) })} placeholder="項目" /></div>
+            <div className="flex-1 min-w-0"><Field value={v} onChange={nv => onChange({ ...box, rows: setAt(box.rows, i, [k, nv]) })} placeholder="金額／內容" /></div>
+            <IconBtn title="上移" onClick={() => onChange({ ...box, rows: move(box.rows, i, -1) })} disabled={i === 0}><ArrowUp className="h-3.5 w-3.5" /></IconBtn>
+            <IconBtn title="刪除" danger onClick={() => onChange({ ...box, rows: removeAt(box.rows, i) })}><X className="h-3.5 w-3.5" /></IconBtn>
+          </div>
+        ))}
+        <AddBtn onClick={() => onChange({ ...box, rows: [...box.rows, ['', '']] })}>新增一列</AddBtn>
+      </div>
+    </Section>
   )
 }
 

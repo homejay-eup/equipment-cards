@@ -12,6 +12,12 @@ export interface SheetCol {
   w?: boolean        // 寬欄（備註類，靠左、可換行）
 }
 
+// 黃色框（2026/10/7 版新增）：callout＝產品名稱右側的重點框；plan＝表格下方的方案框
+export interface SheetBox {
+  t: string                 // 標題
+  rows: [string, string][]  // 左：項目，右：金額/內容
+}
+
 export interface SheetItem {
   name: string
   model: string
@@ -20,7 +26,14 @@ export interface SheetItem {
   cols: SheetCol[]
   rows: string[][]
   notes: string[]
+  callout?: SheetBox
+  plan?: SheetBox
 }
+
+// 編輯器認得的欄位；舊版 HTML 出現其他欄位時拒絕開啟編輯器，避免存檔時內容被默默丟掉
+export const KNOWN_ITEM_KEYS = ['name', 'model', 'chips', 'terms', 'cols', 'rows', 'notes', 'callout', 'plan']
+export const KNOWN_CAT_KEYS = ['id', 'name', 'desc', 'items']
+export const KNOWN_RULE_KEYS = ['h', 'li']
 
 export interface SheetCat {
   id: string
@@ -122,7 +135,23 @@ function normalizeItem(raw: unknown): SheetItem {
     const a = strArr(t)
     return [a[0] ?? '', a[1] ?? ''] as [string, string]
   })
-  return { name: str(it.name), model: str(it.model), chips: strArr(it.chips), terms, cols, rows, notes: strArr(it.notes) }
+  const item: SheetItem = { name: str(it.name), model: str(it.model), chips: strArr(it.chips), terms, cols, rows, notes: strArr(it.notes) }
+  // 原始 HTML：callout 用 rows、plan 用 items 存兩欄資料，這裡統一成 rows
+  const callout = normalizeBox(it.callout, 'rows')
+  const plan = normalizeBox(it.plan, 'items')
+  if (callout) item.callout = callout
+  if (plan) item.plan = plan
+  return item
+}
+
+function normalizeBox(raw: unknown, legacyKey: 'rows' | 'items'): SheetBox | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const b = raw as Record<string, unknown>
+  const list = Array.isArray(b.rows) ? b.rows : Array.isArray(b[legacyKey]) ? (b[legacyKey] as unknown[]) : []
+  return {
+    t: str(b.t),
+    rows: list.map(r => { const a = strArr(r); return [a[0] ?? '', a[1] ?? ''] as [string, string] }),
+  }
 }
 
 function safeId(id: string): string {
@@ -190,16 +219,16 @@ const SHEET_CSS = `
 /* Layout: summary header → left category tabs (one panel at a time) + search across all → product cards (terms, price table, notes) */
 :root{
   --bg:#f5f6f8; --surface:#ffffff; --surface-2:#eef0f4; --fg:#1b2230; --muted:#5d6676; --line:#dde1e8;
-  --ink:#24324a; --chg:#c8102e; --chg-bg:#fde8eb; --x:#a3abb8;
+  --ink:#24324a; --chg:#c8102e; --chg-bg:#fde8eb; --x:#a3abb8; --hl-bg:#fff4b8; --hl-line:#e3b600; --hl-fg:#3d3000;
   --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#12161d; --surface:#1a2029; --surface-2:#232b37; --fg:#e7eaf0; --muted:#9aa3b2; --line:#2e3744;
-  --ink:#c9d4e8; --chg:#ff6b7f; --chg-bg:#3a1c23; --x:#5f6878; color-scheme:dark}}
+  --ink:#c9d4e8; --chg:#ff6b7f; --chg-bg:#3a1c23; --x:#5f6878; --hl-bg:#4a3f0c; --hl-line:#d9b21f; --hl-fg:#fff1a8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12161d; --surface:#1a2029; --surface-2:#232b37; --fg:#e7eaf0; --muted:#9aa3b2; --line:#2e3744;
-  --ink:#c9d4e8; --chg:#ff6b7f; --chg-bg:#3a1c23; --x:#5f6878; color-scheme:dark}
+  --ink:#c9d4e8; --chg:#ff6b7f; --chg-bg:#3a1c23; --x:#5f6878; --hl-bg:#4a3f0c; --hl-line:#d9b21f; --hl-fg:#fff1a8; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.55;margin:0}
@@ -244,6 +273,16 @@ section.cat:first-child{margin-top:14px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{font-size:11.5px;padding:1px 8px;border-radius:4px;background:var(--surface-2);color:var(--muted)}
 .chip.new{background:var(--chg-bg);color:var(--chg);font-weight:700}
+.callout{margin-left:auto;padding:10px 16px;border:1px solid var(--hl-line);border-radius:8px;background:var(--hl-bg);color:var(--hl-fg);line-height:1.35;min-width:170px}
+.callout .t{font-size:13px;font-weight:700;margin-bottom:4px}
+.callout dl{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin:0;font-variant-numeric:tabular-nums}
+.callout dt{font-family:var(--mono);font-size:13px}
+.callout dd{margin:0;text-align:right;font-size:17px;font-weight:900}
+.plan{margin-top:12px;padding:12px 16px;border:1px solid var(--hl-line);border-radius:8px;background:var(--hl-bg);color:var(--hl-fg)}
+.plan .t{font-weight:700;font-size:14px;margin-bottom:6px}
+.plan .row{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;font-size:13.5px}
+.plan .row b{font-size:17px;font-weight:900;font-variant-numeric:tabular-nums}
+@media (max-width:640px){.callout{margin-left:0}}
 .terms{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0 0 12px;font-size:13.5px}
 .terms dt{color:var(--muted)}
 .terms dd{margin:0;min-width:0}
@@ -356,9 +395,9 @@ function card(it){
   const terms=it.terms&&it.terms.length?\`<dl class="terms">\${it.terms.map(([k,v])=>\`<dt>\${esc(k)}</dt><dd>\${fmt(v)}</dd>\`).join('')}</dl>\`:'';
   const notes=it.notes&&it.notes.length?\`<ul class="notes">\${it.notes.map(n=>\`<li>\${fmt(n)}</li>\`).join('')}</ul>\`:'';
   const table=it.cols.length?\`<div class="tbl"><table><thead>\${headRows(it.cols)}</thead><tbody>\${it.rows.map(r=>rowHtml(it.cols,r)).join('')}</tbody></table></div>\`:'';
-  return \`<article class="card" data-chg="\${chg?1:0}" data-t="\${esc(strip([it.name,it.model,(it.chips||[]).join(' '),(it.terms||[]).flat().join(' '),(it.notes||[]).join(' ')].join(' ')))}">
-    <div class="card-h"><h3>\${fmt(it.name)}</h3>\${it.model?\`<span class="model">\${esc(it.model)}</span>\`:''}<div class="chips">\${chips}</div></div>
-    \${terms}\${table}\${notes}</article>\`;
+  return \`<article class="card" data-chg="\${chg?1:0}" data-t="\${esc(strip([it.name,it.model,(it.chips||[]).join(' '),(it.terms||[]).flat().join(' '),(it.notes||[]).join(' '),it.callout?it.callout.t+' '+it.callout.rows.flat().join(' '):'',it.plan?it.plan.t+' '+it.plan.rows.flat().join(' '):''].join(' ')))}">
+    <div class="card-h"><h3>\${fmt(it.name)}</h3>\${it.model?\`<span class="model">\${esc(it.model)}</span>\`:''}<div class="chips">\${chips}</div>\${it.callout?\`<div class="callout"><div class="t">\${esc(it.callout.t)}</div><dl>\${it.callout.rows.map(([k,v])=>\`<dt>\${esc(k)}</dt><dd>\${esc(v)}</dd>\`).join('')}</dl></div>\`:''}</div>
+    \${terms}\${table}\${it.plan?\`<div class="plan"><div class="t">\${esc(it.plan.t)}</div><div class="row">\${it.plan.rows.map(([k,v])=>\`<span>\${esc(k)}：<b>\${esc(v)}</b></span>\`).join('')}</div></div>\`:''}\${notes}</article>\`;
 }
 const main=document.getElementById('main'),side=document.getElementById('side');let tab='all';
 let nChg=0,nItem=0;
