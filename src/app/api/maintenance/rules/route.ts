@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { computeNeedsReview, isLoggedIn, VALID_MAINTENANCE_RULE_TYPES, MAX_WARRANTY_PERIOD_MONTHS } from '@/lib/maintenance'
+import {
+  computeNeedsReview, isLoggedIn, MAX_WARRANTY_PERIOD_MONTHS, MAX_AGE_LIMIT_BASIS_LENGTH,
+  isValidStage, checkStageSubCategory, clearInapplicableFields,
+} from '@/lib/maintenance'
 
 function getSupabase() {
   return createClient(
@@ -18,9 +21,15 @@ interface RuleEquipmentLinkRow {
 
 interface RuleRow {
   id: string
-  vendor_id: string
+  vendor_id: string | null
   item: string
-  rule_type: string
+  rule_type: string | null
+  stage: string
+  sub_category: string | null
+  exit_option: string | null
+  age_limit_months: number | null
+  age_limit_basis: string | null
+  maintenance_vendors?: { name: string } | { name: string }[] | null
   content: string
   warranty_start_date: string | null
   warranty_period_months: number | null
@@ -46,7 +55,15 @@ function formatRule(row: RuleRow) {
     id: row.id,
     vendor_id: row.vendor_id,
     item: row.item,
+    vendor_name: Array.isArray(row.maintenance_vendors)
+      ? (row.maintenance_vendors[0]?.name ?? null)
+      : (row.maintenance_vendors?.name ?? null),
     rule_type: row.rule_type,
+    stage: row.stage,
+    sub_category: row.sub_category,
+    exit_option: row.exit_option,
+    age_limit_months: row.age_limit_months,
+    age_limit_basis: row.age_limit_basis,
     content: row.content,
     warranty_start_date: row.warranty_start_date,
     warranty_period_months: row.warranty_period_months,
@@ -61,29 +78,30 @@ function formatRule(row: RuleRow) {
   }
 }
 
-// ── GET /api/maintenance/rules?vendor_id= ───────────────────────
-// 回傳該廠商底下所有規則，每筆帶出掛載的料號清單（含名稱）。讀取類 API，所有登入使用者皆可呼叫。
+// ── GET /api/maintenance/rules[?vendor_id=] ─────────────────────
+// Step 49：vendor_id 選填。未帶則回傳全部規則（含 vendor_name），每筆帶出掛載的料號清單（含名稱）。
+// 讀取類 API，所有登入使用者皆可呼叫。
 export async function GET(req: NextRequest) {
   if (!(await isLoggedIn())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const vendor_id = req.nextUrl.searchParams.get('vendor_id')?.trim()
-  if (!vendor_id) {
-    return NextResponse.json({ error: 'vendor_id 為必填查詢參數' }, { status: 400 })
-  }
 
   try {
     const supabase = getSupabase()
-    const { data, error } = await supabase
+    let query = supabase
       .from('maintenance_rules')
       .select(
-        'id, vendor_id, item, rule_type, content, warranty_start_date, warranty_period_months, ' +
+        'id, vendor_id, item, rule_type, stage, sub_category, exit_option, age_limit_months, age_limit_basis, ' +
+        'content, warranty_start_date, warranty_period_months, ' +
         'last_updated_at, last_updated_by, ' +
         'confirmed_at, confirmed_by, sort_order, created_at, ' +
+        'maintenance_vendors(name), ' +
         'maintenance_rule_equipment(equipment_id, equipment_cards(equipment_id, name))',
       )
-      .eq('vendor_id', vendor_id)
+    if (vendor_id) query = query.eq('vendor_id', vendor_id)
+    const { data, error } = await query
       .order('sort_order', { ascending: true })
       .order('item', { ascending: true })
 
@@ -108,22 +126,53 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const vendor_id = typeof body?.vendor_id === 'string' ? body.vendor_id.trim() : ''
     const item = typeof body?.item === 'string' ? body.item.trim() : ''
-    const rule_type = typeof body?.rule_type === 'string' ? body.rule_type.trim() : ''
+    const stage = typeof body?.stage === 'string' ? body.stage.trim() : ''
+    const sub_category = typeof body?.sub_category === 'string' && body.sub_category.trim() ? body.sub_category.trim() : null
     const content = typeof body?.content === 'string' ? body.content.trim() : ''
 
-    if (!vendor_id) return NextResponse.json({ error: 'vendor_id 為必填' }, { status: 400 })
     if (!item) return NextResponse.json({ error: 'item 為必填' }, { status: 400 })
     if (!content) return NextResponse.json({ error: 'content 為必填' }, { status: 400 })
-    if (!VALID_MAINTENANCE_RULE_TYPES.includes(rule_type as typeof VALID_MAINTENANCE_RULE_TYPES[number])) {
-      return NextResponse.json(
-        { error: `rule_type 必須為以下其中之一：${VALID_MAINTENANCE_RULE_TYPES.join('、')}` },
-        { status: 400 },
-      )
+    if (!stage) return NextResponse.json({ error: 'stage 為必填' }, { status: 400 })
+    if (!isValidStage(stage)) {
+      return NextResponse.json({ error: checkStageSubCategory(stage, null) }, { status: 400 })
+    }
+    const subError = checkStageSubCategory(stage, sub_category)
+    if (subError) return NextResponse.json({ error: subError }, { status: 400 })
+
+    // exit_option 僅回廠區塊接受；其他區塊帶了值一律拒絕（400），避免靜默吞掉資料
+    const exit_option = typeof body?.exit_option === 'string' && body.exit_option.trim() ? body.exit_option.trim() : null
+    if (exit_option !== null && stage !== '回廠') {
+      return NextResponse.json({ error: 'exit_option 僅限回廠區塊使用' }, { status: 400 })
+    }
+
+    let age_limit_months: number | null = null
+    if (body?.age_limit_months !== undefined && body?.age_limit_months !== null) {
+      const n = Number(body.age_limit_months)
+      if (!Number.isInteger(n) || n < 0 || n > MAX_WARRANTY_PERIOD_MONTHS) {
+        return NextResponse.json(
+          { error: `age_limit_months 必須為 0～${MAX_WARRANTY_PERIOD_MONTHS} 之間的整數` },
+          { status: 400 },
+        )
+      }
+      age_limit_months = n
+    }
+    const age_limit_basis = typeof body?.age_limit_basis === 'string' && body.age_limit_basis.trim()
+      ? body.age_limit_basis.trim()
+      : null
+    if (age_limit_basis !== null && age_limit_basis.length > MAX_AGE_LIMIT_BASIS_LENGTH) {
+      return NextResponse.json({ error: `age_limit_basis 不可超過 ${MAX_AGE_LIMIT_BASIS_LENGTH} 字` }, { status: 400 })
     }
 
     const equipment_ids: string[] = Array.isArray(body?.equipment_ids)
-      ? body.equipment_ids.filter((e: unknown): e is string => typeof e === 'string' && e.trim().length > 0)
+      ? Array.from(new Set<string>(
+          body.equipment_ids
+            .filter((e: unknown): e is string => typeof e === 'string' && e.trim().length > 0)
+            .map((e: string) => e.trim()),
+        ))
       : []
+    if (equipment_ids.length > 200) {
+      return NextResponse.json({ error: '單次掛載料號上限 200 筆' }, { status: 400 })
+    }
 
     const warranty_start_date = typeof body?.warranty_start_date === 'string' && body.warranty_start_date.trim()
       ? body.warranty_start_date.trim()
@@ -143,13 +192,15 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase()
 
-    const { data: vendor, error: vendorError } = await supabase
-      .from('maintenance_vendors')
-      .select('id')
-      .eq('id', vendor_id)
-      .maybeSingle()
-    if (vendorError) throw vendorError
-    if (!vendor) return NextResponse.json({ error: '找不到廠商' }, { status: 404 })
+    if (vendor_id) {
+      const { data: vendor, error: vendorError } = await supabase
+        .from('maintenance_vendors')
+        .select('id')
+        .eq('id', vendor_id)
+        .maybeSingle()
+      if (vendorError) throw vendorError
+      if (!vendor) return NextResponse.json({ error: '找不到廠商' }, { status: 404 })
+    }
 
     // 使用者身份從 session 取得，不信任 request body
     const sessionSupabase = createSupabaseServerClient()
@@ -160,12 +211,18 @@ export async function POST(req: NextRequest) {
     const { data: rule, error: ruleError } = await supabase
       .from('maintenance_rules')
       .insert({
-        vendor_id,
+        vendor_id: vendor_id || null,
         item,
-        rule_type,
+        stage,
+        sub_category,
+        exit_option,
+        age_limit_months,
+        age_limit_basis,
         content,
         warranty_start_date,
         warranty_period_months,
+        // 新增時同樣套用「不適用欄位清除」，與 PATCH／批次改區塊規則一致
+        ...clearInapplicableFields(null, { stage, sub_category }),
         last_updated_at: now,
         last_updated_by: actorEmail,
         sort_order: typeof body?.sort_order === 'number' ? body.sort_order : 0,

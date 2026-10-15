@@ -4,7 +4,7 @@
 // 這裡繼續 re-export 供既有 server-side（API routes）呼叫端相容；
 // isLoggedIn() 依賴 next/headers，僅限 server 端使用，不得被 client component 直接或間接 import。
 
-export { computeNeedsReview, VALID_MAINTENANCE_RULE_TYPES, formatWarrantyPeriod, MAX_WARRANTY_PERIOD_MONTHS } from './maintenanceFormat'
+export { computeNeedsReview, formatWarrantyPeriod, MAX_WARRANTY_PERIOD_MONTHS, MAINTENANCE_STAGES, STAGE_SUBCATEGORIES, isValidStage, checkStageSubCategory, clearInapplicableFields, MAX_AGE_LIMIT_BASIS_LENGTH, MAX_EXIT_OPTION_LENGTH, MAX_EXIT_OPTIONS_COUNT } from './maintenanceFormat'
 
 /**
  * 維修資訊讀取類 API 的權限門檻：所有已登入使用者皆可讀（一般人員唯讀瀏覽），

@@ -1,9 +1,5 @@
 // Step 38：維修資訊管理 型別定義
 
-export type MaintenanceRuleType = '送修規則' | '保固說明' | '報廢條件' | '其他'
-
-export const MAINTENANCE_RULE_TYPES: MaintenanceRuleType[] = ['送修規則', '保固說明', '報廢條件', '其他']
-
 export interface MaintenanceVendor {
   id: string
   vendor_code: string | null
@@ -25,11 +21,30 @@ export interface MaintenanceRuleEquipmentRef {
   name: string
 }
 
+// Step 49：流程區塊（常數見 src/lib/maintenanceFormat.ts 的 MAINTENANCE_STAGES）
+export type MaintenanceStage = '回廠' | '檢測' | '送修' | '報廢' | '待歸類'
+
+export type MaintenanceSubCategory = '特殊情境' | '年限判斷' | '是否檢測' | '廠商送修' | '報廢規則'
+
+export interface MaintenanceExitOption {
+  id: string
+  label: string
+  sort_order: number
+}
+
 export interface MaintenanceRule {
   id: string
-  vendor_id: string
+  vendor_id: string | null
   item: string
-  rule_type: MaintenanceRuleType
+  // Step 49 起為棄用欄位（新規則為 null，舊資料保留供遷移回溯），新 UI 不讀寫
+  rule_type?: string | null
+  stage: MaintenanceStage
+  sub_category: MaintenanceSubCategory | null
+  exit_option: string | null
+  age_limit_months: number | null
+  age_limit_basis: string | null
+  // 由 GET /api/maintenance/rules 未帶 vendor_id 時填入
+  vendor_name?: string | null
   content: string
   warranty_start_date: string | null
   warranty_period_months: number | null
@@ -43,27 +58,4 @@ export interface MaintenanceRule {
   equipment_ids?: MaintenanceRuleEquipmentRef[]
   // 由 API 計算：last_updated_at 與 confirmed_at 取較新者，超過 6 個月未更新/未確認
   needs_review?: boolean
-}
-
-// 依料號彙總的規則統計，由 GET /api/maintenance/vendors 的 equipment_stats 欄位提供
-export interface MaintenanceEquipmentStats {
-  rule_count: number
-  needs_review_count: number
-}
-
-// GET /api/maintenance/rules/by-equipment 單筆規則的回傳形狀（已扁平化，含所屬廠商名稱）
-export interface MaintenanceEquipmentRule {
-  id: string
-  vendor_id: string
-  vendor_name: string
-  item: string
-  rule_type: MaintenanceRuleType
-  content: string
-  warranty_start_date: string | null
-  warranty_period_months: number | null
-  last_updated_at: string
-  last_updated_by: string | null
-  confirmed_at: string | null
-  confirmed_by: string | null
-  needs_review: boolean
 }

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>維修資訊頁面預覽</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+body{margin:0;padding:16px;background:#faf6f0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;background:#faf6f0;font-size:13px;color:#2c1e12;display:flex;flex-direction:column;gap:12px;position:relative}
+.wrap *{box-sizing:border-box}
+.wrap input,.wrap textarea{font-family:inherit;font-size:13px;color:#2c1e12;background:#faf6f0;border:1px solid #e8ddd0;border-radius:8px;padding:7px 10px;outline:none}
+.wrap input:focus,.wrap textarea:focus{border-color:#c49a72}
+.wrap textarea{min-height:56px;width:100%;resize:none}
+.wrap button{font-family:inherit;font-size:12px;cursor:pointer;border-radius:8px;border:1px solid rgba(122,82,48,.2);background:transparent;color:#a08060;padding:6px 11px}
+.wrap button:hover{color:#7a5230;border-color:rgba(122,82,48,.4)}
+.wrap button.pri{background:#7a5230;color:#fff;border-color:#7a5230;font-weight:500}
+.wrap button.pri:hover{background:#9c6b42;border-color:#9c6b42;color:#fff}
+.wrap button.dg{background:#b5451b;border-color:#b5451b}
+.wrap button.dg:hover{background:#9a3a16;border-color:#9a3a16}
+.ib{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:5px 8px!important;line-height:1}
+.ib i{font-size:15px}
+.wrap button.lk{border-color:transparent;color:#a08060;padding:4px 6px!important}
+.wrap button.lk:hover{background:rgba(122,82,48,.07);color:#7a5230}
+.wrap button.lk.red:hover{color:#b5451b}
+.wrap button.csb{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;text-align:left;background:#faf6f0;border:1px solid #e8ddd0;color:#2c1e12;font-size:13px;padding:7px 10px}
+.wrap button.csb:hover,.wrap button.csb.open{border-color:#c49a72;color:#2c1e12}
+.cs{position:relative;flex:1;min-width:0}
+.pop.csl{top:38px;left:0;right:0;width:auto;max-height:210px;overflow-y:auto;padding:4px}
+.csi{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:6px;font-size:13px;color:#4a3422;cursor:pointer}
+.csi:hover{background:rgba(122,82,48,.08)}
+.csi.sel{color:#7a5230;font-weight:500;background:rgba(122,82,48,.06)}
+.flow{display:flex;gap:6px;align-items:stretch}
+.st{flex:1;min-width:0;border:1px solid #e8ddd0;border-radius:14px;padding:11px 12px;background:#fff9f4;cursor:pointer;position:relative;transition:all .15s}
+.st:hover{border-color:#c49a72}
+.st.on{background:#7a5230;border-color:#7a5230;color:#fff}
+.st .top{display:flex;align-items:center;gap:8px}
+.st .num{width:22px;height:22px;border-radius:50%;background:rgba(122,82,48,.1);color:#7a5230;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.st.on .num{background:rgba(255,255,255,.2);color:#fff}
+.st .ti{font-size:18px;color:#c49a72;margin-left:auto}
+.st.on .ti{color:#e8cfae}
+.st b{display:block;font-size:15px;font-weight:500;margin-top:8px}
+.st small{display:block;font-size:11px;color:#a08060;margin-top:1px}
+.st.on small{color:rgba(255,255,255,.72)}
+.st .ft{margin-top:9px;font-size:11px;color:#a08060;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.st.on .ft{color:rgba(255,255,255,.8)}
+.st.on .pw{background:rgba(255,255,255,.2);color:#fff}
+.st .dot{position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:#c49a72;border:2px solid #faf6f0}
+.cn{align-self:center;color:#c49a72;font-size:16px;flex-shrink:0}
+.pl{font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;display:inline-block;line-height:1.5}
+.pw{background:#fdf0d5;color:#8a5a12}
+.pk{background:#eaf0df;color:#4a6b2e}
+.pt{background:rgba(122,82,48,.08);color:#7a5230;border:1px solid rgba(122,82,48,.18)}
+.pg{background:#f2ebe0;color:#a08060}
+.pe{background:transparent;color:#7a5230;border:1px solid rgba(122,82,48,.3)}
+.box{background:#fffdf9;border:1px solid rgba(122,82,48,.15);border-radius:14px;position:relative}
+.box>:first-child{border-radius:14px 14px 0 0}
+.rw{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-top:1px solid rgba(122,82,48,.1)}
+.rw p{margin:0;line-height:1.55}
+.mu{color:#a08060;font-size:12px}
+.sh{padding:7px 14px;font-size:12px;font-weight:500;color:#7a5230;background:#f6efe4;border-top:1px solid rgba(122,82,48,.1)}
+.pn{padding:14px;background:#fff9f4;border-bottom:1px solid rgba(122,82,48,.15)}
+.fg{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px 10px;align-items:center;margin-top:10px}
+.fg>label{font-size:12px;color:#a08060}
+.fg input:not([type=checkbox]),.fg textarea{width:100%}
+.pop{position:absolute;z-index:20;width:270px;background:#fff9f4;border:1px solid rgba(122,82,48,.2);border-radius:10px;box-shadow:0 8px 30px rgba(122,82,48,.18);overflow:hidden}
+.pop .ph{padding:8px;border-bottom:1px solid rgba(122,82,48,.1)}
+.pop .pl2{max-height:190px;overflow-y:auto}
+.pop label.it{display:flex;gap:8px;align-items:center;padding:6px 12px;font-size:12px;color:#4a3422;cursor:pointer}
+.pop label.it:hover{background:rgba(122,82,48,.06)}
+.pop .pf{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border-top:1px solid rgba(122,82,48,.1)}
+.pop input[type=checkbox],.rw input[type=checkbox]{accent-color:#7a5230;padding:0}
+.gl{display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:6px;font-size:13px}
+.gl:hover{background:rgba(122,82,48,.05)}
+.gl .gr{color:#d4bda0;cursor:grab}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px;position:relative"><i class="ti ti-search" style="position:absolute;left:10px;top:9px;color:#a08060" aria-hidden="true"></i><input id="q" placeholder="搜尋料號、品名或廠商" style="width:100%;padding-left:30px"></div>
+    <button data-demo="1000041" title="示範用">示範：1000041</button>
+    <button data-demo="S168" title="示範用">示範：S168</button>
+    <button class="pri ib" id="add" title="新增規則" aria-label="新增規則"><i class="ti ti-plus"></i></button>
+  </div>
+  <div id="hint" class="mu"></div>
+  <div class="flow" id="flow"></div>
+  <div id="msg" class="mu" style="min-height:16px;color:#4a6b2e"></div>
+  <div class="box">
+    <div id="bar" style="display:none;gap:6px;align-items:center;padding:9px 14px;background:rgba(122,82,48,.1);color:#7a5230;flex-wrap:wrap"></div>
+    <div id="bp"></div>
+    <div id="fm"></div>
+    <div id="list"></div>
+  </div>
+</div>
+<script>
+var TODAY='2026-10-15';
+function stale(d){return (new Date(TODAY)-new Date(d))/864e5>182}
+var C={'1000003':'S168-3G衛星定位器','1000005':'S168-4G衛星定位器','1000041':'EP-168 4G環保車機','1000069':'EDR-168數位大餅','1000074':'EDR-168(P)環保車機','1000090':'EVM-168','1000098':'EVM-168充電樁','9000127':'無線溫濕度感應器','9000159':'無線車門感應器'};
+var BN={in:['回廠','收件、分流','ti-package-import'],test:['檢測','年限判斷、是否檢測','ti-stethoscope'],fix:['送修','廠商規則','ti-truck-delivery'],scrap:['報廢','成本、國稅局','ti-trash']};
+var SUBS={in:['特殊情境'],test:['年限判斷','是否檢測'],fix:['廠商送修'],scrap:['報廢規則']};
+var EX=['回一般流程','結案','跳到檢測','跳到送修','跳到報廢'];
+var R=[
+{id:1,b:'in',s:'特殊情境',t:'缺件',d:'寄回內容與清單不符，先聯絡技師補寄',it:[],dt:'2026-09-01',ex:'回一般流程'},
+{id:2,b:'in',s:'特殊情境',t:'設備升級',d:'請助理確認升級項目後，再進入檢測',it:[],dt:'2026-03-01',ex:'回一般流程'},
+{id:3,b:'in',s:'特殊情境',t:'技師未完工（掛客戶）',d:'確認客戶帳務，轉業務處理',it:[],dt:'2026-05-10',ex:'結案'},
+{id:4,b:'in',s:'特殊情境',t:'順拆（未通知助理）',d:'核對拆下清單，通知助理補登',it:[],dt:'2026-02-01',ex:'跳到送修'},
+{id:5,b:'in',s:'特殊情境',t:'外觀明顯損毀（人為）',d:'拍照存證，確認責任歸屬',it:[],dt:'2026-09-25',ex:'跳到報廢'},
+{id:6,b:'in',s:'特殊情境',t:'策略商設備',d:'策略商設備需先通知業務窗口再收件',it:['1000041'],dt:'2026-09-10',ex:'回一般流程'},
+{id:7,b:'in',s:'特殊情境',t:'EDR 失聯與補傳調閱',d:'調閱資料後回覆，不進檢測',it:['1000069'],dt:'2026-09-20',ex:'結案'},
+{id:8,b:'test',s:'年限判斷',t:'通用年限',d:'自進貨日起算 5 年，超過報廢',it:[],dt:'2026-02-10',yr:'5 年・自進貨日起算'},
+{id:9,b:'test',s:'年限判斷',t:'S168 系列例外',d:'S168 系列延長為 8 年',it:['1000003','1000005'],dt:'2026-04-02',yr:'8 年・自進貨日起算'},
+{id:10,b:'test',s:'年限判斷',t:'EP-168 系列',d:'EP-168 環保車機為 6 年',it:['1000041'],dt:'2026-09-20',yr:'6 年・自進貨日起算'},
+{id:11,b:'test',s:'是否檢測',t:'需檢測',d:'檢查定位訊號與 4G 通訊是否正常',it:['1000005','1000041'],dt:'2026-08-15'},
+{id:12,b:'test',s:'是否檢測',t:'免測',d:'無線溫濕度感應器：免測，直接送修',it:['9000127'],dt:'2026-08-01'},
+{id:13,b:'fix',s:'廠商送修',t:'保固說明',d:'自進貨日起保固 1 年',it:['1000003','1000005'],v:'廠商 A 1000231',dt:'2026-03-15',wp:'12 個月'},
+{id:14,b:'fix',s:'廠商送修',t:'保固說明',d:'自進貨日起保固 18 個月，含人為以外損壞',it:['1000041'],v:'廠商 B 1000377',dt:'2026-09-30',wp:'18 個月'},
+{id:15,b:'fix',s:'廠商送修',t:'送修規則',d:'送修需附瑕疵照片，運費由本公司負擔',it:['1000005','1000041'],v:'廠商 A 1000231',dt:'2026-09-20'},
+{id:16,b:'fix',s:'廠商送修',t:'送修規則',d:'海外廠商，需先寄送報備單再出貨',it:[],v:'海外 NXP',dt:'2026-01-20'}
+];
+var nid=100,cur='in',sel={},q='',F=null,BM=null,BI=[],BV={bv:'',bm:''},DELID=0,PK=null,pq='',ps=[],EM=null,dragI=null,OPEN=null;
+function nm(c){return c+' '+C[c]}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function ib(attrs,icon,title,cls,extra){return '<button class="ib '+(cls||'')+'" '+attrs+' title="'+title+'" aria-label="'+title+'"><i class="ti ti-'+icon+'"></i>'+(extra||'')+'</button>'}
+function match(r){if(!q)return true;if(!r.it.length)return true;return exact(r)}
+function exact(r){if(!q)return false;var s=q.toLowerCase();return r.it.some(function(c){return nm(c).toLowerCase().indexOf(s)>-1})}
+function say(t){document.getElementById('msg').textContent=t}
+function selIds(){return Object.keys(sel).filter(function(k){return sel[k]}).map(Number)}
+function byId(id){return R.filter(function(r){return r.id===id})[0]}
+function selH(id,val,o){
+ var c=o.filter(function(x){return x[0]===val})[0];
+ var h='<div class="cs"><button class="csb'+(OPEN===id?' open':'')+'" data-cso="'+id+'"><span>'+esc(c?c[1]:'')+'</span><i class="ti ti-chevron-down" style="color:#a08060" aria-hidden="true"></i></button>';
+ if(OPEN===id)h+='<div class="pop csl">'+o.map(function(x){return '<div class="csi'+(x[0]===val?' sel':'')+'" data-csv="'+esc(x[0])+'"><span>'+x[1]+'</span>'+(x[0]===val?'<i class="ti ti-check" aria-hidden="true"></i>':'')+'</div>'}).join('')+'</div>';
+ return h+'</div>';
+}
+function pick(id,v){
+ if(id==='f:b'){F.b=v;F.s=SUBS[v][0]}
+ if(id==='f:s')F.s=v;
+ if(id==='f:ex')F.ex=v;
+ if(id==='bv')BV.bv=v;
+ if(id==='bm')BV.bm=v;
+}
+function blockOpts(){return Object.keys(BN).map(function(k){return [k,BN[k][0]]})}
+function chipsH(a,rm){return a.map(function(c){return '<span class="pl pt">'+nm(c)+(rm?' <a data-rm="'+c+'" style="cursor:pointer;margin-left:2px">×</a>':'')+'</span>'}).join(' ')}
+function pkList(chosen){
+ var s=pq.toLowerCase(),a=Object.keys(C).filter(function(c){return chosen.indexOf(c)<0&&(!s||nm(c).toLowerCase().indexOf(s)>-1)});
+ if(!a.length)return '<p style="padding:8px 12px;font-size:12px;color:#a08060;margin:0">沒有符合的料卡</p>';
+ return a.map(function(c){return '<label class="it"><input type="checkbox" data-pk="'+c+'"'+(ps.indexOf(c)>-1?' checked':'')+'><span>'+nm(c)+'</span></label>'}).join('');
+}
+function pickerH(ctx,chosen){
+ if(PK!==ctx)return '';
+ return '<div class="pop" style="top:34px;left:0"><div class="ph"><input id="pq" placeholder="搜尋料號、品名…" value="'+esc(pq)+'" style="width:100%"></div><p style="margin:0;padding:5px 12px;font-size:10px;color:#a08060;border-bottom:1px solid rgba(122,82,48,.08)">共 '+Object.keys(C).length+' 張料卡，輸入關鍵字搜尋</p><div class="pl2" id="pklist">'+pkList(chosen)+'</div><div class="pf">'+ib('id="pkcancel"','x','取消','lk')+ib('id="pkok"','check','確認新增','pri',' <span id="pkn">'+ps.length+'</span>')+'</div></div>';
+}
+function exMgrH(){
+ if(!EM)return '';
+ var h='<div class="pop" style="top:38px;right:0;width:230px;padding:12px"><p style="margin:0 0 8px;font-size:12px;font-weight:500;color:#7a5230">處理後去向選項</p><div style="max-height:180px;overflow-y:auto">';
+ EM.list.forEach(function(x,i){h+='<div class="gl" draggable="true" data-di="'+i+'"><i class="ti ti-grip-vertical gr" aria-hidden="true"></i><span style="flex:1">'+esc(x)+'</span><a data-gd="'+i+'" style="cursor:pointer;color:#c49a72" title="刪除此選項">×</a></div>'});
+ h+='</div><div style="display:flex;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(122,82,48,.12)"><input id="gin" placeholder="新增選項…" value="'+esc(EM.inp)+'" style="flex:1;min-width:0;padding:5px 8px;font-size:12px">'+ib('id="gadd"','plus','加入清單')+'</div><div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">'+ib('id="gcancel"','x','取消','lk')+ib('id="gsave"','check','儲存','pri')+'</div></div>';
+ return h;
+}
+function formHTML(){
+ if(!F)return '';
+ var h='<div class="pn"><b style="font-weight:500;font-size:14px;color:#7a5230">'+(F.id?'編輯規則':'新增規則')+'</b><div class="fg">';
+ h+='<label>所屬區塊</label>'+selH('f:b',F.b,blockOpts());
+ h+='<label>子類</label>'+selH('f:s',F.s,SUBS[F.b].map(function(x){return [x,x]}));
+ h+='<label>標題</label><input data-f="t" value="'+esc(F.t)+'">';
+ h+='<label>內容</label><textarea data-f="d">'+esc(F.d)+'</textarea>';
+ h+='<label>適用料號</label><div style="position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'+(F.it.length?chipsH(F.it,1):'<span class="mu">未選＝通用規則</span>')+ib('id="pkopen" style="border-style:dashed"','plus','新增料號')+pickerH('form',F.it)+'</div>';
+ if(F.b==='fix'){h+='<label>廠商（選填）</label><input data-f="v" value="'+esc(F.v)+'"><label>保固期間</label><input data-f="wp" value="'+esc(F.wp)+'" placeholder="例如 12 個月">'}
+ if(F.b==='test'&&F.s==='年限判斷'){h+='<label>年限</label><input data-f="yr" value="'+esc(F.yr)+'" placeholder="例如 5 年・自進貨日起算">'}
+ if(F.b==='in'){h+='<label>處理後去向</label><div style="position:relative;display:flex;gap:6px">'+selH('f:ex',F.ex||EX[0],EX.map(function(x){return [x,x]}))+ib('id="gear"','settings','管理選項')+exMgrH()+'</div>'}
+ h+='</div><div style="margin-top:12px;display:flex;gap:6px;align-items:center">'+ib('id="save"','check','儲存','pri')+ib('id="cancel"','x','取消')+'<span class="mu">儲存會把「最後確認」重置為今天</span></div></div>';
+ return h;
+}
+function bpHTML(){
+ if(DELID){var x=byId(DELID);return '<div class="pn"><p style="margin:0 0 10px">確定刪除「'+esc(x.t)+'」？此操作無法復原。</p><div style="display:flex;gap:6px">'+ib('id="dgo"','trash','確認刪除','pri dg')+ib('id="dno"','x','取消')+'</div></div>'}
+ if(!BM)return '';
+ var n=selIds().length,h='<div class="pn"><b style="font-weight:500;color:#7a5230">'+BM+'（已選 '+n+' 筆）</b>';
+ if(BM==='刪除'){h+='<p style="margin:8px 0 10px">將刪除 '+n+' 筆規則，此操作無法復原。</p><div style="display:flex;gap:6px">'+ib('id="bgo"','trash','確認刪除','pri dg')+ib('id="bno"','x','取消')+'</div>'}
+ else{h+='<div class="fg">';
+  if(BM==='改區塊')h+='<label>移到區塊</label>'+selH('bv',BV.bv,blockOpts());
+  if(BM==='掛載／移除料號')h+='<label>動作</label>'+selH('bm',BV.bm,[['add','掛載'],['del','移除']])+'<label>料號</label><div style="position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center">'+(BI.length?chipsH(BI,1):'')+ib('id="pkopen" style="border-style:dashed"','plus','選擇料號')+pickerH('batch',BI)+'</div>';
+  if(BM==='改廠商')h+='<label>廠商</label><input id="bvt" placeholder="輸入廠商" value="'+esc(BV.bv)+'">';
+  if(BM==='改共用欄位')h+='<label>欄位</label>'+selH('bm',BV.bm,[['wp','保固期間'],['yr','年限']])+'<label>新值</label><input id="bvt" placeholder="例如 12 個月" value="'+esc(BV.bv)+'">';
+  h+='</div><div style="margin-top:12px;display:flex;gap:6px">'+ib('id="bgo"','check','套用到 '+n+' 筆','pri',' '+n)+ib('id="bno"','x','取消')+'</div>'}
+ return h+'</div>';
+}
+var BAR=[['標示已確認','circle-check','標示已確認最新',''],['改區塊','arrows-exchange','修改所屬區塊',''],['掛載／移除料號','tags','掛載或移除料號',''],['改廠商','building-store','修改廠商',''],['改共用欄位','adjustments-horizontal','修改共用欄位',''],['刪除','trash','批次刪除','red']];
+function render(){
+ var f='';
+ ['in','test','fix','scrap'].forEach(function(k,i){
+  var all=R.filter(function(r){return r.b===k}),n=all.filter(match).length,st=all.filter(function(r){return stale(r.dt)}).length;
+  var hit=q&&all.some(exact);
+  f+=(i?'<span class="cn"><i class="ti ti-chevron-right" aria-hidden="true"></i></span>':'')+'<div class="st'+(k===cur?' on':'')+'" data-k="'+k+'">'+(hit?'<span class="dot"></span>':'')+'<div class="top"><span class="num">'+(i+1)+'</span><i class="ti '+BN[k][2]+'" aria-hidden="true"></i></div><b>'+BN[k][0]+'</b><small>'+BN[k][1]+'</small><div class="ft"><span>'+(q?n+' 筆適用':all.length+' 筆')+'</span>'+(st&&!q?'<span class="pl pw">'+st+' 待覆核</span>':'')+'</div></div>';
+ });
+ document.getElementById('flow').innerHTML=f;
+ document.getElementById('hint').innerHTML=q?'搜尋「'+esc(q)+'」：圓點＝該區塊有此料號的專屬規則；通用規則一併列出，專屬在前':'共 '+R.filter(function(r){return stale(r.dt)}).length+' 筆建議覆核（超過 6 個月未確認）';
+ var rows=R.filter(function(r){return r.b===cur&&match(r)});
+ rows.sort(function(a,b){return (exact(b)?1:0)-(exact(a)?1:0)});
+ var h='',last='';
+ if(!rows.length)h='<div style="padding:28px 14px;text-align:center;color:#a08060">'+(cur==='scrap'?'報廢的規則之後再新增<br><span style="font-size:12px">入口：超過年限、廠商過保或無法維修、維修成本過高</span>':'這個區塊沒有適用的規則')+'</div>';
+ rows.forEach(function(r){
+  if(r.s!==last){h+='<div class="sh">'+r.s+(r.b==='in'?'<span class="mu" style="font-weight:400">　可自行新增情境</span>':'')+'</div>';last=r.s}
+  var ext='';
+  if(r.it.length){ext+=r.it.slice(0,2).map(function(c){return '<span class="pl pt">'+nm(c)+'</span>'}).join(' ');if(r.it.length>2)ext+=' <span class="pl pg">+'+(r.it.length-2)+'</span>'}else ext+='<span class="pl pg">通用</span>';
+  if(r.ex)ext+=' <span class="pl pe">→ '+esc(r.ex)+'</span>';
+  if(r.yr)ext+=' <span class="pl pg">'+r.yr+'</span>';
+  if(r.wp)ext+=' <span class="pl pg">'+r.wp+'</span>';
+  if(r.v)ext+=' <span class="pl pg">'+r.v+'</span>';
+  var sb=stale(r.dt)?'<span class="pl pw">建議覆核</span>':'<span class="pl pk">已確認</span>';
+  h+='<div class="rw"><input type="checkbox" data-id="'+r.id+'"'+(sel[r.id]?' checked':'')+' aria-label="選取" style="margin-top:3px"><div style="flex:1;min-width:0"><p><b style="font-weight:500">'+esc(r.t)+'</b>　'+esc(r.d)+'</p><p style="margin-top:5px">'+ext+'</p><p class="mu" style="margin-top:3px;display:flex;align-items:center;gap:2px">最後確認 '+r.dt+'<span style="flex:1"></span>'+ib('data-edit="'+r.id+'"','pencil','編輯規則','lk')+ib('data-ok="'+r.id+'"','circle-check','標示已確認最新','lk')+ib('data-del="'+r.id+'"','trash','刪除規則','lk red')+'</p></div>'+sb+'</div>';
+ });
+ document.getElementById('list').innerHTML=h;
+ document.getElementById('fm').innerHTML=formHTML();
+ document.getElementById('bp').innerHTML=bpHTML();
+ var n=selIds().length,bar=document.getElementById('bar');
+ if(n){bar.style.display='flex';bar.innerHTML='<span style="font-weight:500">已選 '+n+' 筆</span>'+ib('data-b="全選"','checks','本區塊全選','lk')+'<span style="flex:1"></span>'+BAR.map(function(x){return ib('data-b="'+x[0]+'"',x[1],x[2],'lk '+x[3])}).join('')}else bar.style.display='none';
+}
+document.addEventListener('click',function(e){
+ var t=e.target,g=function(a){var el=t.closest('['+a+']');return el?el.getAttribute(a):null};
+ if(OPEN&&!t.closest('.cs')){OPEN=null;render()}
+ var co=g('data-cso');if(co){OPEN=OPEN===co?null:co;render();return}
+ var cv=g('data-csv');if(cv!==null){pick(OPEN,cv);OPEN=null;render();return}
+ var k=g('data-k');if(k){if(k!==cur)sel={};cur=k;F=null;BM=null;PK=null;EM=null;DELID=0;render();return}
+ var dm=g('data-demo');if(dm){q=dm;document.getElementById('q').value=q;render();return}
+ if(t.closest('#add')){F={id:0,b:cur,s:SUBS[cur][0],t:'',d:'',it:C[q]?[q]:[],v:'',ex:EX[0]};BM=null;PK=null;DELID=0;render();return}
+ var ed=g('data-edit');if(ed){F=JSON.parse(JSON.stringify(byId(+ed)));BM=null;PK=null;DELID=0;render();return}
+ var ok=g('data-ok');if(ok){byId(+ok).dt=TODAY;say('已標示「'+byId(+ok).t+'」為最新');render();return}
+ var dl=g('data-del');if(dl){DELID=+dl;F=null;BM=null;render();return}
+ if(t.closest('#dno')){DELID=0;render();return}
+ if(t.closest('#dgo')){var x=byId(DELID);R.splice(R.indexOf(x),1);DELID=0;say('已刪除');render();return}
+ var rm=g('data-rm');if(rm){if(F)F.it=F.it.filter(function(c){return c!==rm});else BI=BI.filter(function(c){return c!==rm});render();return}
+ if(t.closest('#pkopen')){PK=F?'form':'batch';pq='';ps=[];render();var i=document.getElementById('pq');if(i)i.focus();return}
+ if(t.closest('#pkcancel')){PK=null;render();return}
+ if(t.closest('#pkok')){var tgt=F?F.it:BI;ps.forEach(function(c){if(tgt.indexOf(c)<0)tgt.push(c)});PK=null;render();return}
+ if(t.closest('#gear')){EM=EM?null:{list:EX.slice(),inp:''};render();return}
+ if(t.closest('#gcancel')){EM=null;render();return}
+ if(t.closest('#gsave')){EX=EM.list.slice();if(F&&EX.indexOf(F.ex)<0)F.ex=EX[0];EM=null;say('處理後去向選項已更新');render();return}
+ if(t.closest('#gadd')){addEx();return}
+ var gd=g('data-gd');if(gd!==null){EM.list.splice(+gd,1);render();return}
+ if(t.closest('#cancel')){F=null;PK=null;EM=null;render();return}
+ if(t.closest('#save')){if(!F.t){say('請輸入標題');return}F.dt=TODAY;if(F.id){R[R.indexOf(byId(F.id))]=F}else{F.id=nid++;R.push(F)}cur=F.b;say('已儲存，最後確認重置為今天');F=null;PK=null;EM=null;render();return}
+ var b=g('data-b');if(b){
+  if(b==='全選'){R.forEach(function(r){if(r.b===cur&&match(r))sel[r.id]=true});render();return}
+  if(b==='標示已確認'){var ids=selIds();ids.forEach(function(i){byId(i).dt=TODAY});sel={};say('已將 '+ids.length+' 筆標示為最新');render();return}
+  BM=b;BI=[];BV={bv:b==='改區塊'?'in':'',bm:b==='改共用欄位'?'wp':'add'};F=null;PK=null;DELID=0;render();return}
+ if(t.closest('#bno')){BM=null;PK=null;render();return}
+ if(t.closest('#bgo')){var ids2=selIds(),v=BV.bv,m=BV.bm;
+  if(BM==='刪除'){R=R.filter(function(r){return ids2.indexOf(r.id)<0})}
+  else{if(BM==='掛載／移除料號'&&!BI.length){say('請先選擇料號');return}
+   ids2.forEach(function(i){var r=byId(i);
+    if(BM==='改區塊'){r.b=v;r.s=SUBS[v][0]}
+    if(BM==='掛載／移除料號'){BI.forEach(function(c){if(m==='add'){if(r.it.indexOf(c)<0)r.it.push(c)}else r.it=r.it.filter(function(z){return z!==c})})}
+    if(BM==='改廠商')r.v=v;
+    if(BM==='改共用欄位')r[m]=v;
+    r.dt=TODAY})}
+  say(BM+'：已套用到 '+ids2.length+' 筆');sel={};BM=null;render();return}
+});
+function addEx(){var v=EM.inp.trim();if(v&&EM.list.indexOf(v)<0)EM.list.push(v);EM.inp='';render();var i=document.getElementById('gin');if(i)i.focus()}
+document.addEventListener('change',function(e){var t=e.target;
+ if(t.type==='checkbox'&&t.getAttribute('data-id')){sel[t.getAttribute('data-id')]=t.checked;render();return}
+ var pc=t.getAttribute&&t.getAttribute('data-pk');if(pc){var i=ps.indexOf(pc);if(t.checked&&i<0)ps.push(pc);if(!t.checked&&i>-1)ps.splice(i,1);document.getElementById('pkn').textContent=ps.length}
+});
+document.addEventListener('input',function(e){var t=e.target;
+ if(t.id==='q'){q=t.value.trim();render();return}
+ if(t.id==='pq'){pq=t.value.trim();document.getElementById('pklist').innerHTML=pkList(F?F.it:BI);return}
+ if(t.id==='gin'){EM.inp=t.value;return}
+ if(t.id==='bvt'){BV.bv=t.value;return}
+ var f=t.getAttribute&&t.getAttribute('data-f');if(f&&F)F[f]=t.value;
+});
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.id==='gin'){e.preventDefault();addEx()}});
+document.addEventListener('dragstart',function(e){var d=e.target.closest&&e.target.closest('[data-di]');if(d)dragI=+d.getAttribute('data-di')});
+document.addEventListener('dragover',function(e){if(e.target.closest&&e.target.closest('[data-di]'))e.preventDefault()});
+document.addEventListener('drop',function(e){var d=e.target.closest&&e.target.closest('[data-di]');if(d&&dragI!==null&&EM){var to=+d.getAttribute('data-di'),x=EM.list.splice(dragI,1)[0];EM.list.splice(to,0,x);dragI=null;render()}});
+render();
+</script>
+</body>
+</html>
