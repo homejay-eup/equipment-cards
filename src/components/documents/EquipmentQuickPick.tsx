@@ -3,19 +3,21 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Fuse from 'fuse.js'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, Plus } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 
 // 複選版料卡挑選器：搜尋 + 打勾清單，選好多張後按「確認新增」才一次送出。
 // 用於「文件清單」展開列裡「+ 新增掛載料卡」情境（原本是單選、點一下立刻生效，
 // 使用者反映一次要掛好幾張卡片時很不方便，改成比照 EquipmentPicker 的打勾模式）
 export default function EquipmentQuickPick({
-  allCards, excludeIds = [], onPickMany, disabled,
+  allCards, excludeIds = [], onPickMany, disabled, triggerVariant = 'text',
 }: {
   allCards: EquipmentCard[]
   excludeIds?: string[]
   onPickMany: (equipmentIds: string[]) => void | Promise<void>
   disabled?: boolean
+  // 'text'（預設，既有呼叫端行為不變）＝「+ 新增料卡」文字按鈕；'icon'＝僅圖示的虛線小按鈕（維修資訊頁使用）
+  triggerVariant?: 'text' | 'icon'
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -105,11 +107,19 @@ export default function EquipmentQuickPick({
 
   return (
     <div ref={ref} className="relative inline-block">
-      <button ref={btnRef} type="button" onClick={toggleOpen} disabled={disabled}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
-        <Search className="h-3 w-3" />
-        + 新增料卡
-      </button>
+      {triggerVariant === 'icon' ? (
+        <button ref={btnRef} type="button" onClick={toggleOpen} disabled={disabled}
+          title="新增料號" aria-label="新增料號"
+          className="inline-flex items-center justify-center p-1.5 text-[#a08060] hover:text-[#7a5230] border border-dashed border-[rgba(122,82,48,.3)] rounded-lg disabled:opacity-40 transition-colors">
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      ) : (
+        <button ref={btnRef} type="button" onClick={toggleOpen} disabled={disabled}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#7a5230] hover:text-[#9c6b42] disabled:opacity-40 transition-colors">
+          <Search className="h-3 w-3" />
+          + 新增料卡
+        </button>
+      )}
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropRef}

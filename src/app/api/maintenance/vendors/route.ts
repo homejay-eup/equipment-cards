@@ -11,7 +11,7 @@ function getSupabase() {
 }
 
 interface RuleAggregateRow {
-  vendor_id: string
+  vendor_id: string | null
   last_updated_at: string
   confirmed_at: string | null
   maintenance_rule_equipment: { equipment_id: string }[] | null
@@ -45,18 +45,22 @@ export async function GET() {
     const statsByVendor = new Map<string, { ruleCount: number; needsReviewCount: number; equipmentIds: Set<string> }>()
     const statsByEquipment = new Map<string, { rule_count: number; needs_review_count: number }>()
     for (const row of ruleRows) {
-      let stats = statsByVendor.get(row.vendor_id)
-      if (!stats) {
-        stats = { ruleCount: 0, needsReviewCount: 0, equipmentIds: new Set() }
-        statsByVendor.set(row.vendor_id, stats)
+      // Step 49：廠商選填，vendor_id 為 null 的規則不計入任何廠商統計（不得以 null 當 Map key）
+      let stats: { ruleCount: number; needsReviewCount: number; equipmentIds: Set<string> } | undefined
+      if (row.vendor_id) {
+        stats = statsByVendor.get(row.vendor_id)
+        if (!stats) {
+          stats = { ruleCount: 0, needsReviewCount: 0, equipmentIds: new Set() }
+          statsByVendor.set(row.vendor_id, stats)
+        }
+        stats.ruleCount += 1
       }
-      stats.ruleCount += 1
       const needsReview = computeNeedsReview(row.last_updated_at, row.confirmed_at)
-      if (needsReview) {
+      if (stats && needsReview) {
         stats.needsReviewCount += 1
       }
       for (const link of row.maintenance_rule_equipment ?? []) {
-        stats.equipmentIds.add(link.equipment_id)
+        stats?.equipmentIds.add(link.equipment_id)
 
         let equipmentStats = statsByEquipment.get(link.equipment_id)
         if (!equipmentStats) {
