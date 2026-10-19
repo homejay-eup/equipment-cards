@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateRichContent } from '@/lib/richContentValidation'
+import { destroyOwnImages } from '@/lib/maintenanceCloudinary'
 import {
   MAX_WARRANTY_PERIOD_MONTHS, MAX_AGE_LIMIT_BASIS_LENGTH, isValidStage, checkStageSubCategory, clearInapplicableFields,
 } from '@/lib/maintenance'
@@ -29,6 +31,7 @@ export async function PATCH(
       return NextResponse.json({ error: '請求格式錯誤' }, { status: 400 })
     }
 
+    const supabase = getSupabase()
     const updates: Record<string, unknown> = {}
     if ('item' in body) {
       const item = typeof body.item === 'string' ? body.item.trim() : ''
@@ -73,10 +76,36 @@ export async function PATCH(
     if ('vendor_id' in body) {
       updates.vendor_id = typeof body.vendor_id === 'string' && body.vendor_id.trim() ? body.vendor_id.trim() : null
     }
-    if ('content' in body) {
-      const content = typeof body.content === 'string' ? body.content.trim() : ''
-      if (!content) return NextResponse.json({ error: 'content 不可為空' }, { status: 400 })
-      updates.content = content
+    // Step 50：三個內容欄位任一有送到就整批驗證後寫入；沒送到的欄位沿用資料庫現值，
+    // 避免只改文字時把既有圖片／表格清空。
+    const contentTouched = 'content' in body || 'content_image_urls' in body || 'content_table_data' in body
+    let removedImages: Array<{ public_id?: string }> = []
+    if (contentTouched) {
+      const { data: cur, error: curError } = await supabase
+        .from('maintenance_rules')
+        .select('content, content_image_urls, content_table_data')
+        .eq('id', params.id)
+        .maybeSingle()
+      if (curError) throw curError
+      if (!cur) return NextResponse.json({ error: '找不到規則' }, { status: 404 })
+
+      const rich = validateRichContent(
+        {
+          content: 'content' in body ? body.content : cur.content,
+          image_urls: 'content_image_urls' in body ? body.content_image_urls : cur.content_image_urls,
+          table_data: 'content_table_data' in body ? body.content_table_data : cur.content_table_data,
+        },
+        { requireNonEmpty: true, emptyErrorMessage: '內容為必填（文字／圖片／表格至少一項）' },
+      )
+      if (!rich.ok) return NextResponse.json({ error: rich.error }, { status: rich.status })
+
+      updates.content = rich.content ?? ''
+      updates.content_image_urls = rich.images
+      updates.content_table_data = rich.table
+
+      const keep = new Set(rich.images.map((i) => i.public_id))
+      removedImages = ((cur.content_image_urls ?? []) as Array<{ public_id?: string }>)
+        .filter((i) => i?.public_id && !keep.has(i.public_id))
     }
     if ('warranty_start_date' in body) {
       updates.warranty_start_date = typeof body.warranty_start_date === 'string' && body.warranty_start_date.trim()
@@ -104,8 +133,6 @@ export async function PATCH(
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: '沒有可更新的欄位' }, { status: 400 })
     }
-
-    const supabase = getSupabase()
 
     // stage / sub_category / exit_option 相容性：需合併現有資料判斷有效值
     if ('stage' in updates || 'sub_category' in updates || 'exit_option' in updates) {
@@ -169,7 +196,12 @@ export async function PATCH(
     if (error) throw error
     if (!data) return NextResponse.json({ error: '找不到規則' }, { status: 404 })
 
-    return NextResponse.json({ rule: data })
+    // DB 已更新成功才清 Cloudinary（best effort，失敗只回警告）
+    const warning = removedImages.length > 0
+      ? await destroyOwnImages(removedImages, '規則已儲存')
+      : null
+
+    return NextResponse.json(warning ? { rule: data, warning } : { rule: data })
   } catch (err) {
     console.error('[maintenance/rules/id] update error', err)
     return NextResponse.json({ error: '更新失敗' }, { status: 500 })
@@ -192,13 +224,18 @@ export async function DELETE(
       .from('maintenance_rules')
       .delete()
       .eq('id', params.id)
-      .select('id')
+      .select('id, content_image_urls')
       .maybeSingle()
 
     if (error) throw error
     if (!data) return NextResponse.json({ error: '找不到規則' }, { status: 404 })
 
-    return NextResponse.json({ ok: true })
+    // 刪除成功後 best-effort 清除該規則圖片
+    const warning = await destroyOwnImages(
+      (data.content_image_urls ?? []) as Array<{ public_id?: string }>,
+      '規則已刪除',
+    )
+    return NextResponse.json(warning ? { ok: true, warning } : { ok: true })
   } catch (err) {
     console.error('[maintenance/rules/id] delete error', err)
     return NextResponse.json({ error: '刪除失敗' }, { status: 500 })

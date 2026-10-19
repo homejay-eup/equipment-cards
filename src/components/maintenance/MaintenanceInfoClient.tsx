@@ -6,7 +6,9 @@ import { EquipmentCard } from '@/types/equipment'
 import {
   MaintenanceVendor, MaintenanceRule, MaintenanceExitOption, MaintenanceStage,
 } from '@/types/maintenance'
-import { MAINTENANCE_STAGES, isValidStage } from '@/lib/maintenanceFormat'
+import { MAINTENANCE_STAGES, isValidStage, ruleMatchesQuery, getBatchFieldOptions } from '@/lib/maintenanceFormat'
+import type { RichImage } from '@/components/tracker/richContentTypes'
+import UpdateImageLightbox from '@/components/UpdateImageLightbox'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import FlowStages, { FlowStageStat } from '@/components/maintenance/FlowStages'
 import RuleListPanel, { BatchAction } from '@/components/maintenance/RuleListPanel'
@@ -35,6 +37,8 @@ interface BatchResponse {
   succeeded?: string[]
   failed?: { id: string; reason: string }[]
   invalid_equipment_ids?: string[]
+  /** 批次刪除成功但圖片清除失敗時附帶的警告 */
+  warning?: string
 }
 
 interface ConfirmState {
@@ -55,6 +59,9 @@ function normalizeRule(raw: Partial<MaintenanceRule> & { id: string }): Maintena
     vendor_name: raw.vendor_name ?? null,
     item: raw.item ?? '',
     content: raw.content ?? '',
+    // Step 50 欄位：SQL 尚未執行的環境 API 不會回這兩個欄位
+    content_image_urls: raw.content_image_urls ?? [],
+    content_table_data: raw.content_table_data ?? null,
     stage: isValidStage(raw.stage) ? raw.stage : '待歸類',
     sub_category: raw.sub_category ?? null,
     exit_option: raw.exit_option ?? null,
@@ -71,12 +78,6 @@ function normalizeRule(raw: Partial<MaintenanceRule> & { id: string }): Maintena
     equipment_ids: raw.equipment_ids ?? [],
     needs_review: raw.needs_review ?? false,
   }
-}
-
-// 搜尋命中：料號（含品名）或廠商名稱包含關鍵字（一律 includes，不走模糊搜尋）
-function ruleMatches(rule: MaintenanceRule, ql: string): boolean {
-  if (rule.vendor_name && rule.vendor_name.toLowerCase().includes(ql)) return true
-  return (rule.equipment_ids ?? []).some(e => `${e.equipment_id} ${e.name}`.toLowerCase().includes(ql))
 }
 
 function describeBatch(
@@ -125,6 +126,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [lightbox, setLightbox] = useState<{ images: RichImage[]; index: number } | null>(null)
 
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current) }, [])
@@ -221,7 +223,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   const hitIds = useMemo(() => {
     const s = new Set<string>()
     if (!ql) return s
-    for (const r of rules) if (ruleMatches(r, ql)) s.add(r.id)
+    for (const r of rules) if (ruleMatchesQuery(r, ql)) s.add(r.id)
     return s
   }, [rules, ql])
 
@@ -255,6 +257,11 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   // 勾選只計算「目前區塊、目前搜尋下仍看得到」的規則
   const selectedIds = useMemo(() => curRules.filter(r => selected.has(r.id)).map(r => r.id), [curRules, selected])
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  // 批次「改共用欄位」可用的欄位：依勾選的規則區塊／子類判斷
+  const batchFieldOptions = useMemo(
+    () => getBatchFieldOptions(curRules.filter(r => selectedSet.has(r.id))),
+    [curRules, selectedSet],
+  )
 
   const vendorsById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors])
   const titleById = useMemo(() => new Map(rules.map(r => [r.id, r.item])), [rules])
@@ -281,7 +288,11 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     if (ids.length === 0) return false
     try {
       const { status, data } = await callBatch(ids, action, payload)
-      showNotice(describeBatch(label, status, data, titleById))
+      const base = describeBatch(label, status, data, titleById)
+      // 圖片清除失敗的警告不可靜默：附在提示後並至少升為警告
+      showNotice(data.warning
+        ? { tone: base.tone === 'error' ? 'error' : 'warn', text: `${base.text}；${data.warning}` }
+        : base)
       const succeeded = data.succeeded_count ?? 0
       if (succeeded > 0) {
         // 成功的取消勾選，失敗的保留勾選方便重試
@@ -301,6 +312,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
 
   function handleBatchAction(action: BatchAction) {
     setEditing(null)
+    if (action === 'fields' && batchFieldOptions.length === 0) return
     if (action === 'confirm') {
       setBatchMode(null)
       void runBatch('confirm', {}, '標示已確認')
@@ -340,6 +352,9 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     const body: Record<string, unknown> = {
       item: draft.item,
       content: draft.content,
+      // PATCH 三個內容欄位任一有送就整批驗證，因此一律三個一起送
+      content_image_urls: draft.content_image_urls,
+      content_table_data: draft.content_table_data,
       stage: draft.stage,
       sub_category: draft.sub_category,
     }
@@ -376,6 +391,8 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) return data?.error ?? '更新失敗'
+        // 內容已更新但被移除的圖片清除失敗時 API 附 warning
+        if (typeof data?.warning === 'string') warning = data.warning
 
         const original = new Set((rule.equipment_ids ?? []).map(e => e.equipment_id))
         const next = new Set(draft.equipment_ids)
@@ -384,13 +401,13 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         if (toAdd.length > 0) {
           const r = await callBatch([rule.id], 'link', { equipment_ids: toAdd })
           if ((r.data.failed ?? []).length > 0 || r.status >= 300 || (r.data.invalid_equipment_ids ?? []).length > 0) {
-            warning = '規則內容已更新，但新增掛載料號時發生錯誤，請重新確認掛載狀態'
+            warning = [warning, '規則內容已更新，但新增掛載料號時發生錯誤，請重新確認掛載狀態'].filter(Boolean).join('；')
           }
         }
         if (toRemove.length > 0) {
           const r = await callBatch([rule.id], 'unlink', { equipment_ids: toRemove })
           if ((r.data.failed ?? []).length > 0 || r.status >= 300) {
-            warning = warning ?? '規則內容已更新，但移除掛載料號時發生錯誤，請重新確認掛載狀態'
+            warning = [warning, '規則內容已更新，但移除掛載料號時發生錯誤，請重新確認掛載狀態'].filter(Boolean).join('；')
           }
         }
       }
@@ -421,7 +438,10 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             return
           }
           if (editing?.mode === 'edit' && editing.rule.id === rule.id) setEditing(null)
-          showNotice({ tone: 'ok', text: '已刪除' })
+          const data = await res.json().catch(() => ({}))
+          showNotice(typeof data?.warning === 'string'
+            ? { tone: 'warn', text: `已刪除；${data.warning}` }
+            : { tone: 'ok', text: '已刪除' })
           await loadRules()
           loadVendors()
         } catch {
@@ -482,6 +502,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
           currentStage={cur}
           allCards={allCards}
           vendors={vendors}
+          fieldOptions={batchFieldOptions}
           onCancel={() => setBatchMode(null)}
           onApply={(action, payload) => runBatch(action, payload, BATCH_PANEL_TITLE[batchMode])}
         />
@@ -498,8 +519,8 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="搜尋料號、品名或廠商"
-            aria-label="搜尋料號、品名或廠商"
+            placeholder="搜尋料號、品名、廠商、標題或內文"
+            aria-label="搜尋料號、品名、廠商、標題或內文"
             className="w-full border border-[#e8ddd0] rounded-lg pl-8 pr-8 py-1.5 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]"
           />
           {q && (
@@ -540,7 +561,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
 
       <p className="text-xs text-[#a08060]">
         {ql
-          ? `搜尋「${q.trim()}」：圓點＝該區塊有此搜尋的專屬規則；通用規則一併列出，專屬在前`
+          ? `搜尋「${q.trim()}」：比對料號、品名、廠商、標題與內文；圓點＝該區塊有命中的規則；通用規則一併列出，命中在前`
           : `共 ${totalReview} 筆建議覆核（超過 6 個月未確認）`}
       </p>
 
@@ -588,8 +609,11 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             selected={selectedSet}
             selectedCount={selectedIds.length}
             searching={ql !== ''}
+            searchQuery={q.trim()}
+            fieldsAvailable={batchFieldOptions.length > 0}
             panels={panels}
             onToggle={toggleSelect}
+            onImageClick={(images, index) => setLightbox({ images, index })}
             onSelectAll={() => setSelected(new Set(curRules.map(r => r.id)))}
             onClearSelection={() => { setSelected(new Set()); setBatchMode(null) }}
             onBatchAction={handleBatchAction}
@@ -606,6 +630,15 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
           vendors={vendors}
           onClose={() => setVendorDialogOpen(false)}
           onChanged={() => { void loadVendors(); void loadRules() }}
+        />
+      )}
+
+      {lightbox && (
+        <UpdateImageLightbox
+          images={lightbox.images}
+          index={lightbox.index}
+          onIndexChange={i => setLightbox(prev => (prev ? { ...prev, index: i } : prev))}
+          onClose={() => setLightbox(null)}
         />
       )}
 

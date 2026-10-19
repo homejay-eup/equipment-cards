@@ -12,6 +12,9 @@ import EquipmentQuickPick from '@/components/documents/EquipmentQuickPick'
 import DatePicker from '@/components/DatePicker'
 import ThemedSelect from '@/components/maintenance/ThemedSelect'
 import ExitOptionsManager from '@/components/maintenance/ExitOptionsManager'
+import RichContentEditor from '@/components/tracker/RichContentEditor'
+import type { PendingImage, TableData, RichImage } from '@/components/tracker/richContentTypes'
+import { useUpdateAttachmentUpload } from '@/hooks/useUpdateAttachmentUpload'
 
 /** 編輯面板送出的草稿（由 MaintenanceInfoClient 依區塊決定實際送哪些欄位給 API） */
 export interface RuleDraft {
@@ -19,6 +22,8 @@ export interface RuleDraft {
   sub_category: string | null
   item: string
   content: string
+  content_image_urls: RichImage[]
+  content_table_data: TableData | null
   equipment_ids: string[]
   vendor_id: string | null
   warranty_period_months: number | null
@@ -102,6 +107,10 @@ export default function RuleEditPanel({
   )
   const [item, setItem] = useState(rule?.item ?? '')
   const [content, setContent] = useState(rule?.content ?? '')
+  const [images, setImages] = useState<PendingImage[]>(() =>
+    (rule?.content_image_urls ?? []).map(img => ({ tempId: img.public_id, uploading: false, public_id: img.public_id, url: img.url })))
+  const [table, setTable] = useState<TableData | null>(rule?.content_table_data ?? null)
+  const { upload } = useUpdateAttachmentUpload('/api/maintenance/rules/content-signature')
   const [pickedIds, setPickedIds] = useState<string[]>(
     rule ? (rule.equipment_ids ?? []).map(e => e.equipment_id) : defaultEquipmentIds,
   )
@@ -157,7 +166,11 @@ export default function RuleEditPanel({
 
   async function handleSave() {
     if (!item.trim()) { setError('請輸入標題'); return }
-    if (!content.trim()) { setError('請輸入內容'); return }
+    if (images.some(p => p.uploading)) { setError('圖片仍在上傳中，請稍候'); return }
+    if (images.some(p => !p.url)) { setError('有圖片上傳失敗，請先移除後再儲存'); return }
+    const imageList: RichImage[] = images.filter(p => p.public_id && p.url).map(p => ({ public_id: p.public_id!, url: p.url! }))
+    const tableRows = table?.rows?.length ?? 0
+    if (!content.trim() && imageList.length === 0 && tableRows === 0) { setError('內容為必填（文字、圖片、表格至少一項）'); return }
 
     let warrantyMonths: number | null = null
     if (stage === '送修') {
@@ -184,6 +197,8 @@ export default function RuleEditPanel({
         sub_category: subCategory,
         item: item.trim(),
         content: content.trim(),
+        content_image_urls: imageList,
+        content_table_data: tableRows > 0 ? table : null,
         equipment_ids: pickedIds,
         vendor_id: vendorId || null,
         warranty_period_months: warrantyMonths,
@@ -227,14 +242,20 @@ export default function RuleEditPanel({
         />
 
         <span className={`${labelCls} self-start pt-1.5`}>內容</span>
-        <textarea
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          disabled={saving}
-          rows={3}
-          aria-label="內容"
-          className={`${FIELD_INPUT} resize-none`}
-        />
+        <div className="min-w-0">
+          <RichContentEditor
+            content={content}
+            onContentChange={setContent}
+            images={images}
+            onImagesChange={setImages}
+            table={table}
+            onTableChange={setTable}
+            uploadImage={upload}
+            placeholder="建議寫成：判斷：… / 處理：…；可 Ctrl+V 貼上截圖或 Excel 表格"
+            rows={5}
+            disabled={saving}
+          />
+        </div>
 
         <span className={`${labelCls} self-start pt-1`}>適用料號</span>
         <div className="flex flex-wrap items-center gap-1.5">

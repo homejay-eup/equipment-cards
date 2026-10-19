@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { destroyOwnImages } from '@/lib/maintenanceCloudinary'
 import {
   MAX_WARRANTY_PERIOD_MONTHS, MAX_AGE_LIMIT_BASIS_LENGTH, STAGE_SUBCATEGORIES,
   isValidStage, checkStageSubCategory, clearInapplicableFields,
@@ -233,29 +234,48 @@ export async function POST(req: NextRequest) {
         }
         updates.age_limit_basis = basis
       }
-      await runBulk(foundIds, async (batch) => {
+      // Step 50：不適用的規則拒絕並列入 failed，不靜默寫入（也不靜默忽略）。
+      // 適用性：warranty_period_months 僅送修；age_limit_* 僅 檢測／年限判斷。規則需對 payload 所有欄位皆適用。
+      const applicable = (row: { stage: unknown; sub_category: unknown }, key: string) => {
+        if (key === 'warranty_period_months') return row.stage === '送修'
+        return row.stage === '檢測' && row.sub_category === '年限判斷'
+      }
+      const applicableIds: string[] = []
+      for (const id of foundIds) {
+        const row = existing.get(id)!
+        if (Object.keys(updates).every((k) => applicable(row, k))) applicableIds.push(id)
+        else failed.push({ id, reason: '此規則不適用該欄位' })
+      }
+      await runBulk(applicableIds, async (batch) => {
         const { error } = await supabase.from('maintenance_rules').update({ ...updates, ...touch }).in('id', batch)
         if (error) throw error
       })
     } else if (action === 'delete') {
       // ON DELETE CASCADE 連動清掉 maintenance_rule_equipment
+      const imagesToDestroy: Array<{ public_id?: string }> = []
       for (const batch of chunk(foundIds, CHUNK)) {
         const { data, error } = await supabase
           .from('maintenance_rules')
           .delete()
           .in('id', batch)
-          .select('id')
+          .select('id, content_image_urls')
         if (error) {
           console.error('[maintenance/rules/batch] delete chunk error', error)
           for (const id of batch) failed.push({ id, reason: '資料庫寫入失敗' })
           continue
         }
         const deleted = new Set((data ?? []).map((r) => r.id as string))
+        for (const r of data ?? []) {
+          imagesToDestroy.push(...((r.content_image_urls ?? []) as Array<{ public_id?: string }>))
+        }
         for (const id of batch) {
           if (deleted.has(id)) succeeded.push(id)
           else failed.push({ id, reason: '刪除未生效（可能已被他人刪除）' })
         }
       }
+      // 刪除完成後 best-effort 清圖片，失敗只附 warning
+      const warning = await destroyOwnImages(imagesToDestroy, '規則已刪除')
+      return respond(ids.length, succeeded, failed, warning ? { warning } : {})
     }
 
     return respond(ids.length, succeeded, failed)

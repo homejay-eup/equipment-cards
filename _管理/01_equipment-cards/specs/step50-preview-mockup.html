@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Step 50 預覽：回廠區塊的規則列新版型（示意）</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+body{margin:0;padding:16px;background:#faf6f0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+.w{max-width:760px;margin:0 auto;font-size:13px;color:#2c1e12;display:flex;flex-direction:column;gap:12px}
+.w *{box-sizing:border-box}
+.w input[type=text]{width:100%;font-family:inherit;font-size:13px;color:#2c1e12;background:#faf6f0;border:1px solid #e8ddd0;border-radius:8px;padding:7px 10px 7px 30px;outline:none}
+.w input[type=text]:focus{border-color:#c49a72}
+.w button{font-family:inherit;font-size:12px;cursor:pointer;border-radius:8px;border:1px solid rgba(122,82,48,.2);background:transparent;color:#a08060;padding:6px 11px}
+.w button:hover{color:#7a5230;border-color:rgba(122,82,48,.4)}
+.fl{display:flex;gap:6px;align-items:stretch}
+.st{flex:1;min-width:0;border:1px solid #e8ddd0;border-radius:14px;padding:10px 11px;background:#fff9f4}
+.st.on{background:#7a5230;border-color:#7a5230;color:#fff}
+.st .tp{display:flex;align-items:center;gap:8px}
+.st .nm{width:22px;height:22px;border-radius:50%;background:rgba(122,82,48,.1);color:#7a5230;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center}
+.st.on .nm{background:rgba(255,255,255,.2);color:#fff}
+.st .ti{margin-left:auto;font-size:18px;color:#c49a72}
+.st.on .ti{color:#e8cfae}
+.st b{display:block;font-size:15px;font-weight:500;margin-top:7px}
+.st small{display:block;font-size:11px;color:#a08060}
+.st.on small{color:rgba(255,255,255,.72)}
+.st .ft{margin-top:7px;font-size:11px;color:#a08060}
+.st.on .ft{color:rgba(255,255,255,.8)}
+.cn{align-self:center;color:#c49a72}
+.box{background:#fffdf9;border:1px solid rgba(122,82,48,.15);border-radius:14px;overflow:hidden}
+.sh{padding:7px 14px;font-size:12px;font-weight:500;color:#7a5230;background:#f6efe4}
+.rw{display:flex;gap:10px;padding:12px 14px;border-top:1px solid rgba(122,82,48,.1)}
+.t{font-size:14px;font-weight:500;line-height:1.4;margin:0;flex:1}
+.c{font-size:13px;line-height:1.75;color:#4a3422;margin:6px 0 0;white-space:pre-line}
+.cl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pl{font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;display:inline-block;line-height:1.5}
+.pt{background:rgba(122,82,48,.08);color:#7a5230;border:1px solid rgba(122,82,48,.18)}
+.px{background:#7a5230;color:#fff;border:1px solid #7a5230}
+.pg{background:#f2ebe0;color:#a08060}
+.pe{background:transparent;color:#7a5230;border:1px solid rgba(122,82,48,.3)}
+.pn{background:transparent;color:#b5451b;border:1px dashed rgba(181,69,27,.4)}
+.pk{background:#eaf0df;color:#4a6b2e}
+.pw{background:#fdf0d5;color:#8a5a12}
+.mr{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.sp{width:1px;height:12px;background:rgba(122,82,48,.25)}
+.mu{color:#a08060;font-size:12px}
+.mo{font-size:12px;color:#7a5230;margin-top:3px;display:inline-block;cursor:pointer}
+.ic{display:flex;gap:6px;color:#a08060;font-size:15px}
+mark{background:#fde9a8;color:inherit;border-radius:3px;padding:0 1px}
+</style>
+</head>
+<body>
+<div class="w">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1;min-width:200px;position:relative"><i class="ti ti-search" style="position:absolute;left:10px;top:9px;color:#a08060" aria-hidden="true"></i><input type="text" id="q" placeholder="搜尋料號、品名、廠商、標題或內文"></div>
+    <button id="d1">示範：搜尋 1000069</button>
+    <button id="d2">示範：搜尋 報廢</button>
+    <button id="d0">清除</button>
+  </div>
+  <div class="fl">
+    <div class="st on"><div class="tp"><span class="nm">1</span><i class="ti ti-package-import"></i></div><b>回廠</b><small>收件、分流</small><div class="ft" id="cnt"></div></div>
+    <span class="cn"><i class="ti ti-chevron-right"></i></span>
+    <div class="st"><div class="tp"><span class="nm">2</span><i class="ti ti-stethoscope"></i></div><b>檢測</b><small>年限判斷、是否檢測</small><div class="ft">4 筆</div></div>
+    <span class="cn"><i class="ti ti-chevron-right"></i></span>
+    <div class="st"><div class="tp"><span class="nm">3</span><i class="ti ti-truck-delivery"></i></div><b>送修</b><small>廠商規則</small><div class="ft">2 筆</div></div>
+    <span class="cn"><i class="ti ti-chevron-right"></i></span>
+    <div class="st"><div class="tp"><span class="nm">4</span><i class="ti ti-trash"></i></div><b>報廢</b><small>成本、國稅局</small><div class="ft">0 筆</div></div>
+  </div>
+  <div class="mu" id="hint"></div>
+  <div class="box"><div class="sh">特殊情境<span class="mu" style="font-weight:400">　依收件時被發現的順序排列，可自行新增</span></div><div id="list"></div></div>
+  <p class="mu" style="margin:0">內容為示意文字（版型原型，非真實流程）。Step 50 規格：標題獨立一行、內文預設收合 3 行、標籤分兩組、搜尋命中料號標籤反色、搜尋納入標題與內文並標黃；圖片縮圖與表格的呈現見規格第四節。</p>
+</div>
+<script>
+var P='判斷：（寫什麼狀況算這個情境）\n處理：（誰、做什麼、順序）';
+var R=[
+{t:'缺件',c:'判斷：寄回內容與出貨清單不符\n處理：先聯絡技師確認是否漏寄，請技師補寄\n補齊前先擱置，不進檢測\n全數到齊後回到一般流程',it:[],ex:'回一般流程',d:'2026/09/01',u:'homejay'},
+{t:'外觀明顯損毀（人為）',c:P,it:[],ex:'跳到報廢',d:'2026/09/25',u:'homejay'},
+{t:'技師未正確完工（掛客戶）',c:P,it:[],ex:'結案',d:'2026/05/10',u:'gino'},
+{t:'技師未正確拆換（AB 件）',c:P,it:[],ex:'',d:'2026/09/03',u:'homejay'},
+{t:'順拆（未通知助理）',c:P,it:[],ex:'回一般流程',d:'2026/02/01',u:'gino'},
+{t:'設備升級',c:P,it:[],ex:'回一般流程',d:'2026/03/01',u:'gino'},
+{t:'客戶要求調閱影像',c:P,it:[],ex:'結案',d:'2026/07/01',u:'homejay'},
+{t:'特殊回廠的虛擬條碼',c:P,it:[],ex:'',d:'2026/09/03',u:'homejay'},
+{t:'策略商設備',c:'判斷：料號屬於策略商設備\n處理：先通知業務窗口再收件',it:['1000041 EP-168 4G環保車機','1000005 S168-4G衛星定位器'],ex:'回一般流程',d:'2026/09/10',u:'homejay'},
+{t:'失聯與補傳的 EDR 調閱資料',c:'判斷：EDR 失聯或補傳後客戶要求調閱\n處理：調閱資料後回覆客戶，不進檢測',it:['1000069 EDR-168數位大餅','1000074 EDR-168(P)環保車機','1000099 EDR-168環保車機'],ex:'結案',d:'2026/09/20',u:'homejay'}
+];
+var q='',open={};
+function hl(s){if(!q)return s;var i=s.toLowerCase().indexOf(q.toLowerCase());if(i<0)return s;return s.slice(0,i)+'<mark>'+s.slice(i,i+q.length)+'</mark>'+s.slice(i+q.length)}
+function chipHit(c){return q&&c.toLowerCase().indexOf(q.toLowerCase())>-1}
+function textHit(r){return q&&(r.t+r.c).toLowerCase().indexOf(q.toLowerCase())>-1}
+function render(){
+ var chipMode=q&&R.some(function(r){return r.it.some(chipHit)});
+ var rows=R.filter(function(r){
+  if(!q)return true;
+  if(chipMode)return r.it.length===0||r.it.some(chipHit);
+  return textHit(r);
+ });
+ if(chipMode)rows.sort(function(a,b){return (b.it.some(chipHit)?1:0)-(a.it.some(chipHit)?1:0)});
+ document.getElementById('cnt').textContent=q?rows.length+' 筆適用':R.length+' 筆';
+ document.getElementById('hint').textContent=q?(chipMode?'搜尋「'+q+'」：命中的料號標籤反色並一定顯示，專屬規則排前，通用規則在後':'搜尋「'+q+'」：比對標題與內文，命中文字標黃'):'共 3 筆建議覆核（超過 6 個月未確認）';
+ var h='';
+ if(!rows.length)h='<div style="padding:24px;text-align:center;color:#a08060">沒有符合的規則</div>';
+ rows.forEach(function(r){
+  var long=r.c.split('\n').length>3||r.c.length>150,exp=open[r.t];
+  var chips='';
+  if(r.it.length){
+   var hit=r.it.filter(chipHit),rest=r.it.filter(function(c){return !chipHit(c)});
+   var show=hit.concat(rest.slice(0,Math.max(0,2-hit.length)));
+   var hidden=r.it.length-show.length;
+   chips=show.map(function(c){return '<span class="pl '+(chipHit(c)?'px':'pt')+'">'+c+'</span>'}).join('')+(hidden>0?'<span class="pl pg">+'+hidden+'</span>':'');
+  }else chips='<span class="pl pg">通用</span>';
+  var ex=r.ex?'<span class="pl pe">→ '+r.ex+'</span>':'<span class="pl pn">未設定去向</span>';
+  var stale=(r.d<'2026/04/15');
+  h+='<div class="rw"><input type="checkbox" style="margin-top:4px;accent-color:#7a5230"><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:flex-start"><p class="t">'+hl(r.t)+'</p><span class="ic"><i class="ti ti-pencil"></i><i class="ti ti-circle-check"></i><i class="ti ti-trash"></i></span><span class="pl '+(stale?'pw':'pk')+'">'+(stale?'建議覆核':'已確認')+'</span></div><p class="c'+(long&&!exp?' cl':'')+'">'+hl(r.c)+'</p>'+(long?'<span class="mo" data-t="'+r.t+'">'+(exp?'收合':'展開全文')+'</span>':'')+'<div class="mr">'+ex+'<span class="sp"></span>'+chips+'</div><p class="mu" style="margin-top:6px">最後確認 '+r.d+'　'+r.u+'</p></div></div>';
+ });
+ document.getElementById('list').innerHTML=h;
+}
+document.addEventListener('click',function(e){
+ var m=e.target.closest('[data-t]');if(m){open[m.getAttribute('data-t')]=!open[m.getAttribute('data-t')];render();return}
+ if(e.target.id==='d1'){q='1000069';document.getElementById('q').value=q;render()}
+ if(e.target.id==='d2'){q='報廢';document.getElementById('q').value=q;render()}
+ if(e.target.id==='d0'){q='';document.getElementById('q').value='';render()}
+});
+document.getElementById('q').addEventListener('input',function(e){q=e.target.value.trim();render()});
+render();
+</script>
+</body>
+</html>

@@ -144,3 +144,59 @@ export function emailPrefix(email: string | null | undefined): string | null {
   if (!email) return null
   return email.split('@')[0]
 }
+
+// ── Step 50：搜尋與批次欄位適用性（純函式）──────────────────────────
+
+/** 把表格所有儲存格文字攤平成一個字串，供搜尋用。 */
+export function flattenTableText(table: { rows: string[][] } | null | undefined): string {
+  if (!table || !Array.isArray(table.rows)) return ''
+  return table.rows.map(r => (Array.isArray(r) ? r.join(' ') : '')).join(' ')
+}
+
+/** 料號標籤（料號＋品名）是否命中搜尋字串（ql 需已 trim＋toLowerCase）。 */
+export function equipmentChipHit(e: { equipment_id: string; name: string }, ql: string): boolean {
+  return !!ql && `${e.equipment_id} ${e.name}`.toLowerCase().includes(ql)
+}
+
+/** 規則的表格內容是否命中搜尋字串（ql 需已 trim＋toLowerCase）。 */
+export function ruleTableHit(rule: { content_table_data?: { rows: string[][] } | null }, ql: string): boolean {
+  return !!ql && flattenTableText(rule.content_table_data).toLowerCase().includes(ql)
+}
+
+/**
+ * 搜尋命中：料號＋品名、廠商名稱、標題、內文文字、表格儲存格文字（一律 includes，不走模糊搜尋）。
+ * ql 需已 trim＋toLowerCase。
+ */
+export function ruleMatchesQuery(
+  rule: {
+    item: string
+    content: string
+    stage?: string
+    vendor_name?: string | null
+    equipment_ids?: { equipment_id: string; name: string }[]
+    content_table_data?: { rows: string[][] } | null
+  },
+  ql: string,
+): boolean {
+  if (!ql) return false
+  // 廠商標籤只在送修區塊顯示，其他區塊殘留的廠商名不計入，避免命中卻看不出原因
+  if ((rule.stage === undefined || rule.stage === '送修') && rule.vendor_name && rule.vendor_name.toLowerCase().includes(ql)) return true
+  if ((rule.equipment_ids ?? []).some(e => equipmentChipHit(e, ql))) return true
+  if ((rule.item ?? '').toLowerCase().includes(ql)) return true
+  if ((rule.content ?? '').toLowerCase().includes(ql)) return true
+  return ruleTableHit(rule, ql)
+}
+
+export type BatchFieldKey = 'warranty' | 'age' | 'basis'
+
+/**
+ * 批次「改共用欄位」可用的欄位（勾選的規則都在同一區塊）：
+ * 全是「送修」→ 保固期間；全是「檢測／年限判斷」→ 年限、年限起算依據；其他情況沒有共同適用的欄位。
+ * 與後端 set_fields 的適用性檢查同一規則。
+ */
+export function getBatchFieldOptions(rules: { stage: string; sub_category: string | null }[]): BatchFieldKey[] {
+  if (rules.length === 0) return []
+  if (rules.every(r => r.stage === '送修')) return ['warranty']
+  if (rules.every(r => r.stage === '檢測' && r.sub_category === '年限判斷')) return ['age', 'basis']
+  return []
+}

@@ -5,6 +5,7 @@ import {
   CheckCheck, CheckCircle2, ArrowLeftRight, Tags, Store, SlidersHorizontal, Trash2, X,
 } from 'lucide-react'
 import { MaintenanceRule, MaintenanceVendor, MaintenanceStage } from '@/types/maintenance'
+import type { RichImage } from '@/components/tracker/richContentTypes'
 import { STAGE_SUBCATEGORIES } from '@/lib/maintenanceFormat'
 import RuleRow from '@/components/maintenance/RuleRow'
 
@@ -20,9 +21,14 @@ interface Props {
   selected: Set<string>
   selectedCount: number
   searching: boolean
+  /** 搜尋字串（已 trim），傳給規則列做標籤反色與文字標示 */
+  searchQuery: string
+  /** 勾選的規則是否有共同適用的「共用欄位」（沒有則停用該批次圖示） */
+  fieldsAvailable: boolean
   /** 新增／編輯／批次面板（顯示在批次工具列下方、清單上方） */
   panels: ReactNode
   onToggle: (id: string) => void
+  onImageClick: (images: RichImage[], index: number) => void
   onSelectAll: () => void
   onClearSelection: () => void
   onBatchAction: (action: BatchAction) => void
@@ -59,8 +65,8 @@ function emptyMessage(stage: MaintenanceStage, searching: boolean): ReactNode {
 
 // 選中區塊的規則清單：依子類分組（標題列）、批次勾選與批次工具列、空狀態。
 export default function RuleListPanel({
-  stage, rules, vendorsById, highlightIds, canManage, selected, selectedCount, searching, panels,
-  onToggle, onSelectAll, onClearSelection, onBatchAction, onEdit, onDelete, onConfirmLatest,
+  stage, rules, vendorsById, highlightIds, canManage, selected, selectedCount, searching, searchQuery, fieldsAvailable, panels,
+  onToggle, onImageClick, onSelectAll, onClearSelection, onBatchAction, onEdit, onDelete, onConfirmLatest,
 }: Props) {
   // 依子類分組：照 STAGE_SUBCATEGORIES 的順序，未指定／未知子類排最後
   const order = STAGE_SUBCATEGORIES[stage]
@@ -92,18 +98,23 @@ export default function RuleListPanel({
             <X className="h-4 w-4" />
           </button>
           <span className="flex-1" />
-          {BAR_ACTIONS.map(({ action, title, Icon, danger }) => (
-            <button
-              key={action}
-              type="button"
-              onClick={() => onBatchAction(action)}
-              title={title}
-              aria-label={title}
-              className={`${BAR_BTN} ${danger ? 'hover:!text-[#b5451b]' : ''}`}
-            >
-              <Icon className="h-4 w-4" />
-            </button>
-          ))}
+          {BAR_ACTIONS.map(({ action, title, Icon, danger }) => {
+            const disabled = action === 'fields' && !fieldsAvailable
+            const tip = disabled ? '勾選的規則沒有共同適用的欄位' : title
+            return (
+              <button
+                key={action}
+                type="button"
+                onClick={() => onBatchAction(action)}
+                disabled={disabled}
+                title={tip}
+                aria-label={tip}
+                className={`${BAR_BTN} ${danger ? 'hover:!text-[#b5451b]' : ''} disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent`}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -130,7 +141,9 @@ export default function RuleListPanel({
                 canManage={canManage}
                 selected={selected.has(r.id)}
                 highlight={highlightIds.has(r.id)}
+                searchQuery={searchQuery}
                 onToggleSelect={() => onToggle(r.id)}
+                onImageClick={onImageClick}
                 onEdit={() => onEdit(r)}
                 onDelete={() => onDelete(r)}
                 onConfirmLatest={() => onConfirmLatest(r)}

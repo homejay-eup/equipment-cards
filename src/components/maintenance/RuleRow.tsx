@@ -3,7 +3,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { CheckCircle2, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { MaintenanceRule, MaintenanceVendor } from '@/types/maintenance'
-import { formatWarrantyPeriod, fmtDateTime, emailPrefix } from '@/lib/maintenanceFormat'
+import {
+  formatWarrantyPeriod, fmtDateTime, emailPrefix, equipmentChipHit, ruleTableHit,
+} from '@/lib/maintenanceFormat'
+import type { RichImage } from '@/components/tracker/richContentTypes'
+import RuleContent, { HighlightText } from '@/components/maintenance/RuleContent'
 
 interface Props {
   rule: MaintenanceRule
@@ -12,7 +16,10 @@ interface Props {
   selected: boolean
   /** 搜尋時，這筆是否為命中的專屬規則 */
   highlight: boolean
+  /** 搜尋字串（已 trim；空字串＝沒有搜尋），用於標籤反色與文字標示 */
+  searchQuery: string
   onToggleSelect: () => void
+  onImageClick: (images: RichImage[], index: number) => void
   onEdit: () => void
   onDelete: () => void
   onConfirmLatest: () => Promise<void>
@@ -22,13 +29,16 @@ const PILL = 'inline-block text-[11px] leading-[1.5] px-2 rounded-full whitespac
 const PILL_TAG = `${PILL} bg-[rgba(122,82,48,.08)] text-[#7a5230] border border-[rgba(122,82,48,.18)]`
 const PILL_GRAY = `${PILL} bg-[#f2ebe0] text-[#a08060]`
 const PILL_EXIT = `${PILL} text-[#7a5230] border border-[rgba(122,82,48,.3)]`
+const PILL_NO_EXIT = `${PILL} text-[#b5451b] border border-dashed border-[rgba(181,69,27,.4)]`
+// 搜尋命中的標籤：棕底白字反色
+const PILL_HIT = `${PILL} bg-[#7a5230] text-white border border-[#7a5230]`
 
 const ICON_BTN = 'inline-flex items-center justify-center p-1 text-[#a08060] hover:text-[#7a5230] transition-colors rounded disabled:opacity-40'
 
-// 單筆規則列：標題＋內容、標籤列（料號／通用／去向／年限／期間／廠商）、最後確認時間、
-// 確認狀態、圖示按鈕（編輯／標示已確認最新／刪除）。
+// 單筆規則列（Step 50 新版型）：標題獨立一行（右側為圖示按鈕與確認狀態）、內容（RuleContent）、
+// 標籤列（去向｜料號，再依區塊補年限／保固／廠商）、最後確認時間。
 export default function RuleRow({
-  rule, vendor, canManage, selected, highlight, onToggleSelect, onEdit, onDelete, onConfirmLatest,
+  rule, vendor, canManage, selected, highlight, searchQuery, onToggleSelect, onImageClick, onEdit, onDelete, onConfirmLatest,
 }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [vendorOpen, setVendorOpen] = useState(false)
@@ -54,8 +64,21 @@ export default function RuleRow({
   }
 
   const equipments = rule.equipment_ids ?? []
-  const ageText = formatWarrantyPeriod(rule.age_limit_months)
-  const warrantyText = formatWarrantyPeriod(rule.warranty_period_months)
+  const images = rule.content_image_urls ?? []
+  const ql = searchQuery.trim().toLowerCase()
+
+  // 屬性標籤依區塊顯示：年限／起算依據＝檢測／年限判斷；保固／適用進貨日／廠商＝送修；去向＝回廠
+  const showAge = rule.stage === '檢測' && rule.sub_category === '年限判斷'
+  const showRepair = rule.stage === '送修'
+  const showExit = rule.stage === '回廠'
+  const ageText = showAge ? formatWarrantyPeriod(rule.age_limit_months) : null
+  const warrantyText = showRepair ? formatWarrantyPeriod(rule.warranty_period_months) : null
+
+  // 料號標籤：命中者一定顯示並排最前，其餘補到最多 2 個，剩下收成「+N」
+  const hitEquipments = equipments.filter(e => equipmentChipHit(e, ql))
+  const restEquipments = equipments.filter(e => !equipmentChipHit(e, ql))
+  const shownEquipments = [...hitEquipments, ...restEquipments.slice(0, Math.max(0, 2 - hitEquipments.length))]
+  const hiddenEquipments = equipments.filter(e => !shownEquipments.includes(e))
 
   // 「最後確認」取 last_updated_at 與 confirmed_at 較新者（與後端過時判斷同一基準）
   const updatedTime = rule.last_updated_at ? new Date(rule.last_updated_at).getTime() : 0
@@ -64,10 +87,11 @@ export default function RuleRow({
   const lastIso = useConfirmed ? rule.confirmed_at : rule.last_updated_at
   const lastBy = emailPrefix(useConfirmed ? rule.confirmed_by : rule.last_updated_by)
 
-  const vendorName = rule.vendor_name ?? vendor?.name ?? null
+  const vendorName = showRepair ? (rule.vendor_name ?? vendor?.name ?? null) : null
+  const vendorHit = !!ql && !!vendorName && vendorName.toLowerCase().includes(ql)
 
   return (
-    <div className={`flex items-start gap-2.5 px-3.5 py-[11px] border-t border-[rgba(122,82,48,.1)] ${highlight ? 'bg-[rgba(196,154,114,.07)]' : ''}`}>
+    <div className={`flex items-start gap-2.5 px-3.5 py-3 border-t border-[rgba(122,82,48,.1)] ${highlight ? 'bg-[rgba(196,154,114,.07)]' : ''}`}>
       {canManage && (
         <input
           type="checkbox"
@@ -78,33 +102,72 @@ export default function RuleRow({
         />
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] leading-[1.55] text-[#2c1e12] whitespace-pre-wrap break-words">
-          <b className="font-medium">{rule.item}</b>
-          {rule.content ? `　${rule.content}` : ''}
-        </p>
+        <div className="flex items-start gap-2">
+          <p className="flex-1 min-w-0 m-0 text-sm font-medium leading-[1.4] text-[#2c1e12] break-words [overflow-wrap:anywhere]">
+            <HighlightText text={rule.item} query={searchQuery} />
+          </p>
+          {canManage && (
+            <span className="flex flex-shrink-0 items-center gap-0.5">
+              <button type="button" onClick={onEdit} title="編輯規則" aria-label="編輯規則" className={ICON_BTN}>
+                <Pencil className="h-[15px] w-[15px]" />
+              </button>
+              <button type="button" onClick={handleConfirm} disabled={confirming} title="標示已確認最新" aria-label="標示已確認最新" className={ICON_BTN}>
+                {confirming ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <CheckCircle2 className="h-[15px] w-[15px]" />}
+              </button>
+              <button type="button" onClick={onDelete} title="刪除規則" aria-label="刪除規則" className={`${ICON_BTN} hover:!text-[#b5451b]`}>
+                <Trash2 className="h-[15px] w-[15px]" />
+              </button>
+            </span>
+          )}
+          {rule.needs_review ? (
+            <span className={`${PILL} bg-[#fdf0d5] text-[#8a5a12] flex-shrink-0`}>建議覆核</span>
+          ) : (
+            <span className={`${PILL} bg-[#eaf0df] text-[#4a6b2e] flex-shrink-0`}>已確認</span>
+          )}
+        </div>
 
-        <div className="mt-[5px] flex flex-wrap items-center gap-1 leading-[1.55]">
+        <RuleContent
+          content={rule.content ?? ''}
+          images={images}
+          table={rule.content_table_data ?? null}
+          searchQuery={searchQuery}
+          forceExpanded={ruleTableHit(rule, ql)}
+          onImageClick={i => onImageClick(images, i)}
+        />
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 leading-[1.5]">
+          {showExit && (
+            <>
+              {rule.exit_option
+                ? <span className={PILL_EXIT}>→ {rule.exit_option}</span>
+                : <span className={PILL_NO_EXIT}>未設定去向</span>}
+              <span className="inline-block h-3 w-px bg-[rgba(122,82,48,.25)]" aria-hidden="true" />
+            </>
+          )}
           {equipments.length > 0 ? (
             <>
-              {equipments.slice(0, 2).map(e => (
-                <span key={e.equipment_id} className={PILL_TAG} title={`${e.equipment_id} ${e.name}`}>{e.equipment_id} {e.name}</span>
+              {shownEquipments.map(e => (
+                <span
+                  key={e.equipment_id}
+                  className={equipmentChipHit(e, ql) ? PILL_HIT : PILL_TAG}
+                  title={`${e.equipment_id} ${e.name}`}
+                >{e.equipment_id} {e.name}</span>
               ))}
-              {equipments.length > 2 && (
+              {hiddenEquipments.length > 0 && (
                 <span
                   className={PILL_GRAY}
-                  title={equipments.slice(2).map(e => `${e.equipment_id} ${e.name}`).join('\n')}
-                >+{equipments.length - 2}</span>
+                  title={hiddenEquipments.map(e => `${e.equipment_id} ${e.name}`).join('\n')}
+                >+{hiddenEquipments.length}</span>
               )}
             </>
           ) : (
             <span className={PILL_GRAY}>通用</span>
           )}
-          {rule.exit_option && <span className={PILL_EXIT}>→ {rule.exit_option}</span>}
           {ageText && <span className={PILL_GRAY}>{ageText}・自 {rule.age_limit_basis || '進貨日'} 起算</span>}
           {warrantyText && <span className={PILL_GRAY} title="保固期間">保固 {warrantyText}</span>}
-          {rule.warranty_start_date && <span className={PILL_GRAY}>{rule.warranty_start_date} 後到貨適用</span>}
+          {showRepair && rule.warranty_start_date && <span className={PILL_GRAY}>{rule.warranty_start_date} 後到貨適用</span>}
           {vendorName && (
-            <span ref={vendorWrapRef} className="relative inline-block">
+            <span ref={vendorWrapRef} className="relative inline-block max-w-full">
               <button
                 type="button"
                 onClick={() => {
@@ -115,7 +178,7 @@ export default function RuleRow({
                 }}
                 title="查看廠商基本資料"
                 aria-label={`查看廠商「${vendorName}」基本資料`}
-                className={`${PILL_GRAY} hover:text-[#7a5230] cursor-pointer`}
+                className={`${vendorHit ? PILL_HIT : `${PILL_GRAY} hover:text-[#7a5230]`} cursor-pointer`}
               >
                 {vendorName}
               </button>
@@ -138,32 +201,10 @@ export default function RuleRow({
           )}
         </div>
 
-        <p className="mt-[3px] flex items-center gap-0.5 text-xs text-[#a08060]">
-          <span className="truncate">
-            最後確認 {fmtDateTime(lastIso)}{lastBy ? `（${lastBy}）` : ''}
-          </span>
-          <span className="flex-1" />
-          {canManage && (
-            <>
-              <button type="button" onClick={onEdit} title="編輯規則" aria-label="編輯規則" className={ICON_BTN}>
-                <Pencil className="h-[15px] w-[15px]" />
-              </button>
-              <button type="button" onClick={handleConfirm} disabled={confirming} title="標示已確認最新" aria-label="標示已確認最新" className={ICON_BTN}>
-                {confirming ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <CheckCircle2 className="h-[15px] w-[15px]" />}
-              </button>
-              <button type="button" onClick={onDelete} title="刪除規則" aria-label="刪除規則" className={`${ICON_BTN} hover:!text-[#b5451b]`}>
-                <Trash2 className="h-[15px] w-[15px]" />
-              </button>
-            </>
-          )}
+        <p className="mt-1.5 text-[11px] text-[#b3987a] truncate">
+          最後確認 {fmtDateTime(lastIso)}{lastBy ? `　${lastBy}` : ''}
         </p>
       </div>
-
-      {rule.needs_review ? (
-        <span className={`${PILL} bg-[#fdf0d5] text-[#8a5a12] flex-shrink-0`}>建議覆核</span>
-      ) : (
-        <span className={`${PILL} bg-[#eaf0df] text-[#4a6b2e] flex-shrink-0`}>已確認</span>
-      )}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 // Step 38：維修資訊管理 型別定義
+import type { RichContentImage, RichContentTable } from '@/lib/richContentValidation'
 
 export interface MaintenanceVendor {
   id: string
@@ -46,6 +47,9 @@ export interface MaintenanceRule {
   // 由 GET /api/maintenance/rules 未帶 vendor_id 時填入
   vendor_name?: string | null
   content: string
+  // Step 50：內容貼圖／貼表格（SQL 未執行的舊環境可能缺值，前端 normalizeRule 負責補預設）
+  content_image_urls: RichContentImage[]
+  content_table_data: RichContentTable | null
   warranty_start_date: string | null
   warranty_period_months: number | null
   last_updated_at: string

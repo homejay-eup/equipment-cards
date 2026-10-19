@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { X, Check, Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import { MaintenanceVendor, MaintenanceStage } from '@/types/maintenance'
-import { MAX_AGE_LIMIT_BASIS_LENGTH, STAGE_SUBCATEGORIES, displayToMonths, type PeriodUnit } from '@/lib/maintenanceFormat'
+import { MAX_AGE_LIMIT_BASIS_LENGTH, STAGE_SUBCATEGORIES, displayToMonths, type PeriodUnit, type BatchFieldKey } from '@/lib/maintenanceFormat'
 import EquipmentQuickPick from '@/components/documents/EquipmentQuickPick'
 import ThemedSelect from '@/components/maintenance/ThemedSelect'
 import { PeriodInput, SELECTABLE_STAGES } from '@/components/maintenance/RuleEditPanel'
@@ -25,6 +25,8 @@ interface Props {
   currentStage: MaintenanceStage
   allCards: EquipmentCard[]
   vendors: MaintenanceVendor[]
+  /** 「改共用欄位」可用的欄位（依勾選規則的區塊判斷，可能為空） */
+  fieldOptions: BatchFieldKey[]
   onCancel: () => void
   /** 送出批次動作；回傳 true 代表成功（父層會關閉面板），false 則保持開啟讓使用者重試或調整 */
   onApply: (action: 'move_stage' | 'link' | 'unlink' | 'set_vendor' | 'set_fields', payload: Record<string, unknown>) => Promise<boolean>
@@ -33,10 +35,11 @@ interface Props {
 const FIELD_INPUT = 'w-full border border-[#e8ddd0] rounded-lg px-2.5 py-1.5 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50'
 const VENDOR_CLEAR = '__clear__'
 const SUB_AUTO = ''
+const FIELD_LABEL: Record<BatchFieldKey, string> = { warranty: '保固期間', age: '年限', basis: '年限起算依據' }
 
 // 批次操作面板：改區塊、掛載／移除料號、改廠商、改共用欄位（保固期間／年限／年限起算依據）。
 // 比照規則編輯面板，為清單上方展開的行內面板（不用 Dialog）。
-export default function BatchPanel({ mode, count, currentStage, allCards, vendors, onCancel, onApply }: Props) {
+export default function BatchPanel({ mode, count, currentStage, allCards, vendors, fieldOptions, onCancel, onApply }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -54,7 +57,9 @@ export default function BatchPanel({ mode, count, currentStage, allCards, vendor
   const [vendorChoice, setVendorChoice] = useState<string | null>(null)
 
   // 改共用欄位
-  const [field, setField] = useState<'warranty' | 'age' | 'basis'>('warranty')
+  const [fieldChoice, setField] = useState<BatchFieldKey>('warranty')
+  // 勾選變動可能讓原本選的欄位不再適用，回退到第一個可用欄位
+  const field: BatchFieldKey = fieldOptions.includes(fieldChoice) ? fieldChoice : (fieldOptions[0] ?? 'warranty')
   const [periodValue, setPeriodValue] = useState('')
   const [periodUnit, setPeriodUnit] = useState<PeriodUnit>('month')
   const [basisText, setBasisText] = useState('')
@@ -98,6 +103,7 @@ export default function BatchPanel({ mode, count, currentStage, allCards, vendor
       return
     }
     // fields
+    if (fieldOptions.length === 0) { setError('勾選的規則沒有共同適用的欄位'); return }
     if (field === 'basis') {
       const text = basisText.trim()
       if (!text) { setError('請輸入起算依據'); return }
@@ -204,12 +210,8 @@ export default function BatchPanel({ mode, count, currentStage, allCards, vendor
             <span className={labelCls}>欄位</span>
             <ThemedSelect
               value={field}
-              options={[
-                { value: 'warranty', label: '保固期間' },
-                { value: 'age', label: '年限' },
-                { value: 'basis', label: '年限起算依據' },
-              ]}
-              onChange={v => { setField(v as 'warranty' | 'age' | 'basis'); setError(null) }}
+              options={fieldOptions.map(k => ({ value: k, label: FIELD_LABEL[k] }))}
+              onChange={v => { setField(v as BatchFieldKey); setError(null) }}
               disabled={busy}
               ariaLabel="欄位"
             />
@@ -244,7 +246,7 @@ export default function BatchPanel({ mode, count, currentStage, allCards, vendor
         <button
           type="button"
           onClick={handleApply}
-          disabled={busy}
+          disabled={busy || (mode === 'fields' && fieldOptions.length === 0)}
           title={`套用到 ${count} 筆`}
           aria-label={`套用到 ${count} 筆`}
           className="inline-flex items-center justify-center gap-1 p-1.5 px-2.5 text-xs font-medium bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] disabled:opacity-50 transition-colors"

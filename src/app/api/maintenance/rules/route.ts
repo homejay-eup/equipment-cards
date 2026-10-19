@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePermission } from '@/lib/admin'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateRichContent } from '@/lib/richContentValidation'
 import {
   computeNeedsReview, isLoggedIn, MAX_WARRANTY_PERIOD_MONTHS, MAX_AGE_LIMIT_BASIS_LENGTH,
   isValidStage, checkStageSubCategory, clearInapplicableFields,
@@ -31,6 +32,8 @@ interface RuleRow {
   age_limit_basis: string | null
   maintenance_vendors?: { name: string } | { name: string }[] | null
   content: string
+  content_image_urls: unknown
+  content_table_data: unknown
   warranty_start_date: string | null
   warranty_period_months: number | null
   last_updated_at: string
@@ -65,6 +68,8 @@ function formatRule(row: RuleRow) {
     age_limit_months: row.age_limit_months,
     age_limit_basis: row.age_limit_basis,
     content: row.content,
+    content_image_urls: row.content_image_urls ?? [],
+    content_table_data: row.content_table_data ?? null,
     warranty_start_date: row.warranty_start_date,
     warranty_period_months: row.warranty_period_months,
     last_updated_at: row.last_updated_at,
@@ -94,7 +99,7 @@ export async function GET(req: NextRequest) {
       .from('maintenance_rules')
       .select(
         'id, vendor_id, item, rule_type, stage, sub_category, exit_option, age_limit_months, age_limit_basis, ' +
-        'content, warranty_start_date, warranty_period_months, ' +
+        'content, content_image_urls, content_table_data, warranty_start_date, warranty_period_months, ' +
         'last_updated_at, last_updated_by, ' +
         'confirmed_at, confirmed_by, sort_order, created_at, ' +
         'maintenance_vendors(name), ' +
@@ -128,10 +133,14 @@ export async function POST(req: NextRequest) {
     const item = typeof body?.item === 'string' ? body.item.trim() : ''
     const stage = typeof body?.stage === 'string' ? body.stage.trim() : ''
     const sub_category = typeof body?.sub_category === 'string' && body.sub_category.trim() ? body.sub_category.trim() : null
-    const content = typeof body?.content === 'string' ? body.content.trim() : ''
 
     if (!item) return NextResponse.json({ error: 'item 為必填' }, { status: 400 })
-    if (!content) return NextResponse.json({ error: 'content 為必填' }, { status: 400 })
+    // Step 50：內容為複合內容，文字／圖片／表格至少一項
+    const rich = validateRichContent(
+      { content: body?.content, image_urls: body?.content_image_urls, table_data: body?.content_table_data },
+      { requireNonEmpty: true, emptyErrorMessage: '內容為必填（文字／圖片／表格至少一項）' },
+    )
+    if (!rich.ok) return NextResponse.json({ error: rich.error }, { status: rich.status })
     if (!stage) return NextResponse.json({ error: 'stage 為必填' }, { status: 400 })
     if (!isValidStage(stage)) {
       return NextResponse.json({ error: checkStageSubCategory(stage, null) }, { status: 400 })
@@ -218,7 +227,9 @@ export async function POST(req: NextRequest) {
         exit_option,
         age_limit_months,
         age_limit_basis,
-        content,
+        content: rich.content ?? '',
+        content_image_urls: rich.images,
+        content_table_data: rich.table,
         warranty_start_date,
         warranty_period_months,
         // 新增時同樣套用「不適用欄位清除」，與 PATCH／批次改區塊規則一致
