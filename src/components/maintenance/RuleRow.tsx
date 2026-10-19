@@ -189,7 +189,7 @@ export default function RuleRow({
                     <>
                       {vendor.vendor_code && <p>代號：{vendor.vendor_code}</p>}
                       <p>地址：{vendor.address || '—'}</p>
-                      <p>聯絡人：{vendor.contact_name || '—'}</p>
+                      <p>窗口：{vendor.contact_name || '—'}</p>
                       <p>電話：{vendor.contact_phone || '—'}</p>
                     </>
                   ) : (

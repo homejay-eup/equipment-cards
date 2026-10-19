@@ -13,7 +13,7 @@ interface Props {
   onSaved: (vendor: MaintenanceVendor) => void
 }
 
-// 新增/編輯廠商 Dialog：代號/名稱/地址/聯絡人/電話
+// 新增/編輯廠商 Dialog：代號/名稱/地址/窗口/電話
 export default function VendorFormDialog({ open, mode, vendor, onClose, onSaved }: Props) {
   const [name, setName] = useState('')
   const [vendorCode, setVendorCode] = useState('')
@@ -96,7 +96,7 @@ export default function VendorFormDialog({ open, mode, vendor, onClose, onSaved 
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-[#a08060] mb-1">聯絡人</label>
+              <label className="block text-xs text-[#a08060] mb-1">窗口</label>
               <input
                 value={contactName} onChange={e => setContactName(e.target.value)} disabled={submitting}
                 className="w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] bg-[#faf6f0] focus:outline-none focus:border-[#c49a72] disabled:opacity-50"

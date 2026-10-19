@@ -95,9 +95,18 @@ export default function VendorManageDialog({ open, vendors, onClose, onChanged }
                     {v.vendor_code && <span className="ml-1.5 text-xs font-normal text-[#a08060]">{v.vendor_code}</span>}
                   </p>
                   {(v.address || v.contact_name || v.contact_phone) && (
-                    <p className="text-xs text-[#a08060] mt-0.5 break-words">
-                      {[v.address, v.contact_name, v.contact_phone].filter(Boolean).join('・')}
-                    </p>
+                    <div className="mt-0.5 space-y-0.5 text-xs">
+                      {([
+                        ['地址', v.address],
+                        ['窗口', v.contact_name],
+                        ['電話', v.contact_phone],
+                      ] as const).filter(([, val]) => val).map(([label, val]) => (
+                        <p key={label} className="flex gap-2">
+                          <span className="w-8 shrink-0 text-[#a08060]">{label}</span>
+                          <span className="min-w-0 break-words text-[#4a3422]">{val}</span>
+                        </p>
+                      ))}
+                    </div>
                   )}
                   <p className="text-[11px] text-[#b0967a] mt-0.5">{v.rule_count ?? 0} 筆規則</p>
                 </div>
