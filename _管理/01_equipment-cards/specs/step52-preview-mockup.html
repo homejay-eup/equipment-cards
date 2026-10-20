@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Step 52 預覽：規則清單互動（原地編輯、整列展開、未儲存提示）</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+body{margin:0;padding:16px;background:#faf6f0;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+.w{max-width:760px;margin:0 auto;font-size:13px;color:#2c1e12;display:flex;flex-direction:column;gap:10px}
+.w *{box-sizing:border-box}
+.tb{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid rgba(122,82,48,.25);border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:6px 11px;background:transparent;color:#6b4f38;font-size:12px;cursor:pointer;font-family:inherit}
+.seg button.on{background:#7a5230;color:#fff}
+.w button.b{font-family:inherit;font-size:12px;cursor:pointer;border-radius:8px;border:1px solid rgba(122,82,48,.2);background:transparent;color:#a08060;padding:6px 10px}
+.w button.pri{background:#7a5230;color:#fff;border-color:#7a5230}
+.box{background:#fffdf9;border:1px solid rgba(122,82,48,.15);border-radius:14px;overflow:hidden}
+.sh{padding:7px 14px;font-size:12px;font-weight:500;color:#7a5230;background:#f6efe4}
+.rw{display:flex;gap:10px;padding:12px 14px;border-top:1px solid rgba(122,82,48,.1);cursor:pointer;transition:opacity .15s}
+.rw:hover{background:rgba(122,82,48,.03)}
+.rw.dim{opacity:.5;pointer-events:none}
+.t{font-size:14px;font-weight:500;line-height:1.4;margin:0;flex:1}
+.c{font-size:13px;line-height:1.75;color:#4a3422;margin:5px 0 0;white-space:pre-line}
+.cl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#7a6350}
+.pl{font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;display:inline-block;line-height:1.5}
+.pe{border:1px solid rgba(122,82,48,.3);color:#7a5230}
+.pt{background:rgba(122,82,48,.08);color:#7a5230;border:1px solid rgba(122,82,48,.18)}
+.pg{background:#f2ebe0;color:#a08060}
+.pw{background:#fdf0d5;color:#8a5a12}
+.pk{background:#eaf0df;color:#4a6b2e}
+.mu{color:#a08060;font-size:12px}
+.ic{display:flex;gap:4px;color:#a08060;font-size:15px}
+.ic i{padding:2px 3px;border-radius:5px;cursor:pointer}
+.ic i:hover{color:#7a5230;background:rgba(122,82,48,.08)}
+.mr{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center}
+.chev{color:#a08060;font-size:14px;margin-top:2px;transition:transform .15s}
+.chev.o{transform:rotate(90deg)}
+.ed{margin:8px;border:2px solid #7a5230;border-radius:12px;background:#fff9f4;padding:12px 14px}
+.eh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.eh b{font-weight:500;color:#7a5230;font-size:14px}
+.badge{font-size:11px;background:#7a5230;color:#fff;border-radius:99px;padding:1px 8px}
+.fg{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px 10px;align-items:center}
+.fg label{font-size:12px;color:#a08060}
+.w input[type=text],.w textarea{width:100%;font-family:inherit;font-size:13px;color:#2c1e12;background:#faf6f0;border:1px solid #e8ddd0;border-radius:8px;padding:7px 10px;outline:none}
+.w textarea{min-height:64px;resize:none}
+.w input[type=text]:focus,.w textarea:focus{border-color:#c49a72}
+.warn{margin:8px;padding:10px 12px;border:1px solid #efc98a;background:#fdf0d5;color:#6b4a10;border-radius:10px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="tb">
+    <span class="mu">收合方式：</span>
+    <span class="seg"><button id="mA" class="on">A 平常精簡（已定案）</button><button id="mB">B 顯示 3 行（未採用，僅供對照）</button></span>
+    <span style="flex:1"></span>
+    <button class="b pri" id="add" title="新增規則"><i class="ti ti-plus"></i></button>
+  </div>
+  <div class="mu" id="tip"></div>
+  <div class="box"><div class="sh">特殊情境<span class="mu" style="font-weight:400">　點整列展開或收合；按鉛筆就地編輯</span></div><div id="list"></div></div>
+  <p class="mu" style="margin:0">原型：實作時勾選框在最左、展開箭頭在其右，兩者各自獨立（此原型為簡化未放勾選框）。內容為示意文字。</p>
+</div>
+<script>
+var L='判斷：寄回內容與出貨清單不符\n處理：先聯絡技師確認是否漏寄，請技師補寄\n補齊前先擱置，不進檢測\n全數到齊後回到一般流程';
+var P='判斷：（待補）\n處理：（待補）';
+var R=[
+{id:1,t:'缺件（與清單不符）',c:L,ex:'回一般流程',it:[],st:'k'},
+{id:2,t:'外觀明顯損毀（人為）',c:P,ex:'跳到報廢',it:[],st:'w'},
+{id:3,t:'策略商設備',c:'判斷：料號屬於策略商設備\n處理：先通知業務窗口再收件',ex:'回一般流程',it:['1000041 EP-168 4G環保車機','1000005 S168-4G衛星定位器'],st:'k'},
+{id:4,t:'失聯與補傳的 EDR 調閱資料',c:'判斷：EDR 失聯或補傳後客戶要求調閱\n處理：調閱資料後回覆客戶，不進檢測',ex:'結案',it:['1000069 EDR-168數位大餅'],st:'w',tbl:3}
+];
+var mode='A',open={},editing=null,dirty=false,pend=null;
+function tags(r){var h='<span class="pl pe">→ '+r.ex+'</span>';
+ h+=r.it.length?r.it.slice(0,2).map(function(c){return '<span class="pl pt">'+c+'</span>'}).join('')+(r.it.length>2?'<span class="pl pg">+'+(r.it.length-2)+'</span>':''):'<span class="pl pg">通用</span>';
+ if(r.tbl)h+='<span class="pl pg">含表格 '+r.tbl+' 列</span>';return h}
+function form(r){return '<div class="ed" id="edbox"><div class="eh"><span class="badge">'+(r?'正在編輯':'新增')+'</span><b>'+(r?r.t:'新增規則')+'</b></div><div class="fg"><label>標題</label><input type="text" id="ft" value="'+(r?r.t:'')+'"><label style="align-self:start;padding-top:8px">內容</label><textarea id="fc">'+(r?r.c:'')+'</textarea><label>去向</label><span class="mu">'+(r?r.ex:'回一般流程')+'</span></div><div style="margin-top:12px;display:flex;gap:6px;align-items:center"><button class="b pri" id="sv" title="儲存"><i class="ti ti-check"></i></button><button class="b" id="cn" title="取消"><i class="ti ti-x"></i></button><span class="mu">儲存會把「最後確認」重置為今天</span></div></div>'}
+function render(){
+ document.getElementById('tip').textContent=mode==='A'?'A：收合時只有標題、一行摘要和標籤，清單最短；點整列才展開完整內容':'B：收合時顯示 3 行內容，點整列展開完整內容';
+ document.getElementById('mA').className=mode==='A'?'on':'';document.getElementById('mB').className=mode==='B'?'on':'';
+ var h='';
+ if(editing==='new')h+=form(null);
+ if(pend)h+='<div class="warn"><i class="ti ti-alert-triangle"></i><span>目前編輯的內容還沒儲存，要放棄並切換嗎？</span><button class="b" id="keep">繼續編輯</button><button class="b pri" id="drop">放棄並切換</button></div>';
+ R.forEach(function(r){
+  if(editing===r.id){h+=form(r);return}
+  var dim=editing!==null?' dim':'',o=open[r.id],lines=r.c.split('\n');
+  var body='';
+  if(mode==='A'){
+   body=o?'<p class="c">'+r.c+'</p><div class="mr">'+tags(r)+'</div><p class="mu" style="margin-top:6px">最後確認 2026/09/01　homejay</p>'
+         :'<p class="c one">'+lines[0]+(lines.length>1?'　…':'')+'</p><div class="mr">'+tags(r)+'</div>';
+  }else{
+   var long=lines.length>3;
+   body='<p class="c'+(long&&!o?' cl':'')+'">'+r.c+'</p><div class="mr">'+tags(r)+'</div>'+(o?'<p class="mu" style="margin-top:6px">最後確認 2026/09/01　homejay</p>':'');
+  }
+  h+='<div class="rw'+dim+'" data-r="'+r.id+'"><i class="ti ti-chevron-right chev'+(o?' o':'')+'"></i><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:flex-start"><p class="t">'+r.t+'</p><span class="ic"><i class="ti ti-pencil" data-e="'+r.id+'" title="編輯規則"></i><i class="ti ti-circle-check" title="標示已確認最新"></i><i class="ti ti-trash" title="刪除規則"></i></span><span class="pl '+(r.st==='w'?'pw':'pk')+'">'+(r.st==='w'?'建議覆核':'已確認')+'</span></div>'+body+'</div></div>';
+ });
+ document.getElementById('list').innerHTML=h;
+}
+function startEdit(id){editing=id;dirty=false;pend=null;render();var b=document.getElementById('edbox');if(b)b.scrollIntoView({block:'nearest',behavior:'smooth'})}
+document.addEventListener('click',function(e){
+ var t=e.target;
+ if(t.id==='mA'){mode='A';render();return}
+ if(t.id==='mB'){mode='B';render();return}
+ if(t.closest('#add')){if(editing!==null&&dirty){pend='new';render();return}startEdit('new');return}
+ var ed=t.closest('[data-e]');if(ed){var id=+ed.getAttribute('data-e');if(editing!==null&&dirty){pend=id;render();return}startEdit(id);return}
+ if(t.closest('#cn')||t.closest('#sv')){editing=null;dirty=false;pend=null;render();return}
+ if(t.closest('#keep')){pend=null;render();return}
+ if(t.closest('#drop')){var p=pend;dirty=false;startEdit(p);return}
+ if(t.closest('.ic'))return;
+ var row=t.closest('[data-r]');if(row){var rid=+row.getAttribute('data-r');open[rid]=!open[rid];render()}
+});
+document.addEventListener('input',function(e){if(e.target.id==='ft'||e.target.id==='fc')dirty=true});
+render();
+</script>
+</body>
+</html>

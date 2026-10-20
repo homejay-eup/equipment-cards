@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Loader2, Search, X, Plus, Store } from 'lucide-react'
+import { Loader2, Search, X, Plus, Store, AlertTriangle } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import {
   MaintenanceVendor, MaintenanceRule, MaintenanceExitOption, MaintenanceStage,
@@ -24,6 +24,43 @@ interface Props {
 }
 
 type EditingState = { mode: 'create' } | { mode: 'edit'; rule: MaintenanceRule } | null
+
+// 編輯中有未儲存修改時被攔下的切換目標
+type PendingSwitch =
+  | { type: 'edit'; rule: MaintenanceRule }
+  | { type: 'create' }
+  | { type: 'stage'; stage: MaintenanceStage }
+  | { type: 'batch'; action: BatchAction }
+
+// 未儲存提示條（顯示在編輯表單上方）；出現時自動捲動到可見處
+function UnsavedBar({ onKeep, onDrop }: { onKeep: () => void; onDrop: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [])
+  return (
+    <div
+      ref={ref}
+      role="alert"
+      className="m-2 flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-[10px] border border-[#efc98a] bg-[#fdf0d5] text-xs text-[#6b4a10]"
+    >
+      <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+      <span className="flex-1 min-w-[180px]">目前編輯的內容還沒儲存，要放棄並切換嗎？</span>
+      <button
+        type="button"
+        onClick={onKeep}
+        className="px-2.5 py-1 rounded-lg border border-[rgba(122,82,48,.3)] text-[#7a5230] hover:bg-[rgba(122,82,48,.08)] transition-colors"
+      >
+        繼續編輯
+      </button>
+      <button
+        type="button"
+        onClick={onDrop}
+        className="px-2.5 py-1 rounded-lg bg-[#7a5230] text-white hover:bg-[#9c6b42] transition-colors"
+      >
+        放棄並切換
+      </button>
+    </div>
+  )
+}
 
 interface Notice {
   tone: 'ok' | 'warn' | 'error'
@@ -122,6 +159,9 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<EditingState>(null)
   const [editKey, setEditKey] = useState(0)
+  // 編輯面板是否有未儲存修改，以及因此被攔下的「待切換目標」
+  const [editDirty, setEditDirty] = useState(false)
+  const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [batchMode, setBatchMode] = useState<BatchPanelMode | null>(null)
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false)
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
@@ -177,13 +217,21 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     } catch { /* 選項抓取失敗時維持現有清單 */ }
   }, [])
 
-  // 區塊切換：清除勾選並關閉編輯／批次面板（避免殘留作用在別的區塊）
+  // 關閉編輯面板並清除未儲存狀態與待切換提示
+  const closeEdit = useCallback(() => {
+    setEditing(null)
+    setEditDirty(false)
+    setPendingSwitch(null)
+  }, [])
+
+  // 區塊切換（強制版，不檢查未儲存修改）：清除勾選並關閉編輯／批次面板（避免殘留作用在別的區塊）。
+  // 供「料卡跳轉」與「待歸類清空自動回退」兩個強制切換使用；使用者主動切換走 requestStage。
   const switchStage = useCallback((next: MaintenanceStage) => {
     setCur(next)
     setSelected(new Set())
-    setEditing(null)
+    closeEdit()
     setBatchMode(null)
-  }, [])
+  }, [closeEdit])
 
   // 從料卡細節頁「查看維修資訊」跳進來：搜尋框帶入料號，切到第一個有該料號專屬規則的區塊
   const appliedFilterRef = useRef<{ equipmentId: string } | null>(null)
@@ -247,12 +295,14 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
 
   const totalReview = useMemo(() => rules.filter(r => r.needs_review).length, [rules])
 
+  // 編輯中的規則一律保留在清單（即使搜尋字串改了不再命中），否則編輯表單位置會跳動、草稿被重新掛載丟失
+  const editingRuleId = editing?.mode === 'edit' ? editing.rule.id : null
   const curRules = useMemo(() => {
-    const list = rules.filter(r => r.stage === cur && isVisible(r))
+    const list = rules.filter(r => r.stage === cur && (r.id === editingRuleId || isVisible(r)))
     // 搜尋時專屬（命中）在前、通用在後；Array.sort 為穩定排序，其餘維持 API 順序
     if (ql) list.sort((a, b) => (hitIds.has(b.id) ? 1 : 0) - (hitIds.has(a.id) ? 1 : 0))
     return list
-  }, [rules, cur, isVisible, ql, hitIds])
+  }, [rules, cur, isVisible, ql, hitIds, editingRuleId])
 
   // 勾選只計算「目前區塊、目前搜尋下仍看得到」的規則
   const selectedIds = useMemo(() => curRules.filter(r => selected.has(r.id)).map(r => r.id), [curRules, selected])
@@ -310,8 +360,8 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     }
   }
 
-  function handleBatchAction(action: BatchAction) {
-    setEditing(null)
+  function doBatchAction(action: BatchAction) {
+    closeEdit()
     if (action === 'fields' && batchFieldOptions.length === 0) return
     if (action === 'confirm') {
       setBatchMode(null)
@@ -336,13 +386,35 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   function openCreate() {
     setBatchMode(null)
     setEditKey(k => k + 1)
+    setEditDirty(false)
+    setPendingSwitch(null)
     setEditing({ mode: 'create' })
   }
 
   function openEdit(rule: MaintenanceRule) {
     setBatchMode(null)
     setEditKey(k => k + 1)
+    setEditDirty(false)
+    setPendingSwitch(null)
     setEditing({ mode: 'edit', rule })
+  }
+
+  // 使用者主動切換（編輯另一筆／新增／切換區塊／批次操作）：編輯中有未儲存修改就先攔下並顯示提示條，
+  // 沒有修改直接切換。料卡跳轉與待歸類自動回退兩個強制切換不經過這裡（直接 switchStage）。
+  function runSwitch(t: PendingSwitch) {
+    if (t.type === 'edit') openEdit(t.rule)
+    else if (t.type === 'create') openCreate()
+    else if (t.type === 'stage') switchStage(t.stage)
+    else doBatchAction(t.action)
+  }
+
+  function requestSwitch(t: PendingSwitch) {
+    if (editing && editDirty) { setPendingSwitch(t); return }
+    runSwitch(t)
+  }
+
+  function handleBatchAction(action: BatchAction) {
+    requestSwitch({ type: 'batch', action })
   }
 
   async function handleSaveRule(draft: RuleDraft): Promise<string | null> {
@@ -415,7 +487,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       return '儲存失敗，請重試'
     }
 
-    setEditing(null)
+    closeEdit()
     setSelected(new Set())
     if (draft.stage !== '待歸類') setCur(draft.stage)
     showNotice(warning
@@ -437,7 +509,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             showNotice({ tone: 'error', text: data?.error ?? '刪除失敗，請重試' })
             return
           }
-          if (editing?.mode === 'edit' && editing.rule.id === rule.id) setEditing(null)
+          if (editing?.mode === 'edit' && editing.rule.id === rule.id) closeEdit()
           const data = await res.json().catch(() => ({}))
           showNotice(typeof data?.warning === 'string'
             ? { tone: 'warn', text: `已刪除；${data.warning}` }
@@ -477,23 +549,35 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   // ── 畫面 ──────────────────────────────────────────────────────────
   const exactCardId = allCards.some(c => c.equipment_id === q.trim()) ? q.trim() : null
 
-  const panels = (
+  // 編輯表單改為原地顯示在清單內（由 RuleListPanel 依 editingId 決定位置）
+  const editingId = canManage && editing ? (editing.mode === 'edit' ? editing.rule.id : 'new') : null
+  const editSlot = canManage && editing ? (
     <>
-      {canManage && editing && (
-        <RuleEditPanel
-          key={`edit-${editKey}`}
-          mode={editing.mode}
-          rule={editing.mode === 'edit' ? editing.rule : undefined}
-          defaultStage={cur === '待歸類' ? '回廠' : cur}
-          defaultEquipmentIds={exactCardId ? [exactCardId] : []}
-          allCards={allCards}
-          vendors={vendors}
-          exitOptions={exitOptions}
-          onExitOptionsSaved={opts => { if (opts) setExitOptions(opts); else void loadOptions() }}
-          onCancel={() => setEditing(null)}
-          onSave={handleSaveRule}
+      {pendingSwitch && (
+        <UnsavedBar
+          onKeep={() => setPendingSwitch(null)}
+          onDrop={() => { const t = pendingSwitch; setPendingSwitch(null); runSwitch(t) }}
         />
       )}
+      <RuleEditPanel
+        key={`edit-${editKey}`}
+        mode={editing.mode}
+        rule={editing.mode === 'edit' ? editing.rule : undefined}
+        defaultStage={cur === '待歸類' ? '回廠' : cur}
+        defaultEquipmentIds={exactCardId ? [exactCardId] : []}
+        allCards={allCards}
+        vendors={vendors}
+        exitOptions={exitOptions}
+        onExitOptionsSaved={opts => { if (opts) setExitOptions(opts); else void loadOptions() }}
+        onCancel={closeEdit}
+        onDirtyChange={d => { setEditDirty(d); if (!d) setPendingSwitch(null) }}
+        onSave={handleSaveRule}
+      />
+    </>
+  ) : null
+
+  const panels = (
+    <>
       {canManage && batchMode && (
         <BatchPanel
           key={`batch-${batchMode}`}
@@ -548,7 +632,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             </button>
             <button
               type="button"
-              onClick={openCreate}
+              onClick={() => requestSwitch({ type: 'create' })}
               title="新增規則"
               aria-label="新增規則"
               className="inline-flex items-center justify-center p-1.5 px-2.5 bg-[#7a5230] text-white rounded-lg hover:bg-[#9c6b42] transition-colors"
@@ -573,7 +657,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
         </div>
       ) : (
         <>
-          <FlowStages current={cur} stats={stats} searching={ql !== ''} onSelect={switchStage} />
+          <FlowStages current={cur} stats={stats} searching={ql !== ''} onSelect={s => requestSwitch({ type: 'stage', stage: s })} />
 
           {notice && (
             <div
@@ -612,12 +696,14 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
             searchQuery={q.trim()}
             fieldsAvailable={batchFieldOptions.length > 0}
             panels={panels}
+            editingId={editingId}
+            editSlot={editSlot}
             onToggle={toggleSelect}
             onImageClick={(images, index) => setLightbox({ images, index })}
             onSelectAll={() => setSelected(new Set(curRules.map(r => r.id)))}
             onClearSelection={() => { setSelected(new Set()); setBatchMode(null) }}
             onBatchAction={handleBatchAction}
-            onEdit={openEdit}
+            onEdit={rule => requestSwitch({ type: 'edit', rule })}
             onDelete={handleDeleteRule}
             onConfirmLatest={handleConfirmLatest}
           />

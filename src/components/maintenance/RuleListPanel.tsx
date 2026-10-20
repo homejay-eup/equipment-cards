@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import {
   CheckCheck, CheckCircle2, ArrowLeftRight, Tags, Store, SlidersHorizontal, Trash2, X,
 } from 'lucide-react'
@@ -25,8 +25,12 @@ interface Props {
   searchQuery: string
   /** 勾選的規則是否有共同適用的「共用欄位」（沒有則停用該批次圖示） */
   fieldsAvailable: boolean
-  /** 新增／編輯／批次面板（顯示在批次工具列下方、清單上方） */
+  /** 批次面板（顯示在批次工具列下方、清單上方） */
   panels: ReactNode
+  /** 正在編輯的規則 id；'new'＝新增；null＝沒有在編輯（其餘規則在編輯時變淡且不可點） */
+  editingId: string | 'new' | null
+  /** 編輯表單（含未儲存提示條）；原地顯示在被編輯規則的位置，新增時顯示在清單最上方 */
+  editSlot: ReactNode
   onToggle: (id: string) => void
   onImageClick: (images: RichImage[], index: number) => void
   onSelectAll: () => void
@@ -66,7 +70,7 @@ function emptyMessage(stage: MaintenanceStage, searching: boolean): ReactNode {
 // 選中區塊的規則清單：依子類分組（標題列）、批次勾選與批次工具列、空狀態。
 export default function RuleListPanel({
   stage, rules, vendorsById, highlightIds, canManage, selected, selectedCount, searching, searchQuery, fieldsAvailable, panels,
-  onToggle, onImageClick, onSelectAll, onClearSelection, onBatchAction, onEdit, onDelete, onConfirmLatest,
+  editingId, editSlot, onToggle, onImageClick, onSelectAll, onClearSelection, onBatchAction, onEdit, onDelete, onConfirmLatest,
 }: Props) {
   // 依子類分組：照 STAGE_SUBCATEGORIES 的順序，未指定／未知子類排最後
   const order = STAGE_SUBCATEGORIES[stage]
@@ -85,6 +89,8 @@ export default function RuleListPanel({
     return i === -1 ? order.length : i
   }
   groups.sort((a, b) => rank(a.key) - rank(b.key))
+
+  const showSlotOnTop = !!editSlot && editingId !== null && (editingId === 'new' || !rules.some(r => r.id === editingId))
 
   return (
     <div className="bg-[#fffdf9] border border-[rgba(122,82,48,.15)] rounded-[14px] [&>:first-child]:rounded-t-[14px] [&>:last-child]:rounded-b-[14px]">
@@ -120,9 +126,12 @@ export default function RuleListPanel({
 
       {panels}
 
+      {/* 新增（或編輯的規則不在目前清單內）時，編輯表單顯示在清單最上方 */}
+      {showSlotOnTop && editSlot}
+
       <div>
         {rules.length === 0 ? (
-          <div className="px-3.5 py-7 text-center text-sm text-[#a08060]">{emptyMessage(stage, searching)}</div>
+          !showSlotOnTop && <div className="px-3.5 py-7 text-center text-sm text-[#a08060]">{emptyMessage(stage, searching)}</div>
         ) : groups.map(g => (
           <div key={g.key || '__none__'}>
             {g.title && (
@@ -133,22 +142,34 @@ export default function RuleListPanel({
                 )}
               </div>
             )}
-            {g.rules.map(r => (
-              <RuleRow
-                key={r.id}
-                rule={r}
-                vendor={r.vendor_id ? vendorsById.get(r.vendor_id) : undefined}
-                canManage={canManage}
-                selected={selected.has(r.id)}
-                highlight={highlightIds.has(r.id)}
-                searchQuery={searchQuery}
-                onToggleSelect={() => onToggle(r.id)}
-                onImageClick={onImageClick}
-                onEdit={() => onEdit(r)}
-                onDelete={() => onDelete(r)}
-                onConfirmLatest={() => onConfirmLatest(r)}
-              />
-            ))}
+            {g.rules.map(r => {
+              const isEditing = editingId === r.id
+              return (
+                <Fragment key={r.id}>
+                  {/* 原地編輯：編輯表單取代該列的位置；該列保持掛載但隱藏，保留展開狀態 */}
+                  {isEditing && editSlot}
+                  {/* 編輯中其他列：變淡、不可點，並以 inert 一併擋掉鍵盤聚焦（React 18 型別尚無 inert，用 spread 帶入） */}
+                  <div
+                    className={isEditing ? 'hidden' : editingId ? 'opacity-50 pointer-events-none transition-opacity' : undefined}
+                    {...(editingId && !isEditing ? ({ inert: '' } as object) : {})}
+                  >
+                    <RuleRow
+                      rule={r}
+                      vendor={r.vendor_id ? vendorsById.get(r.vendor_id) : undefined}
+                      canManage={canManage}
+                      selected={selected.has(r.id)}
+                      highlight={highlightIds.has(r.id)}
+                      searchQuery={searchQuery}
+                      onToggleSelect={() => onToggle(r.id)}
+                      onImageClick={onImageClick}
+                      onEdit={() => onEdit(r)}
+                      onDelete={() => onDelete(r)}
+                      onConfirmLatest={() => onConfirmLatest(r)}
+                    />
+                  </div>
+                </Fragment>
+              )
+            })}
           </div>
         ))}
       </div>

@@ -163,6 +163,23 @@ export function ruleTableHit(rule: { content_table_data?: { rows: string[][] } |
   return !!ql && flattenTableText(rule.content_table_data).toLowerCase().includes(ql)
 }
 
+/** 規則內文的單行摘要：取第一個非空行；multiline＝除了這一行之外還有其他非空內容。 */
+export function contentSummary(content: string): { first: string; multiline: boolean } {
+  const lines = (content ?? '').split(/\r?\n/)
+  const idx = lines.findIndex(l => l.trim() !== '')
+  if (idx === -1) return { first: '', multiline: false }
+  return { first: lines[idx], multiline: lines.slice(idx + 1).some(l => l.trim() !== '') }
+}
+
+/** 搜尋命中是否落在收合時被隱藏的內文位置（第一個非空行之外）。ql 需已 trim＋toLowerCase。 */
+export function contentHiddenHit(content: string, ql: string): boolean {
+  if (!ql) return false
+  const lines = (content ?? '').split(/\r?\n/)
+  const idx = lines.findIndex(l => l.trim() !== '')
+  if (idx === -1) return false
+  return lines.slice(idx + 1).join('\n').toLowerCase().includes(ql)
+}
+
 /**
  * 搜尋命中：料號＋品名、廠商名稱、標題、內文文字、表格儲存格文字（一律 includes，不走模糊搜尋）。
  * ql 需已 trim＋toLowerCase。

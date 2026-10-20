@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { X, Check, Loader2 } from 'lucide-react'
 import { EquipmentCard } from '@/types/equipment'
 import { MaintenanceRule, MaintenanceVendor, MaintenanceExitOption, MaintenanceStage } from '@/types/maintenance'
@@ -91,6 +91,8 @@ interface Props {
   exitOptions: MaintenanceExitOption[]
   onExitOptionsSaved: (options: MaintenanceExitOption[] | null) => void
   onCancel: () => void
+  /** 是否有未儲存修改（與開啟當下的初始值比對）；選填 */
+  onDirtyChange?: (dirty: boolean) => void
   /** 回傳錯誤訊息（顯示在面板底部）；成功回傳 null（由父層關閉面板） */
   onSave: (draft: RuleDraft) => Promise<string | null>
 }
@@ -98,7 +100,7 @@ interface Props {
 // 新增／編輯規則的行內面板（清單上方展開，不使用 Dialog，避開 portal 與 Radix 的 pointer-events 踩坑）。
 // 欄位依區塊動態顯示：送修＝廠商＋保固期間＋適用進貨日期；檢測／年限判斷＝年限＋起算依據；回廠＝處理後去向。
 export default function RuleEditPanel({
-  mode, rule, defaultStage, defaultEquipmentIds, allCards, vendors, exitOptions, onExitOptionsSaved, onCancel, onSave,
+  mode, rule, defaultStage, defaultEquipmentIds, allCards, vendors, exitOptions, onExitOptionsSaved, onCancel, onDirtyChange, onSave,
 }: Props) {
   const initialStage: MaintenanceStage = rule?.stage ?? defaultStage
   const [stage, setStage] = useState<MaintenanceStage>(initialStage)
@@ -128,6 +130,26 @@ export default function RuleEditPanel({
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 是否有未儲存修改：目前所有欄位值與開啟當下的初始值不同（改回原值視為沒修改）
+  const rootRef = useRef<HTMLDivElement>(null)
+  const snapshot = JSON.stringify([
+    stage, subCategory, item, content,
+    images.map(p => p.public_id ?? p.tempId), table,
+    [...pickedIds].sort(), vendorId, warrantyValue, warrantyUnit, warrantyStart,
+    ageValue, ageUnit, ageBasis, exitOption,
+  ])
+  const initialSnapshotRef = useRef<string | null>(null)
+  if (initialSnapshotRef.current === null) initialSnapshotRef.current = snapshot
+  const dirty = snapshot !== initialSnapshotRef.current
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  onDirtyChangeRef.current = onDirtyChange
+  useEffect(() => { onDirtyChangeRef.current?.(dirty) }, [dirty])
+
+  // 開啟後自動捲動到表單（原地編輯時表單可能在畫面外）
+  useEffect(() => {
+    rootRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [])
 
   const idToCard = useMemo(() => new Map(allCards.map(c => [c.equipment_id, c])), [allCards])
   const nameById = useMemo(() => {
@@ -218,8 +240,15 @@ export default function RuleEditPanel({
   const labelCls = 'text-xs text-[#a08060]'
 
   return (
-    <div className="p-3.5 bg-[#fff9f4] border-b border-[rgba(122,82,48,.15)]">
-      <b className="font-medium text-sm text-[#7a5230]">{mode === 'edit' ? '編輯規則' : '新增規則'}</b>
+    <div ref={rootRef} className="m-2 p-3.5 bg-[#fff9f4] border-2 border-[#7a5230] rounded-xl">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="flex-shrink-0 text-[11px] leading-[1.6] px-2 rounded-full bg-[#7a5230] text-white">
+          {mode === 'edit' ? '正在編輯' : '新增'}
+        </span>
+        <b className="font-medium text-sm text-[#7a5230] truncate">
+          {mode === 'edit' ? (rule?.item || '編輯規則') : '新增規則'}
+        </b>
+      </div>
 
       <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-x-2.5 gap-y-2.5 items-center mt-2.5">
         <span className={labelCls}>所屬區塊</span>

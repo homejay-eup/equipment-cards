@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { CheckCircle2, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
+import { CheckCircle2, Pencil, Trash2, Loader2, ChevronRight } from 'lucide-react'
 import { MaintenanceRule, MaintenanceVendor } from '@/types/maintenance'
 import {
-  formatWarrantyPeriod, fmtDateTime, emailPrefix, equipmentChipHit, ruleTableHit,
+  formatWarrantyPeriod, fmtDateTime, emailPrefix, equipmentChipHit, ruleTableHit, contentHiddenHit,
 } from '@/lib/maintenanceFormat'
 import type { RichImage } from '@/components/tracker/richContentTypes'
 import RuleContent, { HighlightText } from '@/components/maintenance/RuleContent'
@@ -41,6 +41,10 @@ export default function RuleRow({
   rule, vendor, canManage, selected, highlight, searchQuery, onToggleSelect, onImageClick, onEdit, onDelete, onConfirmLatest,
 }: Props) {
   const [confirming, setConfirming] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  // 搜尋自動展開：只在「搜尋字串／命中型態」改變時判斷一次；這個展開是否由搜尋觸發（清除搜尋時只還原自動展開的）
+  const autoKeyRef = useRef('')
+  const autoExpandedRef = useRef(false)
   const [vendorOpen, setVendorOpen] = useState(false)
   const [alignRight, setAlignRight] = useState(false)
   const vendorWrapRef = useRef<HTMLSpanElement>(null)
@@ -90,8 +94,40 @@ export default function RuleRow({
   const vendorName = showRepair ? (rule.vendor_name ?? vendor?.name ?? null) : null
   const vendorHit = !!ql && !!vendorName && vendorName.toLowerCase().includes(ql)
 
+  const tableRows = rule.content_table_data?.rows?.length ?? 0
+
+  // 搜尋命中落在收合時被隱藏的位置（內文第一行之外、表格儲存格）→ 預設展開
+  const hiddenHit = !!ql && (ruleTableHit(rule, ql) || contentHiddenHit(rule.content ?? '', ql))
+  useEffect(() => {
+    if (!ql) {
+      autoKeyRef.current = ''
+      if (autoExpandedRef.current) { autoExpandedRef.current = false; setExpanded(false) }
+      return
+    }
+    const key = `${ql}|${hiddenHit}`
+    if (autoKeyRef.current === key) return
+    autoKeyRef.current = key
+    if (hiddenHit) { autoExpandedRef.current = true; setExpanded(true) }
+  }, [ql, hiddenHit])
+
+  function toggleExpanded() {
+    autoExpandedRef.current = false
+    setExpanded(v => !v)
+  }
+
+  // 整列點擊展開／收合；點在互動元素（按鈕、勾選框、連結、廠商標籤與小卡）或正在選取文字時不觸發
+  function handleRowClick(e: ReactMouseEvent<HTMLDivElement>) {
+    const el = e.target as HTMLElement
+    if (el.closest('button, input, a, label, [data-no-toggle]')) return
+    if (typeof window !== 'undefined' && (window.getSelection()?.toString() ?? '') !== '') return
+    toggleExpanded()
+  }
+
   return (
-    <div className={`flex items-start gap-2.5 px-3.5 py-3 border-t border-[rgba(122,82,48,.1)] ${highlight ? 'bg-[rgba(196,154,114,.07)]' : ''}`}>
+    <div
+      onClick={handleRowClick}
+      className={`flex items-start gap-2.5 px-3.5 py-3 border-t border-[rgba(122,82,48,.1)] cursor-pointer hover:bg-[rgba(122,82,48,.03)] transition-colors ${highlight ? 'bg-[rgba(196,154,114,.07)]' : ''}`}
+    >
       {canManage && (
         <input
           type="checkbox"
@@ -101,6 +137,16 @@ export default function RuleRow({
           className="mt-1 accent-[#7a5230]"
         />
       )}
+      <button
+        type="button"
+        onClick={toggleExpanded}
+        aria-expanded={expanded}
+        aria-label={expanded ? `收合「${rule.item}」` : `展開「${rule.item}」`}
+        title={expanded ? '收合' : '展開'}
+        className="mt-[3px] flex-shrink-0 text-[#a08060] hover:text-[#7a5230] transition-colors"
+      >
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} />
+      </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <p className="flex-1 min-w-0 m-0 text-sm font-medium leading-[1.4] text-[#2c1e12] break-words [overflow-wrap:anywhere]">
@@ -131,7 +177,7 @@ export default function RuleRow({
           images={images}
           table={rule.content_table_data ?? null}
           searchQuery={searchQuery}
-          forceExpanded={ruleTableHit(rule, ql)}
+          expanded={expanded}
           onImageClick={i => onImageClick(images, i)}
         />
 
@@ -164,10 +210,12 @@ export default function RuleRow({
             <span className={PILL_GRAY}>通用</span>
           )}
           {ageText && <span className={PILL_GRAY}>{ageText}・自 {rule.age_limit_basis || '進貨日'} 起算</span>}
+          {!expanded && images.length > 0 && <span className={PILL_GRAY}>含圖片 {images.length} 張</span>}
+          {!expanded && tableRows > 0 && <span className={PILL_GRAY}>含表格 {tableRows} 列</span>}
           {warrantyText && <span className={PILL_GRAY} title="保固期間">保固 {warrantyText}</span>}
           {showRepair && rule.warranty_start_date && <span className={PILL_GRAY}>{rule.warranty_start_date} 後到貨適用</span>}
           {vendorName && (
-            <span ref={vendorWrapRef} className="relative inline-block max-w-full">
+            <span ref={vendorWrapRef} data-no-toggle className="relative inline-block max-w-full">
               <button
                 type="button"
                 onClick={() => {
@@ -201,9 +249,11 @@ export default function RuleRow({
           )}
         </div>
 
-        <p className="mt-1.5 text-[11px] text-[#b3987a] truncate">
-          最後確認 {fmtDateTime(lastIso)}{lastBy ? `　${lastBy}` : ''}
-        </p>
+        {expanded && (
+          <p className="mt-1.5 text-[11px] text-[#b3987a] truncate">
+            最後確認 {fmtDateTime(lastIso)}{lastBy ? `　${lastBy}` : ''}
+          </p>
+        )}
       </div>
     </div>
   )
