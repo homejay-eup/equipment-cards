@@ -157,7 +157,10 @@ export async function PATCH(
     return NextResponse.json(data)
   } catch (err) {
     console.error('[cards] update error', err)
-    return NextResponse.json({ error: '更新失敗' }, { status: 500 })
+    // 把資料庫實際錯誤帶回，方便使用者截圖回報時直接定位原因（此 API 僅限有編輯權限者呼叫）
+    const e = err as { message?: string; code?: string } | null
+    const detail = [e?.code, e?.message].filter(Boolean).join(' ')
+    return NextResponse.json({ error: detail ? `更新失敗（${detail}）` : '更新失敗' }, { status: 500 })
   }
 }
 
