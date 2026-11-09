@@ -66,7 +66,7 @@ body { font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; color: #4a
 .photo img { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain }
 .nophoto { color: #a08060; font-size: 5mm }
 .info { padding-top: 4mm; text-align: center }
-.eid { font-family: "Consolas", "Courier New", monospace; font-size: 3.4mm; color: #7a5230; letter-spacing: 0.2mm }
+.eid { font-family: "Consolas", "Courier New", monospace; font-size: 5mm; font-weight: 700; color: #7a5230; letter-spacing: 0.2mm; line-height: 1.3 }
 .name { margin-top: 1.5mm; font-size: 5mm; font-weight: 700; color: #4a3422; line-height: 1.3; word-break: break-word }
 </style></head><body>
 ${pages}
