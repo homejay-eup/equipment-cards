@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import CardDetailDialog from '@/components/CardDetailDialog'
 import { printCards } from '@/components/print/printCards'
+import BoxLabelDialog from '@/components/print/BoxLabelDialog'
 import CardFormDialog from '@/components/CardFormDialog'
 import UserMenu from '@/components/UserMenu'
 import BatchImportDialog from '@/components/BatchImportDialog'
@@ -102,6 +103,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [selectMode,   setSelectMode]   = useState(false)
   const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  const [boxLabelOpen, setBoxLabelOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
@@ -1220,6 +1222,13 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 管理員浮動按鈕區（僅全部料卡 tab 顯示，我的關注與任務板不適用） */}
       {(isAdmin || canPrint) && activeTab === 'all' && (
         <>
+          {canPrint && (
+            <BoxLabelDialog
+              open={boxLabelOpen}
+              cards={filtered.filter(c => selectedIds.has(c.equipment_id))}
+              onClose={() => setBoxLabelOpen(false)}
+            />
+          )}
           {/* 批次選取 action bar：全寬固定底部 */}
           {selectMode && (
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#faf6f0] border-t border-[rgba(122,82,48,.2)] shadow-[0_-4px_16px_rgba(122,82,48,.1)] px-4 py-3 flex items-center gap-3">
@@ -1250,6 +1259,16 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 >
                   <Printer className="h-4 w-4" />
                   列印（{selectedIds.size}）
+                </button>
+              )}
+              {canPrint && (
+                <button
+                  onClick={() => setBoxLabelOpen(true)}
+                  disabled={selectedIds.size === 0}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[#7a5230] hover:bg-[#9c6b42] text-white text-sm font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0 whitespace-nowrap"
+                >
+                  <Package className="h-4 w-4" />
+                  封箱標籤（{selectedIds.size}）
                 </button>
               )}
               {isAdmin && (
