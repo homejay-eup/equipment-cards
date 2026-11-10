@@ -56,15 +56,21 @@ function buildHtml(labels: BoxLabel[], layout: BoxLabelLayout): string {
         : `<div class="nophoto">無照片</div>`
       photoBlock = `<div class="photo">${photo}</div>\n  `
     }
+    // 沒填的欄位不佔位置，剩下的內容置中；全部沒填就不印分隔線與這一區
+    const metaCells = [
+      { v: l.location, cls: 'val' },
+      { v: l.quantity, cls: 'val qty' },
+      { v: l.received_date, cls: 'val' },
+    ]
+      .filter(c => c.v)
+      .map(c => `<div class="cell"><span class="${c.cls}">${escapeHtml(c.v)}</span></div>`)
+      .join('')
+    const metaHtml = metaCells ? `<div class="meta">${metaCells}</div>` : ''
     return `<section class="page">
   ${photoBlock}<div class="info">
     <div class="eid">${escapeHtml(l.equipment_id)}</div>
     <div class="name">${escapeHtml(l.name)}</div>
-    <div class="meta">
-      <div class="cell"><span class="val">${escapeHtml(l.location)}</span></div>
-      <div class="cell"><span class="val">${escapeHtml(l.quantity)}</span></div>
-      ${l.received_date ? `<div class="cell"><span class="val">${escapeHtml(l.received_date)}</span></div>` : ''}
-    </div>
+    ${metaHtml}
     ${l.note ? `<div class="note"><span class="noteval">${escapeHtml(l.note)}</span></div>` : ''}
   </div>
 </section>`
@@ -89,10 +95,11 @@ body { font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; color: #4a
 .info { text-align: center; min-width: 0 }
 .eid { font-family: "Consolas", "Courier New", monospace; font-size: 11mm; font-weight: 700; color: #7a5230; letter-spacing: 0.3mm; line-height: 1.3; white-space: pre-wrap; word-break: break-word }
 .name { margin-top: 2mm; font-size: 11mm; font-weight: 700; color: #4a3422; line-height: 1.3; word-break: break-word; white-space: pre-wrap }
-.meta { margin-top: 6mm; padding-top: 5mm; border-top: 0.4mm dashed #c49a72; display: flex; justify-content: space-around; gap: 8mm }
+.meta { margin-top: 6mm; padding-top: 5mm; border-top: 0.4mm dashed #c49a72; display: flex; justify-content: center; gap: 16mm }
 .cell { display: flex; flex-direction: column; align-items: center; min-width: 0 }
 .val { min-height: 10mm; font-size: 9mm; font-weight: 700; color: #4a3422; line-height: 1.2; word-break: break-word; white-space: pre-wrap }
 .note { margin-top: 4mm; display: flex; justify-content: center }
+.qty { font-size: 11mm; min-height: 12mm }
 .noteval { font-size: 7mm; font-weight: 700; color: #4a3422; line-height: 1.3; word-break: break-word; white-space: pre-wrap }
 ${layout === 'portrait-photo' ? `
 .page { flex-direction: column }
