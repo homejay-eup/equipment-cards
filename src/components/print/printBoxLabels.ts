@@ -7,6 +7,7 @@ export interface BoxLabel {
   main_photo: string | null
   location: string
   quantity: string
+  note: string
 }
 
 function escapeHtml(s: string): string {
@@ -50,9 +51,10 @@ function buildHtml(labels: BoxLabel[]): string {
     <div class="eid">${escapeHtml(l.equipment_id)}</div>
     <div class="name">${escapeHtml(l.name)}</div>
     <div class="meta">
-      <div class="cell"><span class="lbl">倉庫位置</span><span class="val">${escapeHtml(l.location)}</span></div>
-      <div class="cell"><span class="lbl">數量</span><span class="val">${escapeHtml(l.quantity)}</span></div>
+      <div class="cell"><span class="val">${escapeHtml(l.location)}</span></div>
+      <div class="cell"><span class="val">${escapeHtml(l.quantity)}</span></div>
     </div>
+    ${l.note ? `<div class="note"><span class="noteval">${escapeHtml(l.note)}</span></div>` : ''}
   </div>
 </section>`
   }).join('\n')
@@ -74,7 +76,8 @@ body { font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif; color: #4a
 .name { margin-top: 2mm; font-size: 9mm; font-weight: 700; color: #4a3422; line-height: 1.3; word-break: break-word }
 .meta { margin-top: 6mm; padding-top: 5mm; border-top: 0.4mm dashed #c49a72; display: flex; justify-content: space-around; gap: 8mm }
 .cell { display: flex; flex-direction: column; align-items: center; min-width: 0 }
-.lbl { font-size: 5mm; color: #7a5230 }
+.note { margin-top: 4mm; display: flex; justify-content: center }
+.noteval { font-size: 7mm; font-weight: 700; color: #4a3422; line-height: 1.3; word-break: break-word; white-space: pre-wrap }
 .val { min-height: 12mm; font-size: 11mm; font-weight: 700; color: #4a3422; line-height: 1.2; word-break: break-word }
 </style></head><body>
 ${pages}

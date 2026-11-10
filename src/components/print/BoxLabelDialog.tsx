@@ -17,7 +17,7 @@ interface Props {
   onClose: () => void
 }
 
-interface RowValue { location: string; quantity: string }
+interface RowValue { location: string; quantity: string; note: string }
 
 const inputCls =
   'w-full px-2.5 py-1.5 text-sm border border-[rgba(122,82,48,.25)] rounded-lg bg-white text-[#4a3422] placeholder-[#c0a882] focus:outline-none focus:border-[#c49a72] focus:ring-1 focus:ring-[rgba(122,82,48,.15)]'
@@ -37,7 +37,7 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
 
   function setField(id: string, field: keyof RowValue, v: string) {
     setValues(prev => {
-      const cur: RowValue = prev[id] ?? { location: '', quantity: '' }
+      const cur: RowValue = prev[id] ?? { location: '', quantity: '', note: '' }
       return { ...prev, [id]: { ...cur, [field]: v } }
     })
   }
@@ -47,7 +47,7 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
     setValues(prev => {
       const next: Record<string, RowValue> = {}
       for (const c of cards) {
-        const cur: RowValue = prev[c.equipment_id] ?? { location: '', quantity: '' }
+        const cur: RowValue = prev[c.equipment_id] ?? { location: '', quantity: '', note: '' }
         next[c.equipment_id] = { ...cur, location: loc }
       }
       return next
@@ -61,6 +61,7 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
       main_photo: c.main_photo,
       location: (values[c.equipment_id]?.location ?? '').trim(),
       quantity: (values[c.equipment_id]?.quantity ?? '').trim(),
+      note: (values[c.equipment_id]?.note ?? '').trim(),
     }))
     void printBoxLabels(labels)
     onClose()
@@ -68,7 +69,7 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-2xl bg-[#faf6f0] border-[rgba(122,82,48,.2)]">
+      <DialogContent className="max-w-3xl bg-[#faf6f0] border-[rgba(122,82,48,.2)]">
         <DialogHeader>
           <DialogTitle className="text-[#7a5230]">列印封箱標籤（{cards.length}）</DialogTitle>
           <DialogDescription className="text-[#a08060]">
@@ -94,15 +95,16 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto border border-[rgba(122,82,48,.15)] rounded-lg bg-white">
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5.5rem] gap-2 px-3 py-2 text-xs text-[#a08060] border-b border-[rgba(122,82,48,.15)] sticky top-0 bg-white">
+          <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_5rem_minmax(0,1.2fr)] gap-2 px-3 py-2 text-xs text-[#a08060] border-b border-[rgba(122,82,48,.15)] sticky top-0 bg-white">
             <span>品號 / 品名</span>
             <span>倉庫位置</span>
             <span>數量</span>
+            <span>備註</span>
           </div>
           {cards.map(c => (
             <div
               key={c.equipment_id}
-              className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5.5rem] gap-2 px-3 py-2 items-center border-b last:border-b-0 border-[rgba(122,82,48,.1)]"
+              className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_5rem_minmax(0,1.2fr)] gap-2 px-3 py-2 items-center border-b last:border-b-0 border-[rgba(122,82,48,.1)]"
             >
               <div className="min-w-0">
                 <div className="font-mono text-xs text-[#7a5230]">{c.equipment_id}</div>
@@ -122,6 +124,13 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
                 onChange={e => setField(c.equipment_id, 'quantity', e.target.value)}
                 className={inputCls}
                 aria-label={`${c.equipment_id} 數量`}
+              />
+              <input
+                type="text"
+                value={values[c.equipment_id]?.note ?? ''}
+                onChange={e => setField(c.equipment_id, 'note', e.target.value)}
+                className={inputCls}
+                aria-label={`${c.equipment_id} 備註`}
               />
             </div>
           ))}
