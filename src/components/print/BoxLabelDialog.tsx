@@ -41,14 +41,12 @@ function rowsOf(v: string): number {
 // 封箱標籤：列印前填寫倉庫位置、數量、備註（僅供這次列印，不存回料卡）
 export default function BoxLabelDialog({ open, cards, onClose }: Props) {
   const [values, setValues] = useState<Record<string, RowValue>>({})
-  const [allLocation, setAllLocation] = useState('')
   const [layout, setLayout] = useState<BoxLabelLayout>('landscape-photo')
 
   // 每次開啟都重新開始，避免殘留上次填的內容
   useEffect(() => {
     if (open) {
       setValues({})
-      setAllLocation('')
       setLayout('landscape-photo')
     }
   }, [open])
@@ -61,17 +59,6 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
     setValues(prev => {
       const cur = prev[c.equipment_id] ?? defaults(c)
       return { ...prev, [c.equipment_id]: { ...cur, [field]: v } }
-    })
-  }
-
-  function applyAllLocation() {
-    setValues(prev => {
-      const next: Record<string, RowValue> = {}
-      for (const c of cards) {
-        const cur = prev[c.equipment_id] ?? defaults(c)
-        next[c.equipment_id] = { ...cur, location: allLocation }
-      }
-      return next
     })
   }
 
@@ -127,29 +114,12 @@ export default function BoxLabelDialog({ open, cards, onClose }: Props) {
           })}
         </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={allLocation}
-            onChange={e => setAllLocation(e.target.value)}
-            placeholder="全部套用同一倉庫位置，例如 A-03-2"
-            className={inputCls}
-          />
-          <button
-            type="button"
-            onClick={applyAllLocation}
-            className="px-3 py-1.5 text-sm whitespace-nowrap text-[#7a5230] bg-white border border-[rgba(122,82,48,.25)] rounded-lg hover:bg-[rgba(122,82,48,.06)] transition-colors"
-          >
-            套用到全部
-          </button>
-        </div>
-
         <div className="max-h-[50vh] overflow-y-auto border border-[rgba(122,82,48,.15)] rounded-lg bg-white">
           <div className={`grid ${gridCols} gap-2 px-3 py-2 text-xs text-[#a08060] border-b border-[rgba(122,82,48,.15)] sticky top-0 bg-white z-10`}>
             <span>品號 / 品名</span>
             <span>倉庫位置</span>
             <span>數量</span>
-            <span>進貨日（選填）</span>
+            <span>進貨日</span>
             <span>備註</span>
           </div>
           {cards.map(c => {
