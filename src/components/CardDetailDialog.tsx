@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, Printer, FileText, ExternalLink, Wrench } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, Printer, Package, FileText, ExternalLink, Wrench } from 'lucide-react'
 import { logUsageEvent } from '@/lib/analyticsClient'
 import RichContentView from '@/components/tracker/RichContentView'
 import UpdateImageLightbox from '@/components/UpdateImageLightbox'
@@ -21,6 +21,7 @@ interface Props {
   onBookmarkNotesChange?: (notes: string) => void
   onViewMaintenanceInfo?: (equipmentId: string) => void
   onPrint?: () => void
+  onPrintBoxLabel?: () => void
 }
 
 const SWIPE_THRESHOLD = 50
@@ -42,7 +43,7 @@ function emailPrefix(email: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange, onViewMaintenanceInfo, onPrint }: Props) {
+export default function CardDetailDialog({ card, open, onClose, activeStatus, isAdmin, onEdit, permissions = [], bookmarkNotes, onBookmarkNotesChange, onViewMaintenanceInfo, onPrint, onPrintBoxLabel }: Props) {
   const canEditCard = permissions.includes('create_delete_cards')
     || permissions.some(p => p.startsWith('edit_card_'))
   const allPhotos = [
@@ -413,6 +414,19 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
             title="列印料卡"
           >
             <Printer className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* 封箱標籤按鈕（有列印權限才傳 onPrintBoxLabel）：排在列印按鈕左側，沒有列印鈕時佔其位置 */}
+        {onPrintBoxLabel && (
+          <button
+            onClick={onPrintBoxLabel}
+            style={{ right: `${(canEditCard && onEdit ? 7.25 : 4.75) + (onPrint ? 2.5 : 0)}rem` }}
+            className="absolute top-3 z-50 rounded-full bg-[#fff9f4]/90 backdrop-blur-sm p-1.5 shadow text-[#a08060] opacity-90 hover:opacity-100 hover:text-[#7a5230] transition-opacity"
+            aria-label="列印封箱標籤"
+            title="列印封箱標籤"
+          >
+            <Package className="h-4 w-4" />
           </button>
         )}
 

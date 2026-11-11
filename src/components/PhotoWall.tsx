@@ -104,6 +104,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [boxLabelOpen, setBoxLabelOpen] = useState(false)
+  // 從細節頁開啟的單張封箱標籤：直接存料卡本身，細節頁關閉或換卡時不會殘留舊的開啟狀態
+  const [boxLabelSingle, setBoxLabelSingle] = useState<EquipmentCard | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [sortOpen, setSortOpen] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
@@ -1216,6 +1218,14 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             setSelected(null)
           } : undefined}
           onPrint={canPrint ? () => { void printCards([selected]) } : undefined}
+          onPrintBoxLabel={canPrint ? () => setBoxLabelSingle(selected) : undefined}
+        />
+      )}
+      {canPrint && boxLabelSingle && (
+        <BoxLabelDialog
+          open
+          cards={[boxLabelSingle]}
+          onClose={() => setBoxLabelSingle(null)}
         />
       )}
 
