@@ -28,6 +28,7 @@ const VALID_PERMISSION_KEYS = [
   'view_own_packages', 'edit_own_packages', 'share_own_packages', 'view_shared_packages',
   'manage_maintenance_info',
   'print_cards',
+  'view_residual', 'edit_residual',
 ]
 
 // GET /api/roles/[id]/permissions

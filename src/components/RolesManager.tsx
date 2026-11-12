@@ -83,6 +83,9 @@ const PERM_LABELS: Record<string, string> = {
   // 標準售價
   view_standard_prices:       '可看標準售價',
   edit_standard_prices:       '編輯價目表：儲存修改、另存新版本、上傳、刪除版本、修改紀錄還原（隱含可看）',
+  // 設備殘值計算
+  view_residual:              '可看設備殘值計算（使用計算器）',
+  edit_residual:              '管理設備殘值計算的品項：新增／修改／刪除品項與金額年限、CSV 匯入匯出（隱含可看）',
   // 列印
   print_cards:                '列印料卡（A6，單張/批次）',
   // 使用統計
@@ -145,6 +148,12 @@ const QUOTE_PERMS = [
 const STANDARD_PRICE_PERMS = [
   'view_standard_prices',
   'edit_standard_prices',
+] as const
+
+// 設備殘值計算分組：兩個獨立 key（edit 在 API/頁籤判斷上隱含可看，UI 扁平列出，比照 STANDARD_PRICE_PERMS）
+const RESIDUAL_PERMS = [
+  'view_residual',
+  'edit_residual',
 ] as const
 
 // 列印分組：獨立單一權限，不需父子連動
@@ -823,6 +832,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
                 { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
                 { label: '標準售價', keys: STANDARD_PRICE_PERMS, radio: false },
+                { label: '設備殘值計算', keys: RESIDUAL_PERMS, radio: false },
                 { label: '設備組合', keys: PACKAGE_PERMS, radio: false },
                 { label: '列印', keys: PRINT_PERMS, radio: false },
                 { label: '使用統計', keys: ANALYTICS_PERMS, radio: false },
@@ -1216,6 +1226,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">標準售價</p>
                   <div className="space-y-1.5">
                     {STANDARD_PRICE_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 設備殘值計算 */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">設備殘值計算</p>
+                  <div className="space-y-1.5">
+                    {RESIDUAL_PERMS.map(key => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
