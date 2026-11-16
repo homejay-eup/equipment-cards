@@ -1,5 +1,6 @@
 'use client'
 
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import { useState, useRef, useEffect } from 'react'
 import {
   Folder, Trash2, AlertTriangle, Copy, ChevronRight, ChevronDown, GripVertical, ArrowLeftRight, CheckSquare, Pencil, MoreVertical,
@@ -17,7 +18,7 @@ type DisplayMode = 'list' | 'photo'
 // 依組合列表：展開/摺疊、重命名、複製、刪除、批次取消掛載、新增掛載、拖曳排序（組合本身＋組合內料卡）。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function PackageListView({
-  filteredPackages, allCards, cardMap, expanded, toggleExpand, busyIds, isShared, canEdit, canShare,
+  filteredPackages, query = '', allCards, cardMap, expanded, toggleExpand, busyIds, isShared, canEdit, canShare,
   selectedPackageIds, togglePackageSelect, duplicateGroups, alignmentBadge, sharedDeptLabel, display,
   renamingId, renameValue, setRenameValue, submitRename, startRename, setRenamingId,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
@@ -28,6 +29,7 @@ export default function PackageListView({
   onReorderItems, batchPackageId, onToggleBatchMode, onCardClick, canCopyToOwn = false,
 }: {
   filteredPackages: (EquipmentPackage | SharedEquipmentPackage)[]
+  query?: string
   allCards: EquipmentCard[]
   cardMap: Map<string, EquipmentCard>
   expanded: Set<string>
@@ -122,7 +124,7 @@ export default function PackageListView({
             {isDragOverThisPackage && (
               <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPackagePosition === 'after' ? '-bottom-1' : '-top-1'}`} />
             )}
-            <div className="group/header flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs transition-all sm:hover:bg-[#faf6f0] sm:hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] sm:hover:-translate-y-px">
+            <div data-search-hit={query.trim() && pkg.name.toLowerCase().includes(query.trim().toLowerCase()) ? '' : undefined} className="group/header flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs transition-all sm:hover:bg-[#faf6f0] sm:hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] sm:hover:-translate-y-px">
               <div className="flex items-center gap-2 min-w-0 sm:flex-1">
                 {canReorderPackages && (
                   <span
@@ -153,7 +155,7 @@ export default function PackageListView({
                   />
                 ) : (
                   <button type="button" onClick={() => toggleExpand(pkg.id)} className="flex-1 min-w-0 flex items-center gap-1.5 text-left truncate">
-                    <span className="font-medium text-[#4a3422] truncate">{pkg.name}</span>
+                    <span className="font-medium text-[#4a3422] truncate"><HighlightText text={pkg.name} query={query} /></span>
                   </button>
                 )}
               </div>

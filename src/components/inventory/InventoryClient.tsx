@@ -97,30 +97,38 @@ export default function InventoryClient() {
   useEffect(() => {
     const qq = q.trim()
     if (!data?.can.barcodes || qq.length < 4 || rows.length) { setHits(null); setHitsFor(''); return }
+    let cancelled = false   // 搜尋字又變了／被清空：舊的回應不能再寫進來
     const t = setTimeout(async () => {
       const r = await fetch(`/api/inventory/barcodes?q=${encodeURIComponent(qq)}`).catch(() => null)
       const d = r ? await r.json().catch(() => ({ hits: [] })) : { hits: [] }
+      if (cancelled) return
       setHits(d.hits ?? [])
       setHitsFor(qq)
     }, 350)
-    return () => clearTimeout(t)
+    return () => { cancelled = true; clearTimeout(t) }
   }, [q, rows.length, data?.can.barcodes])
 
+  const liveHits = hitsFor === q.trim() ? hits : null   // 只採用「這個搜尋字」查到的結果
   const hitRows = useMemo(() => {
-    if (!hits || !data) return null
-    const keys = new Set(hits.map(h => h.product_id ?? `name:${h.category || '其他'}|${h.name}`))
+    if (!liveHits || !data) return null
+    const keys = new Set(liveHits.map(h => h.product_id ?? `name:${h.category || '其他'}|${h.name}`))
     return data.products.filter(p => keys.has(p.key))
-  }, [hits, data])
+  }, [liveHits, data])
 
   // ---- 刷新 ----
   const totals = () => new Map((data?.products ?? []).map(p => [p.key, (prefs?.wh ?? []).reduce((s, w) => s + cell(p, w)[0], 0)]))
+  const [sending, setSending] = useState(false)   // 按下去到伺服器回應之間：立刻有反應，避免以為沒按到而狂按
   const startRefresh = async () => {
+    if (sending) return
+    setSending(true)
     before.current = totals()
-    const r = await fetch('/api/inventory/refresh', { method: 'POST' })
-    const d = await r.json()
-    if (!r.ok) { say(d.error || '送出失敗'); return }
-    setReq(d.request)
-    if (d.joined) say('別人剛按了刷新，一起等這一輪')
+    try {
+      const r = await fetch('/api/inventory/refresh', { method: 'POST' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { say(d.error || '送出失敗'); return }
+      setReq(d.request)
+      if (d.joined) say('別人剛按了刷新，一起等這一輪')
+    } catch { say('送出失敗，請再按一次') } finally { setSending(false) }
   }
   const doneCount = req?.progress ? Object.values(req.progress).filter(v => v === 'ok' || v === 'failed').length : 0
   // 排隊超過 45 秒公司電腦都沒接手 → 多半是電腦休眠／關機或同步程式沒開；停止等待、告訴使用者（請求留著，電腦醒來會自己跑）
@@ -171,8 +179,8 @@ export default function InventoryClient() {
   const sel = prefs.wh
   const times = Object.values(data.batches).map(b => b.exportedAt).filter(Boolean) as string[]
   const oldest = times.sort()[0] ?? null
-  const running = !!req && req.status !== 'done' && req.status !== 'failed' && !stale
-  const stepIdx = !req ? -1 : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
+  const running = sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
+  const stepIdx = !req ? (sending ? 0 : -1) : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
   // 料號品名沒結果、正要去查條碼（還沒回來）：先顯示「搜尋中」，不要先閃一下「找不到」
   const qTrim = q.trim()
@@ -193,9 +201,9 @@ export default function InventoryClient() {
       <div className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e8ddd0] bg-white px-3 py-2.5 text-[13px] text-[#6b4f38]">
         <span className={`h-2 w-2 rounded-full ${running ? 'animate-pulse bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
         {running
-          ? <span>全部庫存更新中（{doneCount}/7 批），預計約 1 分鐘・先顯示 {hm(oldest)} 的數字</span>
+          ? <span>{sending && !req ? '已按下，正在通知公司電腦…' : `全部庫存更新中（${doneCount}/7 批），預計約 1 分鐘`}・先顯示 {hm(oldest)} 的數字</span>
           : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
-        {req && (
+        {(req || sending) && (
           <div className="flex items-center gap-1">
             {STEPS.map((s, i) => (
               <span key={s} className={`rounded-full px-2 py-0.5 text-[11px] ${i < stepIdx ? 'bg-[#e6f0e0] text-[#3d7a3a]' : i === stepIdx ? 'bg-[#fdf3e3] text-[#8a5a1c]' : 'bg-[#f0e8de] text-[#a08060]'}`}>{s}</span>
@@ -255,13 +263,13 @@ export default function InventoryClient() {
         <button onClick={() => setWhDlg(true)} className="ml-1 text-xs text-[#7a5230] underline">編輯倉庫</button>
       </div>
 
-      {hits && (
+      {liveHits && (
         <div className="mb-3 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2.5 text-[13px]">
-          {hits.length ? (
+          {liveHits.length ? (
             <>
-              <b>找到 {hits.length}{hits.length >= 30 ? '+' : ''} 筆條碼</b>，點一筆打開它所在倉的條碼明細：
+              <b>找到 {liveHits.length}{liveHits.length >= 30 ? '+' : ''} 筆條碼</b>，點一筆打開它所在倉的條碼明細：
               <table className="mt-1.5 w-full text-xs">
-                <tbody>{hits.map(h => {
+                <tbody>{liveHits.map(h => {
                   const key = h.product_id ?? `name:${h.category || '其他'}|${h.name}`
                   const p = data.products.find(x => x.key === key)
                   return (
@@ -278,7 +286,7 @@ export default function InventoryClient() {
           ) : <span className="text-[#a08060]">料號、品名、條碼都找不到「{q.trim()}」</span>}
         </div>
       )}
-      {!hits && q.trim() && rows.length > 0 && rows.length <= 5 && (
+      {!liveHits && q.trim() && rows.length > 0 && rows.length <= 5 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2 text-[13px]">
           <b>搜尋到 {rows.length} 個品項</b>，點品名可看它在<b>所有倉</b>的位置、數量和全部條碼：
           {rows.map(p => <button key={p.key} onClick={() => setDrawer({ mode: 'item', product: p })} className="rounded-md border border-[#e8ddd0] bg-white px-2 py-0.5 text-xs hover:text-[#7a5230]">{p.name}</button>)}
@@ -286,7 +294,7 @@ export default function InventoryClient() {
       )}
 
       {searchingBarcode ? (
-        <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]">搜尋條碼中…</div>
+        <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>
       ) : <InventoryTable
         rows={shown} prefs={prefs} allowed={allowed} delta={delta}
         onSort={k => update(p => ({ ...p, sort: p.sort.k === k ? { k, d: (p.sort.d * -1) as 1 | -1 } : { k, d: k === 'pid' || k === 'name' ? 1 : -1 } }))}

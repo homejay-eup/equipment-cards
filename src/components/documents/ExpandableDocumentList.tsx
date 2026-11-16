@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import SearchHitBanner, { locateFirstHit, useAutoLocate } from '@/components/common/SearchHit'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import {
   FileText, Loader2, Search, Trash2, AlertTriangle,
   ChevronRight, ChevronDown, Download,
@@ -135,7 +137,11 @@ export default function ExpandableDocumentList({
 
   const filteredDocs = useMemo(() => {
     const q = listQuery.trim().toLowerCase()
-    const base = q ? documents.filter(d => d.name.toLowerCase().includes(q)) : documents
+    // 文件名稱，或掛在文件上的料號／品名符合都算（可直接反查「這個料號在哪些文件」）
+    const base = q
+      ? documents.filter(d => d.name.toLowerCase().includes(q)
+        || d.linked_cards.some(c => c.equipment_id.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)))
+      : documents
     const dir = docSort.dir === 'asc' ? 1 : -1
     return [...base].sort((a, b) => {
       switch (docSort.key) {
@@ -163,6 +169,22 @@ export default function ExpandableDocumentList({
       }
     })
   }, [cardGroups, listQuery, cardSort])
+
+  // 搜尋命中：結果少（5 筆內）就自動展開，並自動捲到第一筆命中、標亮閃動
+  const hitQ = listQuery.trim().toLowerCase()
+  const listRef = useRef<HTMLDivElement>(null)
+  const hitCount = view === 'byDoc' ? filteredDocs.length : filteredCardGroups.length
+  useEffect(() => {
+    if (!hitQ || hitCount === 0 || hitCount > 5) return
+    const keys = view === 'byDoc' ? filteredDocs.map(d => d.id) : filteredCardGroups.map(g => g.equipment_id)
+    setExpanded(prev => {
+      if (keys.every(k => prev.has(k))) return prev
+      const n = new Set(prev); keys.forEach(k => n.add(k)); return n
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hitQ, view, hitCount])
+  useAutoLocate(listRef, listQuery, `${view}|${hitCount}|${expanded.size}`)
+  const cardHit = (c: { equipment_id: string; name: string }) => !!hitQ && (c.equipment_id.toLowerCase().includes(hitQ) || c.name.toLowerCase().includes(hitQ))
 
   function handleDocSort(key: DocSortKey) {
     setDocSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
@@ -432,7 +454,7 @@ export default function ExpandableDocumentList({
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#a08060]" />
             <input value={listQuery} onChange={e => setListQuery(e.target.value)}
-              placeholder={view === 'byDoc' ? '搜尋文件名稱…' : '搜尋料號、品名…'}
+              placeholder={view === 'byDoc' ? '搜尋文件名稱、料號、品名…' : '搜尋料號、品名…'}
               className="w-full sm:w-auto pl-7 pr-2 py-1.5 text-xs border border-[#e8ddd0] rounded-lg bg-[#faf6f0] focus:outline-none focus:border-[#c49a72]" />
           </div>
           {view === 'byDoc' && (
@@ -455,6 +477,8 @@ export default function ExpandableDocumentList({
         </div>
       )}
 
+      <SearchHitBanner query={listQuery} count={hitCount} unit={view === 'byDoc' ? '份文件' : '個料號'} onLocate={() => locateFirstHit(listRef.current)} />
+      <div ref={listRef}>
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-[#a08060] py-6 justify-center">
           <Loader2 className="h-4 w-4 animate-spin" /> 載入中…
@@ -480,7 +504,7 @@ export default function ExpandableDocumentList({
               const scopedUnlinkCount = doc.linked_cards.filter(c => selectedUnlinkKeys.has(unlinkKey(doc.id, c.equipment_id))).length
               return (
                 <div key={doc.id} className={`border-t border-[#f0e8dc] ${isDeleting ? 'opacity-50' : ''}`}>
-                  <div className="grid grid-cols-[24px_28px_1fr_100px_80px_140px] gap-2 px-3 py-2 items-center text-xs">
+                  <div data-search-hit={hitQ && doc.name.toLowerCase().includes(hitQ) ? '' : undefined} className="grid grid-cols-[24px_28px_1fr_100px_80px_140px] gap-2 px-3 py-2 items-center text-xs">
                     <input type="checkbox" checked={selectedDocIds.has(doc.id)} onChange={() => toggleSelectDoc(doc.id)}
                       disabled={isDeleting} className="accent-[#7a5230]" />
                     <button type="button" onClick={() => toggleExpand(doc.id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
@@ -488,7 +512,7 @@ export default function ExpandableDocumentList({
                     </button>
                     <a href={doc.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[#4a3422] hover:text-[#7a5230] truncate">
                       <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                      <span className="truncate">{doc.name}</span>
+                      <span className="truncate"><HighlightText text={doc.name} query={listQuery} /></span>
                     </a>
                     <span className="text-[#6b4f38] truncate">{doc.type}</span>
                     <span className="text-right text-[#6b4f38]">{doc.linked_cards.length}</span>
@@ -505,8 +529,8 @@ export default function ExpandableDocumentList({
                           {doc.linked_cards.map(c => {
                             const k = unlinkKey(doc.id, c.equipment_id)
                             return (
-                              <label key={c.equipment_id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
-                                <span className="text-[#4a3422] truncate">{c.equipment_id} {c.name}</span>
+                              <label key={c.equipment_id} data-search-hit={cardHit(c) ? '' : undefined} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
+                                <span className="text-[#4a3422] truncate"><HighlightText text={`${c.equipment_id} ${c.name}`} query={listQuery} /></span>
                                 <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
                                   移除
                                   <input type="checkbox" checked={selectedUnlinkKeys.has(k)}
@@ -561,14 +585,14 @@ export default function ExpandableDocumentList({
               const scopedUnlinkCount = g.docs.filter(d => selectedUnlinkKeys.has(unlinkKey(d.id, g.equipment_id))).length
               return (
                 <div key={g.equipment_id} className="border-t border-[#f0e8dc]">
-                  <div className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
+                  <div data-search-hit={cardHit(g) ? '' : undefined} className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
                     <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </button>
                     <div className="flex-1 min-w-0 sm:contents">
-                      <span className="hidden sm:inline text-[#4a3422] truncate">{g.equipment_id}</span>
-                      <span className="hidden sm:inline text-[#6b4f38] truncate">{g.name}</span>
-                      <span className="sm:hidden block truncate"><span className="text-[#4a3422]">{g.equipment_id}</span> <span className="text-[#6b4f38]">{g.name}</span></span>
+                      <span className="hidden sm:inline text-[#4a3422] truncate"><HighlightText text={g.equipment_id} query={listQuery} /></span>
+                      <span className="hidden sm:inline text-[#6b4f38] truncate"><HighlightText text={g.name} query={listQuery} /></span>
+                      <span className="sm:hidden block truncate"><span className="text-[#4a3422]"><HighlightText text={g.equipment_id} query={listQuery} /></span> <span className="text-[#6b4f38]"><HighlightText text={g.name} query={listQuery} /></span></span>
                     </div>
                     <span className="text-right text-[#6b4f38] flex-shrink-0">{g.docs.length}</span>
                   </div>
@@ -623,6 +647,7 @@ export default function ExpandableDocumentList({
           </div>
         )
       )}
+      </div>
 
       {/* 批次刪除確認：列出每份文件目前掛載的料卡（一行一個料卡，可捲動） */}
       <ConfirmDialog

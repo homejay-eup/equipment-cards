@@ -13,6 +13,7 @@ import PackageBatchActionsBar from './PackageBatchActionsBar'
 import PackageListView from './PackageListView'
 import EquipmentListView from './EquipmentListView'
 import { unlinkKey } from './unlinkKey'
+import SearchHitBanner, { locateFirstHit, useAutoLocate } from '@/components/common/SearchHit'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { logUsageEvent } from '@/lib/analyticsClient'
@@ -197,6 +198,20 @@ export default function PackageExplorer({
       : equipmentGroups
     return [...base].sort((a, b) => a.equipment_id.localeCompare(b.equipment_id))
   }, [equipmentGroups, query])
+
+  // 搜尋命中：結果少（5 筆內）就自動展開，並自動捲到第一筆命中、標亮閃動
+  const listRef = useRef<HTMLDivElement>(null)
+  const hitCount = view === 'byPackage' ? filteredPackages.length : filteredEquipmentGroups.length
+  useEffect(() => {
+    if (!trimmedQuery || hitCount === 0 || hitCount > 5) return
+    const keys = view === 'byPackage' ? filteredPackages.map(p => p.id) : filteredEquipmentGroups.map(g => g.equipment_id)
+    setExpanded(prev => {
+      if (keys.every(k => prev.has(k))) return prev
+      const n = new Set(prev); keys.forEach(k => n.add(k)); return n
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trimmedQuery, view, hitCount])
+  useAutoLocate(listRef, trimmedQuery, `${view}|${hitCount}|${expanded.size}`)
 
   function alignmentBadge(pkg: EquipmentPackage | SharedEquipmentPackage) {
     const groupUpdatedAt = pkg.source_group_id ? sourceGroupUpdatedAt[pkg.source_group_id] : undefined
@@ -537,9 +552,12 @@ export default function PackageExplorer({
 
       {actionError && <p className="text-xs text-[#b5451b] mb-2 whitespace-pre-wrap">{actionError}</p>}
 
+      <SearchHitBanner query={trimmedQuery} count={hitCount} unit={view === 'byPackage' ? '個組合' : '個料號'} onLocate={() => locateFirstHit(listRef.current)} />
+      <div ref={listRef}>
       {view === 'byPackage' ? (
         <PackageListView
           filteredPackages={filteredPackages}
+          query={trimmedQuery}
           allCards={allCards}
           cardMap={cardMap}
           expanded={expanded}
@@ -587,6 +605,7 @@ export default function PackageExplorer({
       ) : (
         <EquipmentListView
           filteredEquipmentGroups={filteredEquipmentGroups}
+          query={trimmedQuery}
           packages={packages}
           expanded={expanded}
           toggleExpand={toggleExpand}
@@ -602,6 +621,7 @@ export default function PackageExplorer({
           onReplace={(equipmentId, equipmentName) => setReplaceTarget({ equipmentId, equipmentName })}
         />
       )}
+      </div>
 
       {running && (
         <div className="flex items-center gap-2 text-xs text-[#a08060] py-2 justify-center">

@@ -146,6 +146,19 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
   const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin' | 'prices' | 'residual' | 'inventory'>('all')
+  // 進網站後稍等一下（讓主頁先畫好），就在背景把其他分頁都載入；切過去時資料已經在了，不用再等。
+  // visited：這個分頁使用者去過沒。沒去過之前一律當作「啟用中」，讓掛載時的第一次載入在背景跑完；
+  // 去過之後切回來，才會照原本的做法靜默重抓最新資料（畫面不會出現讀取中）。
+  const [warm, setWarm] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setWarm(true), 800)
+    return () => clearTimeout(t)
+  }, [])
+  const [visited, setVisited] = useState<Set<string>>(new Set())
+  const act = (tab: string) => activeTab === tab || !visited.has(tab)
+  useEffect(() => {
+    setVisited(v => (v.has(activeTab) ? v : new Set(v).add(activeTab)))
+  }, [activeTab])
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -154,8 +167,8 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 首次切到「任務板」才 mount TrackerClient，之後保持常駐（CSS hide/show）保留 state
   const [trackerMounted, setTrackerMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'tracker') setTrackerMounted(true)
-  }, [activeTab])
+    if (activeTab === 'tracker' || (warm && permissions.includes('view_tracker'))) setTrackerMounted(true)
+  }, [activeTab, warm, permissions])
   // 首次切到「人為配件報價」才 mount QuotesClient，之後保持常駐（CSS hide/show）保留 state
   const [quotesMounted, setQuotesMounted] = useState(false)
   useEffect(() => {
@@ -175,32 +188,33 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
   const [documentsMounted, setDocumentsMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'documents') setDocumentsMounted(true)
-  }, [activeTab])
+    if (activeTab === 'documents' || (warm && permissions.includes('manage_documents'))) setDocumentsMounted(true)
+  }, [activeTab, warm, permissions])
   // 文件管理批次動作背景執行中時，即使切走分頁也要在分頁按鈕上維持提示
   const [documentsBusy, setDocumentsBusy] = useState(false)
   // 首次切到「設備組合」才 mount PackagesClient，之後保持常駐（CSS hide/show）保留 state
   const [packagesMounted, setPackagesMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'packages') setPackagesMounted(true)
-  }, [activeTab])
+    if (activeTab === 'packages' || (warm && (permissions.includes('view_own_packages') || permissions.includes('edit_own_packages')
+      || permissions.includes('share_own_packages') || permissions.includes('view_shared_packages')))) setPackagesMounted(true)
+  }, [activeTab, warm, permissions])
   // 首次切到「維修資訊」才 mount MaintenanceInfoClient，之後保持常駐（CSS hide/show）保留 state
   const [maintenanceMounted, setMaintenanceMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'maintenance') setMaintenanceMounted(true)
-  }, [activeTab])
+    if (activeTab === 'maintenance' || (warm && permissions.includes('manage_maintenance_info'))) setMaintenanceMounted(true)
+  }, [activeTab, warm, permissions])
   // 首次切到「設備殘值計算」才 mount ResidualClient，之後保持常駐（CSS hide/show）保留計算中的資料
   const [residualMounted, setResidualMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'residual') setResidualMounted(true)
-  }, [activeTab])
+    if (activeTab === 'residual' || (warm && (permissions.includes('view_residual') || permissions.includes('edit_residual')))) setResidualMounted(true)
+  }, [activeTab, warm, permissions])
   // 供 CardDetailDialog「查看維修資訊」入口設定：跳轉維修資訊分頁時自動篩選出與該料號相關的規則
   const [maintenanceFilter, setMaintenanceFilter] = useState<{ equipmentId: string } | null>(null)
   // 首次切到「系統管理」才 mount SystemAdminClient，之後保持常駐（CSS hide/show）保留 state
   const [adminMounted, setAdminMounted] = useState(false)
   useEffect(() => {
-    if (activeTab === 'admin') setAdminMounted(true)
-  }, [activeTab])
+    if (activeTab === 'admin' || (warm && (permissions.includes('manage_users') || permissions.includes('manage_roles') || permissions.includes('view_analytics')))) setAdminMounted(true)
+  }, [activeTab, warm, permissions])
   // 供標題列「帳號管理」徽章點擊後跳轉系統管理分頁內的帳號管理子分頁：
   // 每次點擊帶一個新的 requestId，讓 SystemAdminClient 能區分「同一個 tab 但這是新的一次跳轉請求」
   const [adminSubTabRequest, setAdminSubTabRequest] = useState<{ tab: 'users' | 'roles' | 'departments' | 'analytics'; requestId: number } | null>(null)
@@ -1164,7 +1178,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             issueTags={trackerData.issueTags}
             onMyTasksCountChange={setTrackerPendingCount}
             userDepartmentId={trackerData.userDepartmentId ?? null}
-            isActive={activeTab === 'tracker'}
+            isActive={act('tracker')}
           />
         </div>
       )}
@@ -1217,7 +1231,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             permissions={permissions}
             userDepartmentId={packagesData.userDepartmentId}
             sourceGroupUpdatedAt={packagesData.sourceGroupUpdatedAt}
-            isActive={activeTab === 'packages'}
+            isActive={act('packages')}
             stickyTop={stickyHeaderHeight}
             onCardClick={(card) => setSelected(card)}
           />
@@ -1228,7 +1242,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {maintenanceMounted && (
         <div className={activeTab !== 'maintenance' ? 'hidden' : ''}>
           <MaintenanceInfoClient
-            isActive={activeTab === 'maintenance'}
+            isActive={act('maintenance')}
             filter={maintenanceFilter}
             permissions={permissions}
             allCards={initialCards}
@@ -1239,7 +1253,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 設備殘值計算：首次進入後保持常駐（CSS hide/show）；view/edit_residual 可看，edit_residual 可管理品項 */}
       {residualMounted && (
         <div className={activeTab !== 'residual' ? 'hidden' : ''}>
-          <ResidualClient isActive={activeTab === 'residual'} canEdit={permissions.includes('edit_residual')} />
+          <ResidualClient isActive={act('residual')} canEdit={permissions.includes('edit_residual')} />
         </div>
       )}
 
@@ -1247,7 +1261,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {adminMounted && (
         <div className={activeTab !== 'admin' ? 'hidden' : ''}>
           <SystemAdminClient
-            isActive={activeTab === 'admin'}
+            isActive={act('admin')}
             permissions={permissions}
             subTabRequest={adminSubTabRequest}
           />

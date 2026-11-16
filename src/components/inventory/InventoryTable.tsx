@@ -60,10 +60,10 @@ function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, 
     return (
       <tr key={p.key} {...bind('row', p.key, onMoveRow)}
         className={`group border-t border-[#f0e8de] hover:bg-[#fdf8f2] ${over === 'row' + p.key ? 'shadow-[inset_0_2px_0_#7a5230]' : ''} ${d ? 'bg-[#fff3d6]' : ''}`}>
-        <td className="sticky left-0 z-[1] w-[96px] min-w-[96px] max-w-[96px] truncate bg-white px-2.5 py-1.5 font-mono text-[12px] text-[#6b4f38] group-hover:bg-[#fdf8f2]">
+        <td className="sticky left-0 z-[1] w-[128px] min-w-[128px] max-w-[128px] truncate bg-white px-2.5 py-1.5 font-mono text-[12px] text-[#6b4f38] group-hover:bg-[#fdf8f2]">
           <Grip />{p.pid ?? '—'}
         </td>
-        <td className="sticky left-[96px] z-[1] min-w-[180px] bg-white px-2.5 lg:whitespace-nowrap py-1.5 group-hover:bg-[#fdf8f2] shadow-[1px_0_0_#e8ddd0]">
+        <td className="sticky left-[128px] z-[1] min-w-[180px] bg-white px-2.5 lg:whitespace-nowrap py-1.5 group-hover:bg-[#fdf8f2] shadow-[1px_0_0_#e8ddd0]">
           <button onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-left text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{p.name}</button>
           {!p.onCard && <span className="ml-1 rounded bg-[#f0e8de] px-1 text-[10px] text-[#a08060]">未對應料卡</span>}
           <Other p={p} sel={sel} allowed={allowed} />
@@ -113,8 +113,8 @@ function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, 
       <table className="min-w-full border-separate border-spacing-0">
         <thead className="sticky top-0 z-[2] bg-[#faf6f0]">
           <tr>
-            <th className={`${th} sticky left-0 z-[3] w-[96px] min-w-[96px] max-w-[96px] bg-[#faf6f0] text-left`} onClick={() => onSort('pid')}>品號{arrow('pid')}</th>
-            <th className={`${th} sticky left-[96px] z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`} onClick={() => onSort('name')}>品名{arrow('name')}</th>
+            <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`} onClick={() => onSort('pid')}>品號{arrow('pid')}</th>
+            <th className={`${th} sticky left-[128px] z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`} onClick={() => onSort('name')}>品名{arrow('name')}</th>
             {sel.map(w => (
               <th key={w} {...bind('col', w, onMoveCol)} onClick={() => onSort(w)} title="拖曳可調整欄位順序"
                 className={`${th} group text-right ${over === 'col' + w ? 'shadow-[inset_2px_0_0_#7a5230]' : ''}`}><Grip />{w}{arrow(w)}</th>

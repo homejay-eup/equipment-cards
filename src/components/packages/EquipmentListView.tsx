@@ -2,6 +2,7 @@
 
 import { Folder, Trash2, ChevronRight, ChevronDown, ArrowLeftRight } from 'lucide-react'
 import { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import QuantityStepper from '@/components/QuantityStepper'
 import PackageQuickPick from './PackageQuickPick'
 import { unlinkKey } from './unlinkKey'
@@ -15,11 +16,12 @@ interface EquipmentGroup {
 // 依料號列表：展開/摺疊、批次取消掛載、掛載到其他組合。
 // 從 PackageExplorer.tsx 拆出（純呈現＋既有 callback 轉發，行為不變）。
 export default function EquipmentListView({
-  filteredEquipmentGroups, packages, expanded, toggleExpand, busyIds, isShared, canEdit,
+  filteredEquipmentGroups, query = '', packages, expanded, toggleExpand, busyIds, isShared, canEdit,
   selectedUnlinkKeys, toggleUnlinkSelect, running,
   handleBatchUnlink, handleAddEquipmentToManyPackages, onUpdateQuantity, onReplace,
 }: {
   filteredEquipmentGroups: EquipmentGroup[]
+  query?: string
   packages: (EquipmentPackage | SharedEquipmentPackage)[]
   expanded: Set<string>
   toggleExpand: (key: string) => void
@@ -49,6 +51,7 @@ export default function EquipmentListView({
             <div
               role="button"
               tabIndex={0}
+              data-search-hit={query.trim() ? '' : undefined}
               onClick={() => toggleExpand(g.equipment_id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(g.equipment_id) }
@@ -59,8 +62,8 @@ export default function EquipmentListView({
                 <span className="text-[#a08060] flex-shrink-0">
                   {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </span>
-                <span className="text-[#4a3422] flex-shrink-0">{g.equipment_id}</span>
-                <span className="text-[#6b4f38] truncate min-w-0 flex-1">{g.name}</span>
+                <span className="text-[#4a3422] flex-shrink-0"><HighlightText text={g.equipment_id} query={query} /></span>
+                <span className="text-[#6b4f38] truncate min-w-0 flex-1"><HighlightText text={g.name} query={query} /></span>
               </div>
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                 <span className="text-[#a08060] flex-shrink-0">{g.packages.length} 份組合</span>

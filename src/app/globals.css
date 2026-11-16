@@ -152,3 +152,9 @@
 *:focus:not(:focus-visible) {
   outline: none !important;
 }
+
+/* 搜尋命中效果（SearchHit）：命中列標亮＋第一筆閃動 */
+html [data-search-hit] { background-color: #f7e3c8; box-shadow: inset 4px 0 0 #7a5230; }
+.search-hit-pulse { animation: searchHitPulse 1.1s ease-in-out 3; }
+@keyframes searchHitPulse { 50% { background-color: #fde9a8; } }
+@media (prefers-reduced-motion: reduce) { .search-hit-pulse { animation: none; } }
