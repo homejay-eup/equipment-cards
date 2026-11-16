@@ -92,6 +92,8 @@ const PERM_LABELS: Record<string, string> = {
   view_inventory_barcodes:    '可展開到條碼明細（沒有就只看數量）',
   refresh_inventory:          '可按「刷新庫存」（請公司電腦重抓 CRM）',
   export_stocktake:           '可匯出盤點表到 Google 試算表',
+  view_erp_inventory:         '可看 ERP 庫存分頁（無條碼品項；公司電腦登入 ERP 後才會更新，不能即時刷新）',
+  upload_erp_inventory:       '可手動上傳 ERP 匯出檔更新 ERP 庫存',
   // 列印
   print_cards:                '列印料卡（A6，單張/批次）',
   // 使用統計
@@ -168,6 +170,8 @@ const INVENTORY_PERMS = [
   'view_inventory_barcodes',
   'refresh_inventory',
   'export_stocktake',
+  'view_erp_inventory',
+  'upload_erp_inventory',
 ] as const
 
 // 列印分組：獨立單一權限，不需父子連動

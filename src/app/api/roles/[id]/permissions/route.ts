@@ -29,7 +29,7 @@ const VALID_PERMISSION_KEYS = [
   'manage_maintenance_info',
   'print_cards',
   'view_residual', 'edit_residual',
-  'view_inventory', 'view_inventory_barcodes', 'refresh_inventory', 'export_stocktake',
+  'view_inventory', 'view_inventory_barcodes', 'refresh_inventory', 'export_stocktake', 'view_erp_inventory', 'upload_erp_inventory',
 ]
 
 // GET /api/roles/[id]/permissions

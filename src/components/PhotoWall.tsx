@@ -22,7 +22,7 @@ import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClien
 import SystemAdminClient from '@/components/admin/SystemAdminClient'
 import ResidualClient from '@/components/residual/ResidualClient'
 import StandardPriceSheetClient from '@/components/standard-prices/StandardPriceSheetClient'
-import InventoryClient from '@/components/inventory/InventoryClient'
+import InventoryHub from '@/components/inventory/InventoryHub'
 import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags, Calculator, Warehouse } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
@@ -183,7 +183,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [inventoryMounted, setInventoryMounted] = useState(false)
   // 有庫存權限的人：進網站就先掛載（背景載入資料），切到庫存分頁時不用再等
   useEffect(() => {
-    if (activeTab === 'inventory' || permissions.includes('view_inventory')) setInventoryMounted(true)
+    if (activeTab === 'inventory' || permissions.includes('view_inventory') || permissions.includes('view_erp_inventory')) setInventoryMounted(true)
   }, [activeTab, permissions])
   // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
   const [documentsMounted, setDocumentsMounted] = useState(false)
@@ -809,7 +809,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">設備組合</span>
               </button>
             )}
-            {permissions.includes('view_inventory') && (
+            {(permissions.includes('view_inventory') || permissions.includes('view_erp_inventory')) && (
               <button
                 onClick={() => setActiveTab('inventory')}
                 title="庫存"
@@ -1204,7 +1204,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 庫存（Step 54）：首次進入後保持常駐（CSS hide/show）；view_inventory 可看 */}
       {inventoryMounted && (
         <div className={activeTab !== 'inventory' ? 'hidden' : ''}>
-          <InventoryClient />
+          <InventoryHub canCrm={permissions.includes('view_inventory')} canErp={permissions.includes('view_erp_inventory')} />
         </div>
       )}
 
