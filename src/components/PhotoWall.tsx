@@ -21,7 +21,8 @@ import PackagesClient from '@/components/PackagesClient'
 import MaintenanceInfoClient from '@/components/maintenance/MaintenanceInfoClient'
 import SystemAdminClient from '@/components/admin/SystemAdminClient'
 import StandardPriceSheetClient from '@/components/standard-prices/StandardPriceSheetClient'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags } from 'lucide-react'
+import InventoryClient from '@/components/inventory/InventoryClient'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags, Warehouse } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -143,7 +144,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
 
   // 組合 state
   const [groups, setGroups] = useState<UserGroup[]>(initialGroups ?? [])
-  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin' | 'prices'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'bookmarks' | 'tracker' | 'quotes' | 'documents' | 'packages' | 'maintenance' | 'admin' | 'prices' | 'inventory'>('all')
   // 首次切到「我的關注」才 mount GroupsPanel，之後保持常駐（CSS hide/show）
   const [groupsMounted, setGroupsMounted] = useState(false)
   useEffect(() => {
@@ -163,6 +164,11 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [pricesMounted, setPricesMounted] = useState(false)
   useEffect(() => {
     if (activeTab === 'prices') setPricesMounted(true)
+  }, [activeTab])
+  // Step 54：首次切到「庫存」才 mount InventoryClient，之後保持常駐（CSS hide/show）
+  const [inventoryMounted, setInventoryMounted] = useState(false)
+  useEffect(() => {
+    if (activeTab === 'inventory') setInventoryMounted(true)
   }, [activeTab])
   // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
   const [documentsMounted, setDocumentsMounted] = useState(false)
@@ -768,6 +774,20 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">設備組合</span>
               </button>
             )}
+            {permissions.includes('view_inventory') && (
+              <button
+                onClick={() => setActiveTab('inventory')}
+                title="庫存"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  activeTab === 'inventory'
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+                }`}
+              >
+                <Warehouse className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">庫存</span>
+              </button>
+            )}
             {permissions.includes('manage_maintenance_info') && (
               <button
                 onClick={() => { logUsageEvent('maintenance_tab_switch'); setActiveTab('maintenance') }}
@@ -799,7 +819,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
 
           {/* 搜尋列 + 篩選列 */}
-          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' || activeTab === 'admin' || activeTab === 'prices' ? 'hidden' : ''}>
+          <div className={activeTab === 'tracker' || activeTab === 'quotes' || activeTab === 'documents' || activeTab === 'packages' || activeTab === 'maintenance' || activeTab === 'admin' || activeTab === 'prices' || activeTab === 'inventory' ? 'hidden' : ''}>
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1143,6 +1163,13 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {pricesMounted && (
         <div className={activeTab !== 'prices' ? 'hidden' : ''}>
           <StandardPriceSheetClient canEdit={permissions.includes('edit_standard_prices')} />
+        </div>
+      )}
+
+      {/* 庫存（Step 54）：首次進入後保持常駐（CSS hide/show）；view_inventory 可看 */}
+      {inventoryMounted && (
+        <div className={activeTab !== 'inventory' ? 'hidden' : ''}>
+          <InventoryClient isActive={activeTab === 'inventory'} />
         </div>
       )}
 

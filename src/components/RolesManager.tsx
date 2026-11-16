@@ -83,6 +83,11 @@ const PERM_LABELS: Record<string, string> = {
   // 標準售價
   view_standard_prices:       '可看標準售價',
   edit_standard_prices:       '編輯價目表：儲存修改、另存新版本、上傳、刪除版本、修改紀錄還原（隱含可看）',
+  // 庫存（Step 54）
+  view_inventory:             '可看 CRM 庫存頁與料卡上的庫存數字',
+  view_inventory_barcodes:    '可展開到條碼明細（沒有就只看數量）',
+  refresh_inventory:          '可按「刷新庫存」（請公司電腦重抓 CRM）',
+  export_stocktake:           '可匯出盤點表到 Google 試算表',
   // 列印
   print_cards:                '列印料卡（A6，單張/批次）',
   // 使用統計
@@ -145,6 +150,14 @@ const QUOTE_PERMS = [
 const STANDARD_PRICE_PERMS = [
   'view_standard_prices',
   'edit_standard_prices',
+] as const
+
+// 庫存分組（Step 54）：四個獨立 key，UI 扁平列出
+const INVENTORY_PERMS = [
+  'view_inventory',
+  'view_inventory_barcodes',
+  'refresh_inventory',
+  'export_stocktake',
 ] as const
 
 // 列印分組：獨立單一權限，不需父子連動
@@ -823,6 +836,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                 { label: '追蹤板', keys: TRACKER_PERMS, radio: false },
                 { label: '人為配件報價', keys: QUOTE_PERMS, radio: false },
                 { label: '標準售價', keys: STANDARD_PRICE_PERMS, radio: false },
+                { label: '庫存', keys: INVENTORY_PERMS, radio: false },
                 { label: '設備組合', keys: PACKAGE_PERMS, radio: false },
                 { label: '列印', keys: PRINT_PERMS, radio: false },
                 { label: '使用統計', keys: ANALYTICS_PERMS, radio: false },
@@ -1216,6 +1230,25 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                   <p className="text-xs font-semibold text-[#6b4f38] mb-2">標準售價</p>
                   <div className="space-y-1.5">
                     {STANDARD_PRICE_PERMS.map(key => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={draft.includes(key)}
+                          onChange={() => handleDetailToggle(role, key)}
+                          disabled={isSavingPerm}
+                          className="accent-[#7a5230]"
+                        />
+                        <span className="text-sm text-[#4a3422]">{PERM_LABELS[key]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 庫存（Step 54） */}
+                <div>
+                  <p className="text-xs font-semibold text-[#6b4f38] mb-2">庫存</p>
+                  <div className="space-y-1.5">
+                    {INVENTORY_PERMS.map(key => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           type="checkbox"
