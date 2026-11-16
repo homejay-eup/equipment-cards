@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>庫存頁草圖</title>
+<style>
+:root{--bg:#faf6f0;--fg:#2c1e12;--card:#fff9f4;--primary:#7a5230;--sec:#e8ddd0;--muted:#f2ebe0;--mfg:#a08060;--border:#e5d9cb;--red:#b5451b;--redbg:#fbe4dc;--green:#4f7a3a;--greenbg:#e3eedb;--amber:#a86a12;--amberbg:#f6e7c8;--gray:#f1efec;accent-color:#7a5230}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+button{font:inherit;cursor:pointer;color:inherit}
+input[type=checkbox]{accent-color:var(--primary);width:14px;height:14px;margin:0}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+.mono{font-family:ui-monospace,Consolas,monospace}.num{font-variant-numeric:tabular-nums}
+header{border-bottom:1px solid var(--border)}
+.hin{max-width:1240px;margin:0 auto;padding:12px 16px 10px}
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.top h1{font-size:18px;margin:0;color:var(--primary)}
+.top .sub{color:var(--mfg);font-size:11px}.top .r{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--mfg)}
+.badge-admin{border:1px solid var(--primary);color:var(--primary);background:var(--sec);border-radius:4px;padding:1px 6px;font-size:11px}
+.btn-o{border:1px solid var(--border);background:var(--card);border-radius:6px;padding:5px 10px;display:inline-flex;gap:5px;align-items:center}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.pill{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:4px 11px;font-size:12px;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+.pill.on{background:var(--primary);color:#fff;border-color:var(--primary)}.pill .cnt{font-size:10px;color:var(--mfg)}
+.new{font-size:9px;background:var(--red);color:#fff;border-radius:3px;padding:0 3px}
+main{max-width:1240px;margin:0 auto;padding:16px}
+.ph{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ph h2{font-size:17px;margin:0}.ph .desc{color:var(--mfg);font-size:11px}.ph .r{margin-left:auto}
+.btn-p{background:var(--primary);color:#fff;border:1px solid var(--primary);border-radius:6px;padding:6px 12px;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.btn-p:disabled{opacity:.75;cursor:default}
+.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 12px;min-width:96px}
+.stat b{font-size:18px;display:block;line-height:1.2}.stat span{font-size:11px;color:var(--mfg)}.stat.red b{color:var(--red)}
+.sync{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 12px;margin-bottom:12px;font-size:12px;color:var(--mfg)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
+.dot.busy{background:var(--amber);animation:pl 1s infinite}@keyframes pl{50%{opacity:.3}}
+.steps{display:none;gap:4px}.steps.show{display:flex}
+.st{padding:1px 8px;border-radius:999px;background:var(--gray);color:var(--mfg);font-size:11px}
+.st.now{background:var(--amberbg);color:var(--amber)}.st.done{background:var(--greenbg);color:var(--green)}
+.prog{flex:1;min-width:120px;height:4px;background:var(--gray);border-radius:2px;overflow:hidden;display:none}.prog.show{display:block}
+.prog i{display:block;height:100%;width:0;background:var(--primary);transition:width .4s}
+/* 工具列 */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.sbox{flex:1;min-width:240px;display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:0 10px}
+.sbox input{border:0;background:none;outline:none;flex:1;padding:8px 0;font:inherit}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:6px 11px;display:inline-flex;gap:5px;align-items:center;font-size:12px;color:var(--mfg)}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button.on{background:var(--sec);color:var(--primary);font-weight:600}
+/* 「只看有庫存」：照網站的開關膠囊 */
+.toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--card);border-radius:999px;padding:4px 12px 4px 5px;font-size:12px;color:var(--mfg);cursor:pointer;user-select:none}
+.toggle input{display:none}
+.toggle .sw{width:28px;height:16px;border-radius:999px;background:var(--sec);position:relative;transition:.15s}
+.toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0003;transition:.15s}
+.toggle input:checked+.sw{background:var(--primary)}.toggle input:checked+.sw::after{left:14px}
+.toggle:has(input:checked){color:var(--primary);border-color:#cdb79f;background:#fff}
+.whchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12px;color:var(--mfg)}
+.chip{background:var(--sec);color:var(--primary);border-radius:999px;padding:2px 10px;font-size:12px}
+.lnk{border:0;background:none;color:var(--primary);text-decoration:underline;font-size:12px;padding:0}
+/* 樞紐表 */
+.pvwrap{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:70vh}
+table.pv{border-collapse:separate;border-spacing:0;width:100%;min-width:560px}
+.pv th,.pv td{padding:5px 12px;white-space:nowrap;border-bottom:1px solid #f0e8de}
+.pv thead th{position:sticky;top:0;z-index:2;background:var(--gray);color:#6b5a48;font-weight:600;font-size:12px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+.pv thead th:hover{color:var(--primary)}
+.pv .c1{position:sticky;left:0;background:inherit;z-index:1;width:96px;min-width:96px;max-width:96px}
+.pv tr.grp .c1,.pv tfoot .c1{max-width:none}
+.pv .c2{position:sticky;left:96px;background:inherit;z-index:1;min-width:200px;border-right:1px solid var(--border)}
+.pv thead .c1,.pv thead .c2{z-index:3;background:var(--gray)}
+.pv tbody tr{background:#fff}.pv tbody tr.item:hover{background:#fdf3e8}
+.pv td.n,.pv th.n{text-align:right;font-variant-numeric:tabular-nums;width:110px}
+.pv td.tot,.pv th.tot{background:#faf3ea;font-weight:700;border-left:1px solid var(--border)}
+.pv thead th.tot{background:#efe4d6}
+.pv .cell{border:0;background:none;padding:2px 6px;border-radius:4px;color:var(--fg);font:inherit}
+.pv .cell:hover{background:var(--sec);color:var(--primary);text-decoration:underline}
+.pv .bad{display:inline-block;margin-left:4px;font-size:10px;color:var(--red);background:var(--redbg);border-radius:3px;padding:0 4px;vertical-align:1px}
+.pv tr.grp td{background:var(--muted);font-weight:700;cursor:pointer;border-bottom:1px solid var(--border)}
+.pv tr.grp .tg{display:inline-flex;width:14px;height:14px;border:1px solid var(--mfg);border-radius:3px;align-items:center;justify-content:center;font-size:11px;line-height:1;color:var(--mfg);margin-right:6px;background:#fff}
+.pv tfoot td{position:sticky;bottom:0;background:#efe4d6;font-weight:700;border-top:1px solid var(--border)}
+.pv .arrow{font-size:10px;color:var(--primary)}
+.delta{font-size:10px;color:var(--green);margin-left:3px}.delta.neg{color:var(--red)}
+.flash{animation:fl 2.4s}@keyframes fl{0%,30%{background:#f6e7c8}}
+/* 列表檢視 */
+.list{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.row{display:grid;grid-template-columns:18px 44px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+.row:hover{background:#fdf3e8}.chev{color:var(--mfg);transition:transform .15s}.row.open .chev{transform:rotate(90deg)}
+.thumb{width:44px;height:44px;border-radius:6px;background:linear-gradient(135deg,#8d8a86,#55524f)}
+.pn{font-size:11px;color:var(--mfg)}.nm{font-weight:600}.tag{font-size:10px;border:1px solid var(--border);border-radius:4px;padding:0 5px;color:var(--mfg);background:#fff}
+.qty b{font-size:17px}.qty small{display:block;font-size:10px;color:var(--mfg);text-align:right}
+.detail{background:#fffdfa;border-bottom:1px solid var(--border);padding:10px 12px 12px 84px}
+.tbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
+.tbl th{background:var(--gray);color:#6b5a48;font-weight:500;font-size:11px;text-align:left;padding:6px 10px;border-bottom:1px solid var(--border)}
+.tbl td{padding:6px 10px;border-bottom:1px solid #f0e8de}.tbl tr:last-child td{border-bottom:0}.tbl .r{text-align:right}
+.empty{padding:28px;text-align:center;color:var(--mfg)}
+/* 條碼側欄 */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(820px,100vw);background:var(--card);box-shadow:-8px 0 30px #0002;transform:translateX(100%);transition:.2s;z-index:30;display:flex;flex-direction:column}
+.drawer.show{transform:none}
+.drawer .hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start}
+.drawer .hd h3{margin:0;font-size:15px}.drawer .hd .x{margin-left:auto;border:0;background:none;font-size:18px;color:var(--mfg)}
+.drawer .bd{padding:12px 16px;overflow:auto}
+.drawer .tbl th,.drawer .tbl td{white-space:nowrap;padding:6px 8px}.drawer .tbl{width:auto;min-width:100%}.drawer .tbl .ok,.drawer .tbl .no{white-space:nowrap;display:inline-block}
+.bctools{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-bottom:8px;font-size:11px;color:var(--mfg);flex-wrap:wrap}
+.bctools input{border:1px solid var(--border);border-radius:5px;padding:4px 8px;font:inherit;flex:1;min-width:140px}
+.mini{border:1px solid var(--border);background:#fff;border-radius:5px;padding:3px 8px;font-size:11px;display:inline-flex;gap:4px;align-items:center}
+.ok{background:var(--greenbg);color:var(--green);border-radius:4px;padding:0 6px;font-size:11px}
+.hl td{background:#f7e3c8!important;font-weight:600}.hl td:first-child{box-shadow:inset 4px 0 0 var(--primary)}
+.hl.pulse td{animation:hlp 1.6s ease-out 2}@keyframes hlp{0%{background:#e9c08e}100%{background:#f7e3c8}}
+.found{border:1.5px solid var(--primary);background:#fff8ee;border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.found .fl{font-size:11px;color:var(--primary);font-weight:700;margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.found .fb{font-size:17px;font-weight:700;letter-spacing:.3px}
+.found .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:4px 12px;margin-top:6px;font-size:12px}.found .fg span{color:var(--mfg);margin-right:4px}
+.found .jump{margin-left:auto;border:0;background:none;color:var(--primary);font-size:11px;text-decoration:underline;cursor:pointer}
+.bchits{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}.bchits td{padding:4px 8px;border-top:1px solid var(--border)}.bchits tr{cursor:pointer}.bchits tr:hover td{background:#f6efe4}
+.no{background:var(--redbg);color:var(--red);border-radius:4px;padding:0 6px;font-size:11px}
+/* 選倉視窗 */
+.stk{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}.stk th{background:#7a5230;color:#fff;padding:5px 8px;font-weight:700;text-align:center;white-space:nowrap}
+.stk td{padding:4px 8px;border-bottom:1px solid #e8ddd0;text-align:center}.stk td.l{text-align:left}.stk tbody tr:nth-child(even) td{background:#faf6f0}
+.stk .pos{color:#3d7a3a;font-weight:700;background:#e6f0e0!important}.stk .neg{color:#b5451b;font-weight:700;background:#f8e4dc!important}.stk .inp{background:#fffbe8!important}
+.opt{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:6px 0}.opt label{display:inline-flex;gap:5px;align-items:center}.opt input{accent-color:#7a5230}
+.stk input.loc{width:54px;text-align:center;border:1px dashed #c9b8a4;border-radius:4px;background:#fff;font:inherit;padding:1px 4px}.stk input.loc:focus{outline:2px solid #7a5230;border-style:solid}
+.fname{font-size:12px;background:#f6efe4;border-radius:6px;padding:6px 10px;margin:8px 0}.fname b{font-family:ui-monospace,Consolas,monospace}
+.newdata{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff8ee;border:1px solid #e6c9a3;border-radius:8px;padding:8px 12px;margin:-4px 0 12px;font-size:12px}
+.newdata[hidden]{display:none}.newdata .lnk2{border:0;background:none;color:var(--mfg);font-size:12px;cursor:pointer;text-decoration:underline}
+.mask{position:fixed;inset:0;background:#2c1e1255;display:none;align-items:center;justify-content:center;z-index:20;padding:16px}.mask.show{display:flex}
+.scrim{position:fixed;inset:0;background:#2c1e1233;display:none;z-index:25}.scrim.show{display:block}
+.dlg{background:var(--card);border-radius:12px;width:min(640px,100%);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 40px #0003}
+.dlg h3{margin:0;font-size:15px;padding:14px 16px 4px}.dlg .sub{padding:0 16px 8px;color:var(--mfg);font-size:11px}
+.dlg .body{overflow:auto;padding:0 16px 8px}
+.grp2{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:#fff}
+.grp2 summary{padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;font-weight:600;list-style:none}
+.grp2 summary::-webkit-details-marker{display:none}
+.grp2 .items{padding:2px 10px 8px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px}
+.grp2 label{display:flex;gap:7px;align-items:center}.grp2 label.dis{opacity:.45}
+.lock{font-size:10px;background:var(--gray);border-radius:3px;padding:0 4px;color:var(--mfg)}
+.dlg .ft{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);align-items:center}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+.nmlink{border:0;background:none;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.nmlink:hover{color:var(--primary);text-decoration:underline}
+.oth{font-size:10px;color:var(--mfg);background:var(--muted);border-radius:3px;padding:0 5px;margin-left:4px;white-space:nowrap}
+.hint{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.drawer .seg button{font-size:12px}
+/* 拖曳 */
+.grip{color:#c9b8a4;font-size:11px;letter-spacing:-2px;margin-right:6px;cursor:grab;opacity:0;transition:opacity .15s;user-select:none}
+tr:hover .grip,th:hover .grip,.chip:hover .grip,.row:hover .grip{opacity:1}
+.chip .grip{opacity:.6}
+.chip.dcol{cursor:grab}
+.dragging{opacity:.4}
+th.dropL,.chip.dropL{box-shadow:inset 3px 0 0 var(--primary)}
+tr.dropT td,.row.dropT{box-shadow:inset 0 3px 0 var(--primary)}
+.row{position:relative;padding-left:24px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--fg);color:#fff;padding:6px 14px;border-radius:999px;font-size:12px;opacity:0;transition:.2s;z-index:40;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.note{margin-top:16px;font-size:11px;color:var(--mfg);border-left:3px solid var(--sec);padding-left:10px}
+@media(max-width:760px){.hide-s{display:none}.grp2 .items{grid-template-columns:1fr}.top .r .em{display:none}.detail{padding-left:12px}.pv .c2{min-width:140px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+ <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+ <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+ <symbol id="i-ware" viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-8h10v8"/><path d="M7 17h10"/></symbol>
+ <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1"/></symbol>
+ <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5L22 14l-8 8-2.3-2.3a4 4 0 0 0-5-5L2 10l8-8z"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></symbol>
+ <symbol id="i-ref" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+ <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></symbol>
+ <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h0M3 12h0M3 18h0"/></symbol>
+ <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+ <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+ <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+ <symbol id="i-wh" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+</svg>
+
+<header><div class="hin">
+  <div class="top"><h1>設備料卡管理系統</h1><span class="sub">共 931 張主圖・1314 張細節</span>
+    <div class="r"><span class="badge-admin">管理員</span><span>帳號管理</span><span class="em">homejay@eup.com.tw</span><button class="btn-o">登出</button></div></div>
+  <nav>
+    <span class="pill"><svg class="i"><use href="#i-grid"/></svg>全部料卡</span><span class="pill">人為配件報價</span><span class="pill">設備殘值計算</span>
+    <span class="pill"><svg class="i"><use href="#i-tag"/></svg>標準售價</span><span class="pill">我的關注 <span class="cnt">3</span></span><span class="pill">任務板 <span class="cnt">15</span></span>
+    <span class="pill">文件管理</span><span class="pill"><svg class="i"><use href="#i-box"/></svg>設備組合</span>
+    <span class="pill on"><svg class="i"><use href="#i-ware"/></svg>庫存</span>
+    <span class="pill"><svg class="i"><use href="#i-wrench"/></svg>維修資訊</span><span class="pill"><svg class="i"><use href="#i-gear"/></svg>系統管理</span>
+  </nav>
+</div></header>
+
+<main>
+  <div class="ph">
+    <div><h2>CRM 庫存</h2><div class="desc">數量來自 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可隨時刷新。</div></div>
+    <div class="r stats hide-s">
+      <div class="stat"><b class="num" id="sOk">0</b><span>所選倉可使用</span></div>
+      <div class="stat red"><b class="num" id="sBad">0</b><span>不可使用</span></div>
+      <div class="stat"><b class="num" id="sCnt">0</b><span>有庫存品項</span></div>
+    </div>
+  </div>
+
+  <div class="sync">
+    <span class="dot" id="dot"></span><span id="syncTxt">資料庫打底 <b style="color:var(--fg)">11/11</b>（草圖用的真實數量）・CRM 同步尚未上線</span>
+    <div class="steps" id="steps"><span class="st">開始</span><span class="st">刷新</span><span class="st">CRM</span><span class="st">完成</span></div>
+    <div class="prog" id="prog"><i id="bar"></i></div>
+    <button class="btn-o" id="stkBtn" style="margin-left:auto">匯出盤點表</button><button class="btn-p" id="refresh"><svg class="i" id="refIcon"><use href="#i-ref"/></svg><span id="refTxt">刷新庫存</span></button>
+  </div>
+
+  <div class="toolbar">
+    <label class="sbox"><svg class="i" style="color:var(--mfg)"><use href="#i-search"/></svg><input id="q" placeholder="搜尋料號、品名，或貼上條碼"></label>
+    <div class="seg" id="view"><button data-v="pivot"><svg class="i"><use href="#i-table"/></svg>樞紐表</button><button data-v="list"><svg class="i"><use href="#i-list"/></svg>列表</button></div>
+    <div class="seg" id="grp"><button data-g="type">依類型分組</button><button data-g="none">不分組</button></div>
+    <div class="seg"><button id="sortBtn">≡ 我的排序</button><button id="resetBtn" title="清除拖曳過的順序、收合狀態">↺ 恢復預設</button></div>
+    <label class="toggle"><input type="checkbox" id="onlyStock" checked><span class="sw"></span>只看有庫存</label>
+  </div>
+  <div class="whchips"><svg class="i"><use href="#i-wh"/></svg>倉庫（欄位順序可拖曳）：<span id="chips"></span><button class="lnk" id="edit">編輯倉庫</button></div>
+
+  <div id="out"></div>
+  <div class="note">品項總覽：點任一品名（或搜尋後上方的品名按鈕）→ 右側列出它在<b>所有倉</b>的數量（含不在你欄位裡的倉），點倉庫展開條碼，或切「全部條碼」一次看全部並可搜尋／匯出；品名旁「其他 N 倉 +數量」提醒還有貨在你沒選的倉。<br>拖曳：滑到列或欄位標題會出現 ⋮⋮，可拖曳「倉庫欄位」（表頭或上方膠囊）、「產品列」、「分組（車機／配件／Sim）」；放開後自動記住，重新整理頁面仍保留；「≡ 我的排序」回到你拖好的順序、「↺ 恢復預設」清掉。<br>草圖操作：①右上切「樞紐表／列表」「依類型分組／不分組」，會記住 ②樞紐表點欄位標題排序、點 ⊟ 收合分組、點任一數字開右側條碼明細 ③「只看有庫存」是開關 ④「編輯倉庫」選要當欄位的倉 ⑤刷新看等待過程。數量是 11/11 資料庫備份的真實資料（約 120 項、14 個倉）；條碼只有 S168-LTE(BT)／總倉 是真的。</div>
+</main>
+
+<div class="mask" id="mask"><div class="dlg">
+  <h3>選擇要看的倉庫</h3><div class="sub">只列出你的角色能看的倉庫。選好會自動記住，換電腦也一樣。</div>
+  <div class="body">
+    <div class="presets"><button class="mini" data-p="總倉">只看總倉</button><button class="mini" data-p="固資倉(整新),固資倉(舊品),總倉">總倉＋固資倉</button><button class="mini" data-p="總倉,北區辦公室,中區辦公室,南區辦公室">總倉＋各區辦公室</button></div>
+    <div id="groups"></div>
+  </div>
+  <div class="ft"><span class="sub" style="padding:0" id="selN"></span><button class="btn-o" style="margin-left:auto" id="cancel">取消</button><button class="btn-p" id="ok">套用</button></div>
+</div></div>
+<div class="mask" id="stkMask"><div class="dlg" style="width:min(720px,100%)">
+  <h3>匯出盤點表</h3><div class="sub">建立一份 Google 試算表到共用雲端硬碟的「盤點表」資料夾，格式和顏色都設定好，打開就能填實盤數。「倉別」是放在哪個儲位（A／B／C…），跟著品號記住：在這裡或在試算表裡改過，下次匯出都會帶入。</div>
+  <div class="body">
+    <div id="stkWrap"><div class="opt"><b>你選了 <span id="stkN"></span> 個倉</b><label><input type="radio" name="stkW" value="merge" checked>數量加總，做成一張表</label><label><input type="radio" name="stkW" value="each">每個倉分開，各一個分頁</label></div><div class="pn" id="stkWHint" style="margin:-2px 0 6px"></div></div>
+    <div class="opt"><b>數量</b><label><input type="radio" name="stkQ" value="all" checked>可使用＋不可使用（實際在架上的）</label><label><input type="radio" name="stkQ" value="ok">只算可使用</label></div>
+    <div class="opt"><label><input type="checkbox" id="stkZero">也列出數量 0 的品項</label></div>
+    <div class="fname">檔名：<b id="stkFile"></b>　分頁：<b id="stkTab"></b></div>
+    <div class="pn">預覽（前 8 列）：匯出時「實盤數」和「盤差」都是空白；在 Google 試算表填實盤數後，盤差自動算出並變色（多了綠、少了紅、對上是 0）。下面黃底格子可以試填看看</div>
+    <div id="stkPrev"></div>
+  </div>
+  <div class="ft"><span class="sub" style="padding:0" id="stkMsg"></span><button class="btn-o" style="margin-left:auto" id="stkCancel">取消</button><button class="btn-p" id="stkGo">建立 Google 試算表</button></div>
+</div></div>
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast"></div>
+<aside class="drawer" id="drawer"><div class="hd"><div><div class="pn mono" id="dPid"></div><h3 id="dTitle"></h3><div class="pn" id="dSub"></div></div><button class="x" id="dClose">✕</button></div><div class="bd" id="dBody"></div></aside>
+
+<script src="step54-mockup-data.js"></script>
+<script>
+const REG={"公司":["總倉","固資倉(舊品)","固資倉(整新)","供應鏈管理組","長輝倉","待修倉","北區辦公室","竹區辦公室","中區辦公室","南區辦公室"],"國外":["國外預備倉-越南","國外固資倉-泰國"],"技師倉（240 位，依區域合計）":["北區技師合計","竹區技師合計","中區技師合計","南區技師合計"]};
+const DENY=["國外預備倉-越南","國外固資倉-泰國"];
+const P=window.INV_ROWS.map(([pid,nm,t,cells])=>{const st={};cells.split("|").forEach(c=>{const i=c.lastIndexOf(":");const[o,b]=c.slice(i+1).split(",").map(Number);st[c.slice(0,i)]=[o,b]});return[pid,nm,t,st]});
+const ops=["CRM_車機接收","CRM_成品準備","CRM_車機移交","CRM_條碼回廠","CRM_出貨平台"],ppl=["Mandy","Kevin","Van","Neil"];
+const $=id=>document.getElementById(id);const fmt=n=>n?n.toLocaleString():"";
+const ld=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let sel=ld("inv4wh",["總倉","固資倉(舊品)","固資倉(整新)","供應鏈管理組","待修倉","中區技師合計"]),view=ld("inv3view","pivot"),grp=ld("inv3grp","type"),sort=ld("inv4sort",{k:"pid",d:1}),collapsed=ld("inv4col",{}),delta={},
+ order=ld("inv4order",[]),gorder=ld("inv4gorder",["車機","配件","Sim"]);
+const rank=pid=>{const i=order.indexOf(pid);return i<0?1e6+P.findIndex(x=>x[0]===pid):i};
+function v(st,w){return st[w]||[0,0]}
+function rows(){const q=$("q").value.trim().toLowerCase(),only=$("onlyStock").checked;
+ return P.filter(([pid,nm,t,st])=>{const tot=(q?ALLWH:sel).reduce((a,w)=>a+v(st,w)[0]+v(st,w)[1],0);if(only&&!tot)return false;return!q||pid.toLowerCase().includes(q)||nm.toLowerCase().includes(q)})
+ .sort((a,b)=>{if(sort.k==="custom")return rank(a[0])-rank(b[0]);const f=r=>sort.k==="pid"?r[0]:sort.k==="nm"?r[1]:sort.k==="tot"?sel.reduce((s,w)=>s+v(r[3],w)[0],0):v(r[3],sort.k)[0];const x=f(a),y=f(b);return(x>y?1:x<y?-1:0)*sort.d})}
+function stats(rs){let ok=0,bad=0,n=0;rs.forEach(r=>{const o=sel.reduce((a,w)=>a+v(r[3],w)[0],0),b=sel.reduce((a,w)=>a+v(r[3],w)[1],0);ok+=o;bad+=b;if(o+b)n++});$("sOk").textContent=ok.toLocaleString();$("sBad").textContent=bad;$("sCnt").textContent=n}
+function cell(pid,w,[o,b]){if(!o&&!b)return"";return`<button class="cell" data-c="${pid}|${w}">${fmt(o)||"0"}</button>${b?`<span class="bad" title="不可使用">${b}</span>`:""}`}
+function other(st){const ws=Object.keys(st).filter(w=>!sel.includes(w)&&!DENY.includes(w)&&st[w][0]+st[w][1]);if(!ws.length)return"";const n=ws.reduce((a,w)=>a+st[w][0]+st[w][1],0);return` <span class="oth" title="${ws.join("、")}">其他 ${ws.length} 倉 +${n.toLocaleString()}</span>`}
+function arrow(k){return sort.k===k?`<span class="arrow">${sort.d>0?"▲":"▼"}</span>`:""}
+function pivot(rs){
+ const head=`<tr><th class="c1" data-s="pid">品號 ${arrow("pid")}</th><th class="c2" data-s="nm">品名 ${arrow("nm")}</th>${sel.map(w=>`<th class="n dcol" draggable="true" data-s="${w}" data-w="${w}" title="拖曳可調整欄位順序"><span class="grip">⋮⋮</span>${w} ${arrow(w)}</th>`).join("")}<th class="n tot" data-s="tot">總計 ${arrow("tot")}</th></tr>`;
+ const line=r=>{const[pid,nm,,st]=r;const tot=sel.reduce((a,w)=>a+v(st,w)[0],0),tb=sel.reduce((a,w)=>a+v(st,w)[1],0),d=delta[pid];
+  return`<tr class="item drow ${d?"flash":""}" draggable="true" data-pid="${pid}"><td class="c1 mono"><span class="grip" title="拖曳調整順序">⋮⋮</span>${pid}</td><td class="c2"><button class="nmlink" data-item="${pid}" title="看這個品項在所有倉的位置、數量與條碼">${nm}</button>${other(st)}</td>${sel.map(w=>`<td class="n">${cell(pid,w,v(st,w))}</td>`).join("")}<td class="n tot">${fmt(tot)||"0"}${d?`<span class="delta ${d<0?"neg":""}">${d>0?"+":""}${d}</span>`:""}${tb?`<span class="bad">${tb}</span>`:""}</td></tr>`};
+ const sum=(list,w)=>list.reduce((a,r)=>a+v(r[3],w)[0],0);
+ let body="";
+ if(grp==="type"){for(const t of gorder){const g=rs.filter(r=>r[2]===t);if(!g.length)continue;const c=collapsed[t];
+  body+=`<tr class="grp dgrp" draggable="true" data-g="${t}"><td class="c1" colspan="2"><span class="grip" title="拖曳調整分組順序">⋮⋮</span><span class="tg">${c?"+":"−"}</span>${t}（${g.length} 項）</td>${sel.map(w=>`<td class="n">${fmt(sum(g,w))}</td>`).join("")}<td class="n tot">${fmt(sel.reduce((a,w)=>a+sum(g,w),0))}</td></tr>`;
+  if(!c)body+=g.map(line).join("")}}else body=rs.map(line).join("");
+ const foot=`<tr><td class="c1" colspan="2">總計</td>${sel.map(w=>`<td class="n">${fmt(sum(rs,w))}</td>`).join("")}<td class="n tot">${fmt(sel.reduce((a,w)=>a+sum(rs,w),0))}</td></tr>`;
+ return rs.length?`<div class="pvwrap"><table class="pv"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`:`<div class="pvwrap"><div class="empty">找不到符合的產品</div></div>`}
+function list(rs){if(!rs.length)return`<div class="list"><div class="empty">找不到符合的產品</div></div>`;
+ return`<div class="list">${rs.map(([pid,nm,t,st])=>{const ws=sel.filter(w=>v(st,w)[0]+v(st,w)[1]);const o=sel.reduce((a,w)=>a+v(st,w)[0],0),b=sel.reduce((a,w)=>a+v(st,w)[1],0);
+  return`<div class="row drow" draggable="true" data-pid="${pid}"><span class="grip" title="拖曳調整順序" style="position:absolute;margin-left:-12px">⋮⋮</span><svg class="i chev"><use href="#i-chev"/></svg><div class="thumb"></div><div><div class="pn mono">${pid}</div><div class="nm"><button class="nmlink" data-item="${pid}">${nm}</button>${other(st)}</div><span class="tag">${t}</span> <span class="tag">${ws.length} 個倉有貨</span></div><div class="qty"><b class="num">${o.toLocaleString()}</b>${b?` <span class="no">不可用 ${b}</span>`:""}<small>可使用</small></div></div>
+  <div class="detail" id="d-${pid}" hidden><table class="tbl"><thead><tr><th>倉庫</th><th class="r">可使用</th><th class="r">不可使用</th></tr></thead><tbody>${ws.map(w=>`<tr><td>${w}</td><td class="r"><button class="cell lnk" data-c="${pid}|${w}">${v(st,w)[0]}</button></td><td class="r" style="color:${v(st,w)[1]?"var(--red)":"#c9b8a4"}">${v(st,w)[1]}</td></tr>`).join("")}</tbody></table></div>`}).join("")}</div>`}
+function render(){let rs=rows();const q=$("q").value.trim();let bch="";
+ if(q&&!rs.length){const hits=bcHits(q.toLowerCase());if(hits.length){const ids=[...new Set(hits.map(h=>h.pid))];rs=P.filter(r=>ids.includes(r[0]));
+  bch=`<div class="hint"><b>找到 ${hits.length}${hits.length>=30?"+":""} 筆條碼</b>，點一筆打開它所在倉的條碼明細：<table class="bchits">${hits.map(h=>`<tr data-hit="${h.pid}|${h.w}|${h.bc}"><td class="mono">${h.bc}</td><td>${h.nm}</td><td>${h.w}</td><td>${h.car||""}</td><td>${h.bad?'<span class="no">不可使用</span>':'<span class="ok">可用</span>'}</td></tr>`).join("")}</table></div>`}}
+ stats(rs);
+ const hint=bch?bch:q&&rs.length&&rs.length<=5?`<div class="hint"><b>搜尋到 ${rs.length} 個品項</b>，點品名可看它在<b>所有倉</b>的位置、數量和全部條碼：${rs.map(r=>`<button class="mini" data-item="${r[0]}">${r[1]}</button>`).join(" ")}</div>`:"";
+ $("out").innerHTML=hint+(view==="pivot"?pivot(rs):list(rs));
+ document.querySelectorAll("[data-item]").forEach(b=>{b.onclick=e=>{e.stopPropagation();openItem(b.dataset.item)};b.ondragstart=e=>e.stopPropagation()});
+ document.querySelectorAll("#view button").forEach(b=>b.classList.toggle("on",b.dataset.v===view));
+ document.querySelectorAll("#grp button").forEach(b=>b.classList.toggle("on",b.dataset.g===grp));$("grp").style.display=view==="pivot"?"":"none";
+ $("chips").innerHTML=sel.map(w=>`<span class="chip dcol" draggable="true" data-w="${w}"><span class="grip">⋮⋮</span>${w}</span>`).join(" ");
+ $("sortBtn").classList.toggle("on",sort.k==="custom");$("sortBtn").title=order.length?"用你拖曳排好的順序":"還沒拖曳過，先用品號順序";
+ document.querySelectorAll("[data-s]").forEach(th=>th.onclick=()=>{const k=th.dataset.s;sort=sort.k===k?{k,d:-sort.d}:{k,d:k==="pid"||k==="nm"?1:-1};sv("inv4sort",sort);render()});
+ document.querySelectorAll("tr.grp").forEach(tr=>tr.onclick=()=>{collapsed[tr.dataset.g]=!collapsed[tr.dataset.g];sv("inv4col",collapsed);render()});
+ bindDrag();
+ document.querySelectorAll(".row").forEach(r=>r.onclick=()=>{const d=$("d-"+r.dataset.pid);d.hidden=!d.hidden;r.classList.toggle("open",!d.hidden)});
+ document.querySelectorAll("[data-c]").forEach(b=>b.onclick=e=>{e.stopPropagation();openDrawer(...b.dataset.c.split("|"))});
+ document.querySelectorAll("[data-hit]").forEach(tr=>tr.onclick=()=>{const[a,w,...bc]=tr.dataset.hit.split("|");openDrawer(a,w,bc.join("|"))})}
+// ---- 拖曳＋位置記憶 ----
+let dragW=null,dragP=null,dragG=null;
+function clearMarks(){document.querySelectorAll(".dropL,.dropT,.dragging").forEach(e=>e.classList.remove("dropL","dropT","dragging"))}
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),1800)}
+function bindDrag(){
+ document.querySelectorAll(".dcol").forEach(el=>{
+  el.ondragstart=e=>{dragW=el.dataset.w;el.classList.add("dragging");e.dataTransfer.effectAllowed="move"};
+  el.ondragend=()=>{dragW=null;clearMarks()};
+  el.ondragover=e=>{if(!dragW||dragW===el.dataset.w)return;e.preventDefault();clearMarks();el.classList.add("dropL")};
+  el.ondrop=e=>{e.preventDefault();if(!dragW)return;const to=el.dataset.w;sel=sel.filter(w=>w!==dragW);sel.splice(sel.indexOf(to),0,dragW);sv("inv4wh",sel);dragW=null;render();toast("欄位順序已記住")}});
+ document.querySelectorAll(".drow").forEach(el=>{
+  el.ondragstart=e=>{dragP=el.dataset.pid;el.classList.add("dragging");e.dataTransfer.effectAllowed="move";e.stopPropagation()};
+  el.ondragend=()=>{dragP=null;clearMarks()};
+  el.ondragover=e=>{if(!dragP||dragP===el.dataset.pid)return;e.preventDefault();clearMarks();el.classList.add("dropT")};
+  el.ondrop=e=>{e.preventDefault();if(!dragP)return;
+   const cur=rows().map(r=>r[0]);const all=[...cur,...P.map(x=>x[0]).filter(p=>!cur.includes(p))];
+   const base=order.length?[...order.filter(p=>all.includes(p)),...all.filter(p=>!order.includes(p))]:all;
+   const arr=base.filter(p=>p!==dragP);arr.splice(arr.indexOf(el.dataset.pid),0,dragP);order=arr;sv("inv4order",order);
+   sort={k:"custom",d:1};sv("inv4sort",sort);dragP=null;render();toast("順序已記住（我的排序）")}});
+ document.querySelectorAll(".dgrp").forEach(el=>{
+  el.ondragstart=e=>{dragG=el.dataset.g;el.classList.add("dragging")};el.ondragend=()=>{dragG=null;clearMarks()};
+  el.ondragover=e=>{if(!dragG||dragG===el.dataset.g)return;e.preventDefault();clearMarks();el.classList.add("dropT")};
+  el.ondrop=e=>{e.preventDefault();if(!dragG)return;gorder=gorder.filter(g=>g!==dragG);gorder.splice(gorder.indexOf(el.dataset.g),0,dragG);sv("inv4gorder",gorder);dragG=null;render();toast("分組順序已記住")}});
+}
+$("sortBtn").onclick=()=>{sort={k:"custom",d:1};sv("inv4sort",sort);render()};
+$("resetBtn").onclick=()=>{order=[];gorder=["車機","配件","Sim"];sort={k:"pid",d:1};collapsed={};["inv4order","inv4gorder","inv4sort","inv4col"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});render();toast("已恢復預設排列")};
+function bcHits(q){const out=[];if(q.length<4)return out;for(const p of P)for(const w of ALLWH){const[o,b]=v(p[3],w);if(!o&&!b)continue;const real=(window.INV_REAL_BC||{})[p[0]+"|"+w];for(const r of bcRows(p[0],w,real?20:12))if(r.bc.toLowerCase().includes(q)){out.push({...r,pid:p[0],nm:p[1]});if(out.length>=30)return out}}return out}
+// ---- 品項總覽：這個品項在所有（有權限的）倉 ----
+const ALLWH=Object.values(REG).flat().filter(w=>!DENY.includes(w));
+function bcNo(pid,w,i){return"示意-"+pid+"-"+String(ALLWH.indexOf(w)*1000+i+1).padStart(4,"0")}
+function bcRows(pid,w,limit){const p=P.find(x=>x[0]===pid),[o,b]=v(p[3],w),n=o+b,real=(window.INV_REAL_BC||{})[pid+"|"+w];const out=[];
+ for(let i=0;i<Math.min(n,limit);i++)out.push({bc:real?real.bc[i]:bcNo(pid,w,i),note:i==1&&!real?"待測":"",car:real?"":(i%3?"":288900+i),t:real?real.t:"2026-11-"+String(12-i%9).padStart(2,"0"),op:real?real.op:ops[i%5],who:real?real.who:ppl[i%4],bad:i<b,w,real:!!real});return out}
+function openItem(pid){const p=P.find(x=>x[0]===pid);const ws=ALLWH.filter(w=>v(p[3],w)[0]+v(p[3],w)[1]).sort((a,b)=>(v(p[3],b)[0]+v(p[3],b)[1])-(v(p[3],a)[0]+v(p[3],a)[1]));
+ const ok=ws.reduce((s,w)=>s+v(p[3],w)[0],0),bad=ws.reduce((s,w)=>s+v(p[3],w)[1],0),hid=Object.keys(p[3]).filter(w=>DENY.includes(w)).length;
+ $("dPid").textContent=pid;$("dTitle").textContent=p[1];$("dSub").innerHTML=`全部 ${ws.length} 個倉・可使用 <b>${ok.toLocaleString()}</b>${bad?`・不可使用 <span style="color:var(--red)">${bad}</span>`:""}`;
+ const bcTable=(list,showW)=>`<table class="tbl"><thead><tr><th>條碼</th>${showW?"<th>倉庫</th>":""}<th>車代</th><th class="hide-s">更新</th><th class="hide-s">操作</th><th class="hide-s">更新人</th><th>狀態</th></tr></thead><tbody>${list.map(r=>`<tr><td class="mono">${r.bc}</td>${showW?`<td>${r.w}</td>`:""}<td>${r.car}</td><td class="hide-s">${r.t}</td><td class="hide-s">${r.op}</td><td class="hide-s">${r.who}</td><td>${r.bad?'<span class="no">不可使用</span>':'<span class="ok">可用</span>'}</td></tr>`).join("")}</tbody></table>`;
+ $("dBody").innerHTML=`<div class="seg" style="margin-bottom:10px"><button class="on" data-tab="wh">依倉庫（${ws.length}）</button><button data-tab="all">全部條碼（${(ok+bad).toLocaleString()}）</button></div>
+ <div id="tabWh"><table class="tbl"><thead><tr><th>倉庫</th><th class="r">可使用</th><th class="r">不可使用</th><th class="r">合計</th><th class="hide-s"></th></tr></thead><tbody>${ws.map(w=>{const[o,b]=v(p[3],w);return`<tr class="whr" data-w="${w}" style="cursor:pointer"><td>${w}</td><td class="r num">${o.toLocaleString()}</td><td class="r num" style="color:${b?"var(--red)":"#c9b8a4"}">${b}</td><td class="r num"><b>${(o+b).toLocaleString()}</b></td><td class="r hide-s" style="color:var(--mfg)">條碼 ▾</td></tr><tr hidden data-bcw="${w}"><td colspan="5" style="background:#fffdfa;padding:8px"></td></tr>`}).join("")}</tbody></table></div>
+ <div id="tabAll" hidden><div class="bctools"><button class="mini"><svg class="i"><use href="#i-dl"/></svg>匯出 Excel（含倉庫）</button></div><div id="allList"></div></div>`;
+ const all=ws.flatMap(w=>bcRows(pid,w,w==="總倉"&&pid==="1000124"?20:6));
+ const drawAll=()=>{$("allList").innerHTML=bcTable(all,true)+`<div class="pn" style="margin-top:6px">草圖每倉先列幾筆示意（S168-LTE(BT)／總倉為真實條碼）；正式版列出全部 ${(ok+bad).toLocaleString()} 筆，往下捲載入更多</div>`};
+ drawAll();
+ $("dBody").querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{$("dBody").querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("on",x===b));$("tabWh").hidden=b.dataset.tab!=="wh";$("tabAll").hidden=b.dataset.tab!=="all"});
+ $("dBody").querySelectorAll(".whr").forEach(tr=>tr.onclick=()=>{const w=tr.dataset.w,box=$("dBody").querySelector(`[data-bcw="${CSS.escape(w)}"]`);if(!box.hidden){box.hidden=true;return}const n=v(p[3],w)[0]+v(p[3],w)[1];box.firstElementChild.innerHTML=bcTable(bcRows(pid,w,pid==="1000124"&&w==="總倉"?20:10),false)+`<div class="pn" style="margin-top:4px">顯示 ${Math.min(n,pid==="1000124"&&w==="總倉"?20:10)} / ${n} 筆</div>`;box.hidden=false});
+ $("drawer").classList.add("show");$("scrim").classList.add("show")}
+function openDrawer(pid,w,hl){const p=P.find(x=>x[0]===pid),[o,b]=v(p[3],w),n=o+b;$("dPid").textContent=pid;$("dTitle").textContent=p[1];$("dSub").textContent=`${w}・可使用 ${o}${b?`・不可使用 ${b}`:""}`;
+ const real=(window.INV_REAL_BC||{})[pid+"|"+w];const all=bcRows(pid,w,real?20:12),f=hl&&all.find(r=>r.bc===hl);const rs=all.map(r=>`<tr class="${r.bc===hl?"hl pulse":""}"><td class="mono">${r.bc}</td><td>${r.car}</td><td class="hide-s">${r.t}</td><td class="hide-s">${r.op}</td><td class="hide-s">${r.who}</td><td>${r.bad?'<span class="no">不可使用</span>':'<span class="ok">可用</span>'}</td><td>${r.note||""}</td></tr>`);
+ const card=f?`<div class="found"><div class="fl">你搜尋的條碼<button class="jump" id="jumpHl">在下方清單中定位 ↓</button></div><div class="fb mono">${f.bc}</div><div class="fg"><div><span>倉庫</span>${w}</div><div><span>狀態</span>${f.bad?'<span class="no">不可使用</span>':'<span class="ok">可用</span>'}</div><div><span>車代</span>${f.car||"—"}</div><div><span>更新</span>${f.t}</div><div><span>操作</span>${f.op}</div><div><span>更新人</span>${f.who}</div>${f.note?`<div><span>備註</span>${f.note}</div>`:""}</div></div>`:"";
+ $("dBody").innerHTML=card+`<div class="bctools"><button class="mini"><svg class="i"><use href="#i-dl"/></svg>匯出 Excel</button></div><table class="tbl"><thead><tr><th>條碼</th><th>車代</th><th class="hide-s">更新</th><th class="hide-s">操作</th><th class="hide-s">更新人</th><th>狀態</th><th>備註</th></tr></thead><tbody>${rs.join("")}</tbody></table><div class="pn" style="margin-top:6px">顯示 ${rs.length} / ${n} 筆，往下捲載入更多${real?"・以上是真實條碼":"・草圖只有 S168-LTE(BT)／總倉 放真實條碼，其他為示意"}</div>`;
+ $("drawer").classList.add("show");$("scrim").classList.add("show");if(f){const go=()=>{const t=$("dBody").querySelector("tr.hl");t.classList.remove("pulse");void t.offsetWidth;t.classList.add("pulse");t.scrollIntoView({block:"center",behavior:"smooth"})};$("jumpHl").onclick=go}}
+const closeD=()=>{$("drawer").classList.remove("show");$("scrim").classList.remove("show")};$("dClose").onclick=closeD;$("scrim").onclick=closeD;
+document.querySelectorAll("#view button").forEach(b=>b.onclick=()=>{view=b.dataset.v;sv("inv3view",view);render()});
+document.querySelectorAll("#grp button").forEach(b=>b.onclick=()=>{grp=b.dataset.g;sv("inv3grp",grp);render()});
+function renderGroups(){let h="";for(const[r,ws]of Object.entries(REG)){const tech=r.startsWith("技師"),allDeny=ws.every(w=>DENY.includes(w));
+ h+=`<details class="grp2" ${tech||allDeny?"":"open"}><summary><span>${r}</span><span class="pn">${allDeny?'<span class="lock">無權限</span>':ws.filter(w=>sel.includes(w)).length+" 已選"}</span></summary><div class="items">${tech?`<input placeholder="搜尋技師姓名…" style="grid-column:1/-1;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font:inherit">`:""}${ws.map(w=>{const d=DENY.includes(w);return`<label class="${d?"dis":""}"><input type="checkbox" value="${w}" ${sel.includes(w)?"checked":""} ${d?"disabled":""}>${w==="技師倉合計"?"<b>技師倉合計</b>（）":w}</label>`}).join("")}</div></details>`}
+ $("groups").innerHTML=h;const upd=()=>$("selN").textContent=`已選 ${$("groups").querySelectorAll("input:checked").length} 個（樞紐表建議 8 欄以內）`;upd();$("groups").querySelectorAll("input[type=checkbox]").forEach(c=>c.onchange=upd)}
+$("edit").onclick=()=>{renderGroups();$("mask").classList.add("show")};$("cancel").onclick=()=>$("mask").classList.remove("show");
+$("ok").onclick=()=>{const vv=[...$("groups").querySelectorAll("input[type=checkbox]:checked")].map(x=>x.value);if(vv.length){sel=vv;sv("inv4wh",sel)}$("mask").classList.remove("show");render()};
+document.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{sel=b.dataset.p.split(",");sv("inv4wh",sel);renderGroups()});
+$("q").oninput=render;$("onlyStock").onchange=render;
+$("refresh").onclick=()=>{const b=$("refresh");b.disabled=true;$("refIcon").classList.add("spin");$("dot").classList.add("busy");$("steps").classList.add("show");$("prog").classList.add("show");
+ const st=[...$("steps").children],dur=[600,900,2600,900],total=dur.reduce((a,c)=>a+c);let i=0,el=0;
+ $("syncTxt").innerHTML=`全部 7 批更新中，預計約 <b style="color:var(--fg)">95 秒</b>（上次 1 分 35 秒），每批好了就先換上・先顯示 13:05 的數字`;
+ (function go(){st.forEach((s,k)=>s.className="st"+(k<i?" done":k===i?" now":""));if(i<dur.length){$("refTxt").textContent=["開始","刷新","CRM","完成"][i]+"…";el+=dur[i];$("bar").style.width=el/total*100+"%";setTimeout(()=>{i++;go()},dur[i])}
+ else{const f=id=>P.find(x=>x[0]===id)[3];if(f("1000124")["總倉"])f("1000124")["總倉"][0]-=3;if(f("1000115")["總倉"])f("1000115")["總倉"][0]+=2;delta={"1000124":-3,"1000115":2};b.disabled=false;$("refIcon").classList.remove("spin");$("dot").classList.remove("busy");$("refTxt").textContent="完成";setTimeout(()=>{$("refTxt").textContent="刷新庫存"},1500);
+  setTimeout(()=>{$("steps").classList.remove("show");$("prog").classList.remove("show");$("bar").style.width=0},1500);
+  $("syncTxt").innerHTML=`<b style="color:var(--fg)">剛剛</b> 更新（全部 7 批）・2 項有變動`;render();setTimeout(()=>{delta={}},3000)}})()};
+// ---- 匯出盤點表 ----
+function stkNames(){const d=new Date(),y=d.getFullYear(),m=d.getMonth()+1,dd=d.getDate();return{file:`庫存明細表${y-1911} - ${m}月 ${String(dd).padStart(2,"0")}`,tab:`${String(y).slice(2)}${String(m).padStart(2,"0")}${String(dd).padStart(2,"0")}盤點表`}}
+let locs=ld("inv5loc",{});
+function stkDraw(){const q=document.querySelector("[name=stkQ]:checked").value,zero=$("stkZero").checked,each=document.querySelector("[name=stkW]:checked").value==="each";const n=stkNames();
+ $("stkN").textContent=sel.length;$("stkWrap").hidden=sel.length<2;$("stkWHint").textContent=each?`會有 ${sel.length} 個分頁：${sel.join("、")}，每頁只算那個倉的數量，適合分開盤點。`:`「總計」＝${sel.join(" ＋ ")} 的數量加在一起，只有一個分頁，適合這幾個倉放在同一處一起盤。`;$("stkFile").textContent=n.file;$("stkTab").textContent=each?sel.map(w=>n.tab.replace("盤點表","")+w).join("、"):n.tab;
+ const rs=P.map(([pid,nm,,st])=>[pid,nm,sel.reduce((a,w)=>a+v(st,w)[0]+(q==="all"?v(st,w)[1]:0),0)]).filter(r=>zero||r[2]).sort((a,b)=>a[0]>b[0]?1:-1);
+  $("stkPrev").innerHTML=(each?`<div class="pn">預覽第一個分頁：${sel[0]}</div>`:"")+`<table class="stk"><thead><tr><th>品號</th><th>品名</th><th>倉別</th><th>總計</th><th>實盤數</th><th>盤差</th></tr></thead><tbody>${rs.slice(0,8).map((r,i)=>{return`<tr><td>${r[0]}</td><td class="l">${r[1]}</td><td><input class="loc" data-loc="${r[0]}" value="${locs[r[0]]||""}" placeholder="—"></td><td>${r[2]}</td><td class="inp"><input class="loc cnt" data-tot="${r[2]}" placeholder="" style="width:60px;border-style:solid;background:#fffbe8"></td><td class="dif"></td></tr>`}).join("")}</tbody></table><div class="pn" style="margin-top:4px">共 ${rs.length} 個品項・依品號排序・標題列固定、每欄都有篩選・倉別（儲位）點一下可直接改，改完自動記住</div>`;
+ $("stkPrev").querySelectorAll("input.cnt").forEach(i=>i.oninput=()=>{const td=i.closest("td").nextElementSibling,t=i.value.trim();if(t===""||isNaN(+t)){td.textContent="";td.className="dif";return}const d=+t-+i.dataset.tot;td.textContent=d;td.className="dif "+(d>0?"pos":d<0?"neg":"")});
+ $("stkPrev").querySelectorAll("input.loc:not(.cnt)").forEach(i=>i.onchange=()=>{const v=i.value.trim().toUpperCase();i.value=v;if(v)locs[i.dataset.loc]=v;else delete locs[i.dataset.loc];sv("inv5loc",locs);toast("倉別已記住")})}
+$("stkBtn").onclick=()=>{$("stkMsg").textContent="";$("stkGo").disabled=false;$("stkGo").textContent="建立 Google 試算表";stkDraw();$("stkMask").classList.add("show")};
+$("stkCancel").onclick=()=>$("stkMask").classList.remove("show");
+document.querySelectorAll("[name=stkW],[name=stkQ],#stkZero").forEach(e=>e.onchange=stkDraw);
+$("stkGo").onclick=()=>{const b=$("stkGo");b.disabled=true;b.textContent="建立中…";setTimeout(()=>{b.textContent="已建立";$("stkMsg").innerHTML=`已存到雲端硬碟：<a href="#" onclick="return false" style="color:var(--primary)">${stkNames().file}</a>（開新分頁）`},1200)};
+render();
+</script>
+</body>
+</html>
