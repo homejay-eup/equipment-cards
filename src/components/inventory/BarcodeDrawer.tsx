@@ -77,7 +77,7 @@ function Status({ bad }: { bad: boolean }) {
 function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolean; focus?: string }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-[#e8ddd0] bg-white">
-      <table className="min-w-full text-[13px]">
+      <table className="w-full text-[13px]">
         <thead>
           <tr className="bg-[#faf6f0] text-left text-[11px] text-[#6b4f38]">
             {['條碼', ...(showWh ? ['倉庫'] : []), '車代', '更新', '操作', '更新人', '狀態', '備註'].map(h => (
@@ -98,7 +98,7 @@ function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolea
                 <td className="whitespace-nowrap px-2.5 py-1.5">{r.op}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5">{r.who}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5"><Status bad={r.unusable} /></td>
-                <td className="whitespace-nowrap px-2.5 py-1.5">{r.note}</td>
+                <td className="min-w-[140px] whitespace-normal break-words px-2.5 py-1.5">{r.note}</td>
               </tr>
             )
           })}
