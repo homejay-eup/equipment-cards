@@ -6,12 +6,10 @@ import { getServiceClient } from '@/lib/departments'
 import { locKey, type InvProductRow } from '@/lib/inventory'
 
 export const STOCKTAKE_FOLDER_ID = process.env.GOOGLE_DRIVE_STOCKTAKE_FOLDER_ID ?? ''
-const HEAD = ['品號', '品名', '倉別', '總計', '實盤數', '盤差']
-const HEAD_WH = ['品號', '品名', '倉別', '倉庫', '總計', '實盤數', '盤差']   // 「同一張表、各倉分開」：多一欄倉庫
-const colLetter = (i: number) => String.fromCharCode(65 + i)
+const colLetter = (i: number) => (i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26)))
 const rgb = (hex: string) => ({ red: parseInt(hex.slice(1, 3), 16) / 255, green: parseInt(hex.slice(3, 5), 16) / 255, blue: parseInt(hex.slice(5, 7), 16) / 255 })
 
-export interface StocktakeOptions { warehouses: string[]; mode: 'merge' | 'each' | 'stack'; qty: 'all' | 'ok'; zero: boolean }
+export interface StocktakeOptions { warehouses: string[]; mode: 'merge' | 'each' | 'pivot'; qty: 'all' | 'ok'; zero: boolean }
 
 /** 檔名「庫存明細表115 - 11月 16」、分頁「261116盤點表」（台灣時間） */
 export function stocktakeNames(now = new Date()) {
@@ -64,7 +62,7 @@ export async function syncLocationsFromLastSheet(): Promise<number> {
   return ups.length
 }
 
-type Row = [string, string, string, number, string?]   // [品號, 品名, 倉別, 數量, 倉庫（stack 才有）]
+type Row = [string, string, string, number, number[]?]   // [品號, 品名, 倉別, 總數量, 各倉數量（pivot 才有，依選擇順序）]
 
 export function buildRows(products: InvProductRow[], whs: string[], opt: StocktakeOptions, locs: Map<string, { location: string }>): Row[] {
   return products
@@ -76,13 +74,20 @@ export function buildRows(products: InvProductRow[], whs: string[], opt: Stockta
     .sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1) || (a[0] || a[1]).localeCompare(b[0] || b[1], 'zh-Hant'))   // 沒料號的排最後
 }
 
-/** 同一張表、各倉分開：每個倉一段（依選擇順序），段內依品號排序；每列多一欄倉庫 */
-export function buildStackRows(products: InvProductRow[], whs: string[], opt: StocktakeOptions, locs: Map<string, { location: string }>): Row[] {
-  return whs.flatMap(w => buildRows(products, [w], opt, locs).map(r => [r[0], r[1], r[2], r[3], w] as Row))
+/** 同一張表、各倉分開（像樞紐表）：一個品項一列，每個倉一欄數量，後面總計／實盤數／盤差 */
+export function buildPivotRows(products: InvProductRow[], whs: string[], opt: StocktakeOptions, locs: Map<string, { location: string }>): Row[] {
+  const q = (p: InvProductRow, w: string) => (p.cells[w]?.[0] ?? 0) + (opt.qty === 'all' ? (p.cells[w]?.[1] ?? 0) : 0)
+  return products
+    .map(p => {
+      const cells = whs.map(w => q(p, w))
+      return [p.pid ?? '', p.name, locs.get(locKey(p))?.location ?? '', cells.reduce((a, b) => a + b, 0), cells] as Row
+    })
+    .filter(r => opt.zero || r[3] > 0)
+    .sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1) || (a[0] || a[1]).localeCompare(b[0] || b[1], 'zh-Hant'))
 }
 
 /** 建立試算表並套好格式；回傳 { id, url, name } */
-export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; withWh?: boolean }[]) {
+export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; whCols?: string[] }[]) {
   if (!STOCKTAKE_FOLDER_ID) throw new Error('伺服器尚未設定盤點表資料夾（GOOGLE_DRIVE_STOCKTAKE_FOLDER_ID）')
   const drive = await getDriveClient()
   const sheets = await getSheetsClient()
@@ -116,10 +121,11 @@ export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; w
     requestBody: {
       valueInputOption: 'USER_ENTERED',
       data: tabs.map(t => {
-        const w = t.withWh ? 1 : 0, Q = colLetter(3 + w), C = colLetter(4 + w)
+        const cols = t.whCols ?? [], w = cols.length, Q = colLetter(3 + w), C = colLetter(4 + w)
+        const head = ['品號', '品名', '倉別', ...cols, '總計', '實盤數', '盤差']
         return {
           range: `'${t.title}'!A1`,
-          values: [t.withWh ? HEAD_WH : HEAD, ...t.rows.map((r, i) => [r[0], r[1], r[2], ...(w ? [r[4] ?? ''] : []), r[3], '', `=IF(${C}${i + 2}="","",${C}${i + 2}-${Q}${i + 2})`])],
+          values: [head, ...t.rows.map((r, i) => [r[0], r[1], r[2], ...(w ? r[4] ?? [] : []), w ? `=SUM(D${i + 2}:${colLetter(2 + w)}${i + 2})` : r[3], '', `=IF(${C}${i + 2}="","",${C}${i + 2}-${Q}${i + 2})`])],
         }
       }),
     },
@@ -128,7 +134,7 @@ export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; w
   // 格式（沿用料卡網站木質色調）
   const fmt: object[] = []
   tabs.forEach((t, k) => {
-    const sid = ids[k], n = t.rows.length + 1, w = t.withWh ? 1 : 0, nc = 6 + w
+    const sid = ids[k], n = t.rows.length + 1, w = t.whCols?.length ?? 0, nc = 6 + w
     const range = (c0: number, c1: number, r0 = 0, r1 = n) => ({ sheetId: sid, startRowIndex: r0, endRowIndex: r1, startColumnIndex: c0, endColumnIndex: c1 })
     fmt.push(
       { updateSheetProperties: { properties: { sheetId: sid, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' } },
@@ -141,7 +147,7 @@ export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; w
       { setBasicFilter: { filter: { range: range(0, nc, 0, n) } } },
       { addConditionalFormatRule: { index: 0, rule: { ranges: [range(5 + w, 6 + w, 1, n)], booleanRule: { condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#e6f0e0'), textFormat: { foregroundColor: rgb('#3d7a3a'), bold: true } } } } } },
       { addConditionalFormatRule: { index: 1, rule: { ranges: [range(5 + w, 6 + w, 1, n)], booleanRule: { condition: { type: 'NUMBER_LESS', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#f8e4dc'), textFormat: { foregroundColor: rgb('#b5451b'), bold: true } } } } } },
-      ...(w ? [[0, 120], [1, 320], [2, 80], [3, 130], [4, 90], [5, 90], [6, 80]] : [[0, 120], [1, 320], [2, 80], [3, 90], [4, 90], [5, 80]]).map(([c, px]) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: c, endIndex: c + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })),
+      ...[[0, 120], [1, 320], [2, 80], ...Array.from({ length: w }, (_, i) => [3 + i, 100]), [3 + w, 90], [4 + w, 90], [5 + w, 80]].map(([c, px]) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: c, endIndex: c + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })),
     )
   })
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: id, requestBody: { requests: fmt } })

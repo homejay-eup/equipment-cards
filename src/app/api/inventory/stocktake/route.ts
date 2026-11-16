@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/departments'
 import { getInventoryAccess, forbidden, loadProducts, canSee } from '@/lib/inventory'
-import { buildRows, buildStackRows, createStocktakeSheet, getLocations, stocktakeNames, syncLocationsFromLastSheet, type StocktakeOptions } from '@/lib/stocktake'
+import { buildRows, buildPivotRows, createStocktakeSheet, getLocations, stocktakeNames, syncLocationsFromLastSheet, type StocktakeOptions } from '@/lib/stocktake'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => null) as Partial<StocktakeOptions> | null
   const whs = (b?.warehouses ?? []).filter(w => typeof w === 'string' && canSee(a, w))
   if (!whs.length) return NextResponse.json({ error: '請至少選一個倉庫' }, { status: 400 })
-  const opt: StocktakeOptions = { warehouses: whs, mode: b?.mode === 'each' ? 'each' : b?.mode === 'stack' ? 'stack' : 'merge', qty: b?.qty === 'ok' ? 'ok' : 'all', zero: !!b?.zero }
+  const opt: StocktakeOptions = { warehouses: whs, mode: b?.mode === 'each' ? 'each' : b?.mode === 'pivot' ? 'pivot' : 'merge', qty: b?.qty === 'ok' ? 'ok' : 'all', zero: !!b?.zero }
   try {
     try { await syncLocationsFromLastSheet() } catch { /* 略過 */ }
     const { products } = await loadProducts(a)
@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
     const { tab, ymd } = stocktakeNames()
     const tabs = opt.mode === 'each' && whs.length > 1
       ? whs.map(w => ({ title: `${ymd}${w}`.slice(0, 90), rows: buildRows(products, [w], opt, locs) }))
-      : opt.mode === 'stack' && whs.length > 1
-        ? [{ title: tab, rows: buildStackRows(products, whs, opt, locs), withWh: true }]
+      : opt.mode === 'pivot' && whs.length > 1
+        ? [{ title: tab, rows: buildPivotRows(products, whs, opt, locs), whCols: whs }]
         : [{ title: tab, rows: buildRows(products, whs, opt, locs) }]
     const sheet = await createStocktakeSheet(tabs)
     await getServiceClient().from('stocktake_exports').insert({
