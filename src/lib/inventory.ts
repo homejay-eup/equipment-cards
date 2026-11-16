@@ -31,12 +31,20 @@ export function tableMissing(code?: string) {
 export const MISSING_MSG = '資料表尚未建立，請先執行 _開發檔案/sql/step54-crm-inventory.sql'
 
 /** 取得目前使用者的庫存權限；沒有 view_inventory 回傳 null */
+// 權限／倉庫範圍短暫記憶 30 秒（每個 API 呼叫都要查，進度輪詢每 1.5 秒一次，不記的話每次都連跑好幾趟資料庫）。
+// 身分驗證（auth.getUser）每次都照做；改了角色權限最多 30 秒後生效。
+const ACCESS_TTL = 30_000
+const accessCache = new Map<string, { at: number; v: Omit<InventoryAccess, 'email'> | null }>()
+
 export async function getInventoryAccess(): Promise<InventoryAccess | null> {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return null
-  const { roleName, permissions } = await getUserRoleWithPermissions(user.email)
-  if (!permissions.includes('view_inventory')) return null
+  const email = user.email
+  const hit = accessCache.get(email)
+  if (hit && Date.now() - hit.at < ACCESS_TTL) return hit.v ? { email, ...hit.v } : null
+  const { roleName, permissions } = await getUserRoleWithPermissions(email)
+  if (!permissions.includes('view_inventory')) { accessCache.set(email, { at: Date.now(), v: null }); return null }
   const db = getServiceClient()
   let warehouses: Set<string> | null = null
   const { data: role } = await db.from('roles').select('id').eq('name', roleName).maybeSingle()
@@ -44,7 +52,9 @@ export async function getInventoryAccess(): Promise<InventoryAccess | null> {
     const { data: rows } = await db.from('role_inventory_warehouses').select('warehouse').eq('role_id', role.id)
     if (rows && rows.length) warehouses = new Set(rows.map((r: { warehouse: string }) => r.warehouse))
   }
-  return { email: user.email, roleName, permissions, warehouses }
+  const v = { roleName, permissions, warehouses }
+  accessCache.set(email, { at: Date.now(), v })
+  return { email, ...v }
 }
 
 export function canSee(access: InventoryAccess, warehouse: string) {
@@ -65,21 +75,30 @@ interface SummaryRow {
 /** 產品 × 倉庫 數量（只含角色看得到的倉）；庫存頁與盤點表共用。錯誤會丟出 { code, message } */
 export async function loadProducts(access: InventoryAccess) {
   const db = getServiceClient()
-  const rows: SummaryRow[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.from('inventory_summary')
-      .select('product_id, category, name, warehouse, region, ok_count, bad_count').range(from, from + 999)
+  const SEL = 'product_id, category, name, warehouse, region, ok_count, bad_count'
+  const page = async (from: number) => {
+    const { data, error } = await db.from('inventory_summary').select(SEL).range(from, from + 999)
     if (error) throw error
-    rows.push(...(data as SummaryRow[]))
-    if (!data || data.length < 1000) break
+    return (data ?? []) as SummaryRow[]
   }
-  // 料卡名稱（有對到料卡就用料卡名稱顯示）
-  const pids = Array.from(new Set(rows.map(r => r.product_id).filter(Boolean))) as string[]
-  const cardName = new Map<string, string>()
-  for (let i = 0; i < pids.length; i += 300) {
-    const { data } = await db.from('equipment_cards').select('equipment_id, name').in('equipment_id', pids.slice(i, i + 300))
-    for (const c of data ?? []) cardName.set(c.equipment_id, c.name)
+  // 料卡名稱（有對到料卡就用料卡名稱顯示）：一次全抓，跟庫存彙總同時進行
+  const cardsP = (async () => {
+    const m = new Map<string, string>()
+    for (let from = 0; ; from += 1000) {
+      const { data } = await db.from('equipment_cards').select('equipment_id, name').range(from, from + 999)
+      for (const c of data ?? []) m.set(c.equipment_id, c.name)
+      if (!data || data.length < 1000) break
+    }
+    return m
+  })()
+  // 庫存彙總分頁：先抓第一頁，滿頁就一次並行抓後面幾頁（每輪 4 頁，不足一頁就停）
+  const rows: SummaryRow[] = await page(0)
+  for (let from = 1000; rows.length >= from; from += 4000) {
+    const chunk = await Promise.all([0, 1, 2, 3].map(i => page(from + i * 1000)))
+    for (const c of chunk) rows.push(...c)
+    if (chunk[3].length < 1000) break
   }
+  const cardName = await cardsP
   const products = new Map<string, InvProductRow>()
   const whs = new Map<string, string>()   // 倉 → 區域
   for (const r of rows) {
