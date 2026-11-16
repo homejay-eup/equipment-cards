@@ -168,9 +168,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   }, [activeTab])
   // Step 54：首次切到「庫存」才 mount InventoryClient，之後保持常駐（CSS hide/show）
   const [inventoryMounted, setInventoryMounted] = useState(false)
+  // 有庫存權限的人：進網站就先掛載（背景載入資料），切到庫存分頁時不用再等
   useEffect(() => {
-    if (activeTab === 'inventory') setInventoryMounted(true)
-  }, [activeTab])
+    if (activeTab === 'inventory' || permissions.includes('view_inventory')) setInventoryMounted(true)
+  }, [activeTab, permissions])
   // 首次切到「文件管理」才 mount DocumentsClient，之後保持常駐（CSS hide/show）保留 state
   const [documentsMounted, setDocumentsMounted] = useState(false)
   useEffect(() => {
@@ -1189,7 +1190,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 庫存（Step 54）：首次進入後保持常駐（CSS hide/show）；view_inventory 可看 */}
       {inventoryMounted && (
         <div className={activeTab !== 'inventory' ? 'hidden' : ''}>
-          <InventoryClient isActive={activeTab === 'inventory'} />
+          <InventoryClient />
         </div>
       )}
 

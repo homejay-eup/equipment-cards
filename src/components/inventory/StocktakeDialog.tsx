@@ -1,7 +1,7 @@
 'use client'
 // Step 54：匯出盤點表（Google 試算表，存到共用雲端硬碟「設備料卡規格書」/盤點表）
 import { useEffect, useMemo, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Info } from 'lucide-react'
 import type { InvProduct } from './types'
 import { cell } from './types'
 
@@ -18,6 +18,7 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
   const [result, setResult] = useState<{ url: string; name: string } | null>(null)
   const [err, setErr] = useState('')
   const [trial, setTrial] = useState<Record<string, string>>({})
+  const [info, setInfo] = useState(false)
 
   useEffect(() => {
     fetch('/api/inventory/stocktake', { cache: 'no-store' }).then(r => r.json()).then(d => {
@@ -55,12 +56,19 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c1e12]/40 p-4" onClick={onClose}>
       <div className="flex max-h-[90vh] w-full max-w-[740px] flex-col rounded-xl bg-[#fff9f4] shadow-xl" onClick={e => e.stopPropagation()}>
-        <h3 className="px-4 pb-1 pt-3.5 text-[15px] font-semibold text-[#2c1e12]">匯出盤點表</h3>
-        <p className="px-4 pb-2 text-xs text-[#a08060]">
-          建立一份 Google 試算表到共用雲端硬碟的「盤點表」資料夾，格式和顏色都設定好，打開就能填實盤數。
-          「倉別」是放在哪個儲位（A／B／C…），跟著品號記住：在這裡或在試算表裡改過，下次匯出都會帶入。
-          {synced > 0 && <b className="text-[#7a5230]">（已從上一份盤點表讀回 {synced} 筆倉別變更）</b>}
-        </p>
+        <div className="flex items-center gap-1.5 px-4 pb-1.5 pt-3.5">
+          <h3 className="text-[15px] font-semibold text-[#2c1e12]">匯出盤點表</h3>
+          <button onClick={() => setInfo(v => !v)} aria-label="說明" title="說明" aria-expanded={info}
+            className={`rounded-full p-0.5 hover:text-[#7a5230] ${info ? 'text-[#7a5230]' : 'text-[#a08060]'}`}><Info className="h-4 w-4" /></button>
+          {synced > 0 && <span className="ml-1 text-xs font-semibold text-[#7a5230]">已從上一份盤點表讀回 {synced} 筆倉別變更</span>}
+        </div>
+        {info && (
+          <p className="mx-4 mb-2 rounded-md bg-[#f6efe4] px-3 py-2 text-xs text-[#6b4f38]">
+            建立一份 Google 試算表到共用雲端硬碟的「盤點表」資料夾，格式和顏色都設定好，打開就能填實盤數。
+            「倉別」是放在哪個儲位（A／B／C…），跟著品號記住：在這裡或在試算表裡改過，下次匯出都會帶入。
+            匯出時「實盤數」和「盤差」是空白，填了實盤數盤差會自動算並變色。下方黃底格子只是預覽，不會存。
+          </p>
+        )}
         <div className="flex-1 overflow-auto px-4 pb-2 text-[13px]">
           {selected.length > 1 && (
             <div className="mb-1.5">
@@ -69,10 +77,6 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
                 <label className={radio(mode === 'merge')}><input type="radio" className="accent-[#7a5230]" checked={mode === 'merge'} onChange={() => setMode('merge')} />數量加總，做成一張表</label>
                 <label className={radio(mode === 'each')}><input type="radio" className="accent-[#7a5230]" checked={mode === 'each'} onChange={() => setMode('each')} />每個倉分開，各一個分頁</label>
               </div>
-              <p className="mt-0.5 text-xs text-[#a08060]">
-                {each ? `會有 ${selected.length} 個分頁：${selected.join('、')}，每頁只算那個倉的數量，適合分開盤點。`
-                  : `「總計」＝${selected.join(' ＋ ')} 的數量加在一起，只有一個分頁，適合這幾個倉放在同一處一起盤。`}
-              </p>
             </div>
           )}
           <div className="mb-1.5 flex flex-wrap items-center gap-4">
@@ -84,9 +88,7 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
           <div className="mb-2 rounded-md bg-[#f6efe4] px-3 py-1.5 text-xs">
             檔名：<b className="font-mono">{names?.file ?? '…'}</b>　分頁：<b className="font-mono">{names ? (each ? selected.map(w => names.ymd + w).join('、') : names.tab) : '…'}</b>
           </div>
-          <p className="mb-1 text-xs text-[#a08060]">
-            預覽{each ? `（第一個分頁：${selected[0]}）` : ''}：匯出時「實盤數」和「盤差」都是空白；在 Google 試算表填實盤數後，盤差自動算出並變色（多了綠、少了紅、對上是 0）。黃底格子可以試填看看（只是預覽，不會存）。
-          </p>
+          <p className="mb-1 text-xs text-[#a08060]">預覽{each ? `（第一個分頁：${selected[0]}）` : ''}</p>
           <div className="overflow-hidden rounded-lg border border-[#e8ddd0]">
             <table className="w-full text-[12px]">
               <thead><tr className="bg-[#7a5230] text-white">{['品號', '品名', '倉別', '總計', '實盤數', '盤差'].map(h => <th key={h} className="px-2 py-1.5 font-bold">{h}</th>)}</tr></thead>

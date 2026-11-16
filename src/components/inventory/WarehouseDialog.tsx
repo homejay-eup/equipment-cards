@@ -43,7 +43,7 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
         </div>
         <div className="flex-1 overflow-auto px-4 pb-2">
           {groups.map(([region, ws]) => {
-            const tech = region.includes('技師')
+            const tech = region.includes('技師') || region === '送修'   // 這幾區預設收起
             const shown = q ? ws.filter(w => w.includes(q)) : ws
             if (q && shown.length === 0) return null
             const n = ws.filter(w => pick.includes(w)).length

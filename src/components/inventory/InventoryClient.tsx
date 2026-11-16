@@ -17,12 +17,13 @@ const STEPS = ['開始', '刷新', 'CRM', '完成']
 const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—')
 const md = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}` }
 
-export default function InventoryClient({ isActive = true }: { isActive?: boolean }) {
+export default function InventoryClient() {
   const [data, setData] = useState<Data | null>(null)
   const [err, setErr] = useState('')
   const [prefs, setPrefs] = useState<InvPrefs | null>(null)
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<InvItem[] | null>(null)
+  const [hitsFor, setHitsFor] = useState('')   // hits 是用哪個搜尋字查的（用來判斷「還在找條碼」）
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null)
   const [whDlg, setWhDlg] = useState(false)
   const [stkDlg, setStkDlg] = useState(false)
@@ -53,7 +54,8 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
       return d.products as InvProduct[]
     } catch (e) { setErr((e as Error).message); return null }
   }, [])
-  useEffect(() => { if (isActive && !loaded.current) { loaded.current = true; load() } }, [isActive, load])
+  // 進網站就先在背景載入（PhotoWall 會提早掛載），切到庫存分頁時資料已經在了
+  useEffect(() => { if (!loaded.current) { loaded.current = true; load() } }, [load])
 
   // 個人設定：改了 0.8 秒後存到伺服器（每人一份，跨裝置）
   const update = (fn: (p: InvPrefs) => InvPrefs) => setPrefs(p => {
@@ -94,11 +96,12 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
   // 主搜尋：料號、品名都沒找到 → 改找條碼（可只打部分號碼）
   useEffect(() => {
     const qq = q.trim()
-    if (!data?.can.barcodes || qq.length < 4 || rows.length) { setHits(null); return }
+    if (!data?.can.barcodes || qq.length < 4 || rows.length) { setHits(null); setHitsFor(''); return }
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/inventory/barcodes?q=${encodeURIComponent(qq)}`)
-      const d = await r.json().catch(() => ({ hits: [] }))
+      const r = await fetch(`/api/inventory/barcodes?q=${encodeURIComponent(qq)}`).catch(() => null)
+      const d = r ? await r.json().catch(() => ({ hits: [] })) : { hits: [] }
       setHits(d.hits ?? [])
+      setHitsFor(qq)
     }, 350)
     return () => clearTimeout(t)
   }, [q, rows.length, data?.can.barcodes])
@@ -166,15 +169,14 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
   if (!data || !prefs) return <div className="mx-auto max-w-5xl px-4 py-12 text-center text-sm text-[#a08060]">讀取庫存中…</div>
 
   const sel = prefs.wh
-  const statRows = hitRows ?? rows
-  const ok = statRows.reduce((s, p) => s + sel.reduce((a, w) => a + cell(p, w)[0], 0), 0)
-  const bad = statRows.reduce((s, p) => s + sel.reduce((a, w) => a + cell(p, w)[1], 0), 0)
-  const cnt = statRows.filter(p => sel.some(w => cell(p, w)[0] + cell(p, w)[1])).length
   const times = Object.values(data.batches).map(b => b.exportedAt).filter(Boolean) as string[]
   const oldest = times.sort()[0] ?? null
   const running = !!req && req.status !== 'done' && req.status !== 'failed' && !stale
   const stepIdx = !req ? -1 : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
+  // 料號品名沒結果、正要去查條碼（還沒回來）：先顯示「搜尋中」，不要先閃一下「找不到」
+  const qTrim = q.trim()
+  const searchingBarcode = !!data.can.barcodes && qTrim.length >= 4 && rows.length === 0 && hitsFor !== qTrim
 
   const seg = (on: boolean) => `px-3 py-1.5 text-[13px] ${on ? 'bg-[#e8ddd0] font-semibold text-[#2c1e12]' : 'bg-white text-[#6b4f38] hover:text-[#7a5230]'}`
   const moveIn = (list: string[], from: string, to: string) => { const a = list.filter(x => x !== from); a.splice(a.indexOf(to), 0, from); return a }
@@ -185,13 +187,6 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
         <div className="mr-auto">
           <h2 className="text-lg font-semibold text-[#2c1e12]">CRM 庫存</h2>
           <p className="text-xs text-[#a08060]">數量來自 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可隨時刷新。</p>
-        </div>
-        <div className="hidden gap-2 sm:flex">
-          {[[ok.toLocaleString(), '所選倉可使用', ''], [bad.toLocaleString(), '不可使用', 'text-[#b5451b]'], [cnt.toLocaleString(), '有庫存品項', '']].map(([v, l, c]) => (
-            <div key={l} className="min-w-[96px] rounded-lg border border-[#e8ddd0] bg-white px-3 py-2">
-              <b className={`block text-xl tabular-nums ${c}`}>{v}</b><span className="whitespace-nowrap text-[11px] text-[#a08060]">{l}</span>
-            </div>
-          ))}
         </div>
       </div>
 
@@ -290,7 +285,9 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
         </div>
       )}
 
-      <InventoryTable
+      {searchingBarcode ? (
+        <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]">搜尋條碼中…</div>
+      ) : <InventoryTable
         rows={shown} prefs={prefs} allowed={allowed} delta={delta}
         onSort={k => update(p => ({ ...p, sort: p.sort.k === k ? { k, d: (p.sort.d * -1) as 1 | -1 } : { k, d: k === 'pid' || k === 'name' ? 1 : -1 } }))}
         onToggleGroup={g => update(p => ({ ...p, col: { ...p.col, [g]: !p.col[g] } }))}
@@ -306,7 +303,7 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
         onMoveGroup={(f, t) => { update(p => ({ ...p, gorder: moveIn(p.gorder, f, t) })); say('分組順序已記住') }}
         onCell={(p, w) => setDrawer({ mode: 'cell', product: p, warehouse: w })}
         onItem={p => setDrawer({ mode: 'item', product: p })}
-      />
+      />}
 
       <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
       {whDlg && <WarehouseDialog all={data.warehouses} selected={sel} onClose={() => setWhDlg(false)}
