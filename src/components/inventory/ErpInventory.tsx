@@ -7,7 +7,7 @@ import { ChevronDown, ChevronUp, Search, Upload } from 'lucide-react'
 interface ErpItem { pid: string; name: string; qty: number; wh: string | null; vendor: string | null; hasSerial: boolean; ownBarcode: boolean; prefix: string | null; warranty: number | null }
 interface Run { exportedAt: string; uploadedAt: string; rows: number }
 type Scope = 'none' | 'serial' | 'all'
-type SortKey = 'pid' | 'name' | 'qty' | 'wh'
+type SortKey = 'pid' | 'name' | 'qty'
 
 const fmt = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })}` }
 const ageText = (iso: string) => {
@@ -15,7 +15,7 @@ const ageText = (iso: string) => {
   return h < 1 ? '1 小時內' : h < 24 ? `${Math.floor(h)} 小時前` : `${Math.floor(h / 24)} 天前`
 }
 
-export default function ErpInventory() {
+export default function ErpInventory({ switcher }: { switcher?: React.ReactNode }) {
   const [items, setItems] = useState<ErpItem[] | null>(null)
   const [run, setRun] = useState<Run | null>(null)
   const [err, setErr] = useState('')
@@ -107,10 +107,13 @@ export default function ErpInventory() {
   const old = Date.now() - new Date(run.exportedAt).getTime() > 36 * 3600000
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 pb-16 pt-4">
-      <div className="mb-3">
-        <h2 className="text-lg font-semibold text-[#2c1e12]">ERP 庫存</h2>
-        <p className="text-xs text-[#a08060]">數量來自鼎新 ERP「品號資料建立作業」；公司電腦在登入 ERP 後自動匯出，不能即時刷新。有條碼的品項請看 CRM 庫存（較準）。</p>
+    <div className="mx-auto max-w-[1400px] px-4 pb-16 pt-4">
+      <div className="mb-3 flex flex-wrap items-start gap-3">
+        <div className="mr-auto">
+          <h2 className="text-lg font-semibold text-[#2c1e12]">ERP 庫存</h2>
+          <p className="text-xs text-[#a08060]">數量來自鼎新 ERP「品號資料建立作業」；公司電腦在登入 ERP 後自動匯出，不能即時刷新。有條碼的品項請看 CRM 庫存（較準）。</p>
+        </div>
+        {switcher}
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e8ddd0] bg-white px-3 py-2.5 text-[13px] text-[#6b4f38]">
         <span className={`h-2 w-2 rounded-full ${old ? 'bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
@@ -141,7 +144,7 @@ export default function ErpInventory() {
           <table className="w-full text-[13px]">
             <thead className="sticky top-0 z-10 bg-[#faf6f0]">
               <tr className="text-left text-[11px] text-[#6b4f38]">
-                {th('pid', '品號')}{th('name', '品名')}{th('qty', '庫存', 'text-right')}{th('wh', '主要庫別')}
+                {th('pid', '品號')}{th('name', '品名')}{th('qty', '庫存', 'text-right')}
                 <th className="px-2.5 py-2 font-medium">條碼管控</th><th className="px-2.5 py-2 font-medium">廠商</th>
               </tr>
             </thead>
@@ -151,14 +154,13 @@ export default function ErpInventory() {
                   <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[12px]">{r.pid}</td>
                   <td className="px-2.5 py-1.5">{r.name}</td>
                   <td className={`whitespace-nowrap px-2.5 py-1.5 text-right font-semibold tabular-nums ${r.qty < 0 ? 'text-[#b5451b]' : ''}`}>{r.qty.toLocaleString()}</td>
-                  <td className="whitespace-nowrap px-2.5 py-1.5 text-[#6b4f38]">{r.wh ?? ''}</td>
                   <td className="whitespace-nowrap px-2.5 py-1.5 text-xs text-[#6b4f38]">
                     {!r.hasSerial ? '無' : r.ownBarcode ? <>自有條碼{r.prefix ? <span className="ml-1 font-mono text-[#a08060]">{r.prefix}</span> : null}</> : '廠商序號'}
                   </td>
                   <td className="px-2.5 py-1.5 text-xs text-[#6b4f38]">{r.vendor ?? ''}</td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={6} className="px-2.5 py-8 text-center text-[#a08060]">沒有符合的品項</td></tr>}
+              {!rows.length && <tr><td colSpan={5} className="px-2.5 py-8 text-center text-[#a08060]">沒有符合的品項</td></tr>}
             </tbody>
           </table>
         </div>

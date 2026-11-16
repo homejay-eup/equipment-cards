@@ -10,18 +10,17 @@ export default function InventoryHub({ canCrm, canErp }: { canCrm: boolean; canE
   const [erpSeen, setErpSeen] = useState(!canCrm)
   const both = canCrm && canErp
   const seg = (on: boolean) => `px-4 py-1.5 text-[13px] ${on ? 'bg-[#7a5230] font-semibold text-white' : 'bg-white text-[#6b4f38] hover:text-[#7a5230]'}`
+  // 切換鈕放在各頁標題列的右邊（兩頁位置一致），不佔獨立一列
+  const switcher = both ? (
+    <div className="inline-flex self-start overflow-hidden rounded-lg border border-[#e8ddd0]">
+      <button className={seg(tab === 'crm')} onClick={() => setTab('crm')}>CRM 庫存</button>
+      <button className={seg(tab === 'erp')} onClick={() => { setTab('erp'); setErpSeen(true) }}>ERP 庫存</button>
+    </div>
+  ) : null
   return (
     <div>
-      {both && (
-        <div className="mx-auto max-w-[1400px] px-4 pt-3">
-          <div className="inline-flex overflow-hidden rounded-lg border border-[#e8ddd0]">
-            <button className={seg(tab === 'crm')} onClick={() => setTab('crm')}>CRM 庫存</button>
-            <button className={seg(tab === 'erp')} onClick={() => { setTab('erp'); setErpSeen(true) }}>ERP 庫存</button>
-          </div>
-        </div>
-      )}
-      {canCrm && <div className={tab === 'crm' ? '' : 'hidden'}><InventoryClient /></div>}
-      {canErp && erpSeen && <div className={tab === 'erp' ? '' : 'hidden'}><ErpInventory /></div>}
+      {canCrm && <div className={tab === 'crm' ? '' : 'hidden'}><InventoryClient switcher={switcher} /></div>}
+      {canErp && erpSeen && <div className={tab === 'erp' ? '' : 'hidden'}><ErpInventory switcher={switcher} /></div>}
     </div>
   )
 }

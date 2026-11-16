@@ -17,7 +17,7 @@ const STEPS = ['開始', '刷新', 'CRM', '完成']
 const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—')
 const md = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}` }
 
-export default function InventoryClient() {
+export default function InventoryClient({ switcher }: { switcher?: React.ReactNode }) {
   const [data, setData] = useState<Data | null>(null)
   const [err, setErr] = useState('')
   const [prefs, setPrefs] = useState<InvPrefs | null>(null)
@@ -196,6 +196,7 @@ export default function InventoryClient() {
           <h2 className="text-lg font-semibold text-[#2c1e12]">CRM 庫存</h2>
           <p className="text-xs text-[#a08060]">數量來自 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可隨時刷新。</p>
         </div>
+        {switcher}
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e8ddd0] bg-white px-3 py-2.5 text-[13px] text-[#6b4f38]">
