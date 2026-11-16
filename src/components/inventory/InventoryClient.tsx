@@ -6,7 +6,7 @@ import { RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-r
 import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
-import BarcodeDrawer, { type DrawerTarget } from './BarcodeDrawer'
+import BarcodeDrawer, { clearBarcodeCache, type DrawerTarget } from './BarcodeDrawer'
 import WarehouseDialog from './WarehouseDialog'
 import StocktakeDialog from './StocktakeDialog'
 
@@ -40,13 +40,13 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
       const r = await fetch('/api/inventory', { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取庫存失敗')
+      clearBarcodeCache()   // 庫存資料更新了，舊的明細記憶作廢
       setData({ products: d.products, warehouses: d.warehouses, batches: d.batches, can: d.can })
       if (!keepPrefs) {
         const base = defaultPrefs(d.warehouses)
         const p: InvPrefs = d.prefs ? { ...base, ...d.prefs } : base
-        const names = new Set((d.warehouses as InvWarehouse[]).map(w => w.name))
-        p.wh = p.wh.filter(w => names.has(w))
-        if (!p.wh.length) p.wh = base.wh
+        // 已選的倉即使這次資料裡暫時沒有（上傳中、或庫存剛好為 0）也保留，不能自動剔除，否則重新上傳後選擇會跑掉
+        if (!Array.isArray(p.wh) || !p.wh.length) p.wh = base.wh
         setPrefs(p)
       }
       setErr('')
@@ -239,9 +239,7 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
           </div>
         )}
         <div className="flex overflow-hidden rounded-md border border-[#e8ddd0]">
-          <button className={seg(prefs.sort.k === 'custom')} title={prefs.order.length ? '用你拖曳排好的順序' : '還沒拖曳過，先用品號順序'}
-            onClick={() => update(p => ({ ...p, sort: { k: 'custom', d: 1 } }))}>≡ 我的排序</button>
-          <button className={seg(false)} title="清除拖曳過的順序、收合狀態"
+          <button className={seg(false)} title="清除拖曳過的順序、收合狀態，回到品號排序"
             onClick={() => { update(p => ({ ...p, order: [], gorder: [...TYPE_ORDER], sort: { k: 'pid', d: 1 }, col: {} })); say('已恢復預設排列') }}>↺ 恢復預設</button>
         </div>
         <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1 text-[13px] text-[#6b4f38]">

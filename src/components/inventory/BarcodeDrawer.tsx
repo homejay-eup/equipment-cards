@@ -13,7 +13,34 @@ export type DrawerTarget =
 
 interface Page { rows: InvItem[]; total: number }
 
-async function fetchPage(key: string, warehouse: string | null, offset: number, focus?: string) {
+// 第一頁明細的記憶：看過的立刻顯示（背景再更新）；滑鼠移到數字上先預載；庫存刷新後清空
+type First = { rows: InvItem[]; total: number; pageSize: number; focusRow: InvItem | null }
+const firstCache = new Map<string, { at: number; d: First }>()
+const inflight = new Map<string, Promise<First>>()
+const CACHE_MS = 10 * 60 * 1000
+const cacheKey = (key: string, wh: string | null) => `${key}\u0000${wh ?? ''}`
+export function clearBarcodeCache() { firstCache.clear() }
+/** 預載第一頁（不含搜尋定位）；已有新鮮快取或正在載入就略過 */
+export function prefetchBarcodes(key: string, warehouse: string | null) {
+  const ck = cacheKey(key, warehouse)
+  const hit = firstCache.get(ck)
+  if ((hit && Date.now() - hit.at < CACHE_MS) || inflight.has(ck)) return
+  fetchPage(key, warehouse, 0).catch(() => {})
+}
+
+async function fetchPage(key: string, warehouse: string | null, offset: number, focus?: string): Promise<First> {
+  if (offset === 0 && !focus) {
+    const ck = cacheKey(key, warehouse)
+    const running = inflight.get(ck)
+    if (running) return running
+    const pr = fetchRaw(key, warehouse, 0).then(d => { firstCache.set(ck, { at: Date.now(), d }); return d }).finally(() => inflight.delete(ck))
+    inflight.set(ck, pr)
+    return pr
+  }
+  return fetchRaw(key, warehouse, offset, focus)
+}
+
+async function fetchRaw(key: string, warehouse: string | null, offset: number, focus?: string) {
   const p = new URLSearchParams({ key, offset: String(offset) })
   if (warehouse) p.set('warehouse', warehouse)
   if (focus) p.set('focus', focus)
@@ -89,7 +116,9 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(true)
   const load = useCallback(async (offset: number) => {
-    setBusy(true)
+    const cached = offset === 0 && !focus ? firstCache.get(cacheKey(product.key, warehouse)) : undefined
+    if (cached) { setPage({ rows: cached.d.rows, total: cached.d.total }); onFocusRow?.(null) }   // 先秀舊的，背景再更新
+    setBusy(!cached)
     try {
       const d = await fetchPage(product.key, warehouse, offset, offset === 0 ? focus : undefined)
       setPage(p => ({ rows: offset === 0 ? d.rows : [...p.rows, ...d.rows], total: d.total }))
@@ -120,7 +149,10 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   const [focusRow, setFocusRow] = useState<InvItem | null>(null)
   const [exporting, setExporting] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { setTab('wh'); setOpen({}); setFocusRow(null) }, [target])
+  const [seenAll, setSeenAll] = useState(false)
+  useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null) }, [target])
+  // 開品項總覽時，背景先把「全部條碼」第一頁載好，切過去就是現成的
+  useEffect(() => { if (target?.mode === 'item' && canBarcodes) prefetchBarcodes(target.product.key, null) }, [target, canBarcodes])
   useEffect(() => {
     if (!focusRow) return
     const t = setTimeout(() => bodyRef.current?.querySelector('tr[data-hl]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)
@@ -189,11 +221,13 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
       <>
         <div className="mb-3 inline-flex overflow-hidden rounded-lg border border-[#e8ddd0] text-xs">
           {([['wh', `依倉庫（${ws.length}）`], ['all', `全部條碼（${(ok + bad).toLocaleString()}）`]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} disabled={k === 'all' && !canBarcodes}
+            <button key={k} onClick={() => { setTab(k); if (k === 'all') setSeenAll(true) }}
+              onMouseEnter={() => { if (k === 'all' && canBarcodes) prefetchBarcodes(p.key, null) }} disabled={k === 'all' && !canBarcodes}
               className={`px-3 py-1.5 ${tab === k ? 'bg-[#e8ddd0] font-semibold text-[#2c1e12]' : 'bg-white text-[#6b4f38]'} disabled:opacity-40`}>{l}</button>
           ))}
         </div>
-        {tab === 'wh' ? (
+        {/* 兩個分頁都保持掛載（用隱藏切換），切換時不用重新載入 */}
+        <div className={tab === 'wh' ? '' : 'hidden'}>
           <div className="overflow-hidden rounded-lg border border-[#e8ddd0] bg-white">
             <table className="w-full text-[13px]">
               <thead><tr className="bg-[#faf6f0] text-[11px] text-[#6b4f38]">
@@ -225,11 +259,12 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
               </tbody>
             </table>
           </div>
-        ) : (
-          <>
+        </div>
+        {(tab === 'all' || seenAll) && (
+          <div className={tab === 'all' ? '' : 'hidden'}>
             <div className="mb-2 flex justify-end"><ExportBtn wh={null} withWh /></div>
             <BarcodeList product={p} warehouse={null} showWh />
-          </>
+          </div>
         )}
       </>
     )

@@ -17,6 +17,10 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
       if (!m.has(r)) m.set(r, [])
       m.get(r)!.push(w.name)
     }
+    // 已選但目前沒資料的倉：另列一組，讓使用者看得到、也能取消
+    const have = new Set(all.map(w => w.name))
+    const gone = selected.filter(w => !have.has(w))
+    if (gone.length) m.set('已選（目前無庫存資料）', gone)
     const top = ['總倉', '固資倉(整新)', '固資倉(舊品)', '供應鏈管理組', '待修倉']
     const rank = (n: string) => { const i = top.indexOf(n); return i < 0 ? 99 : i }
     m.forEach(list => list.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'zh-Hant')))
@@ -24,7 +28,7 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
       const ia = REGION_ORDER.indexOf(a[0]), ib = REGION_ORDER.indexOf(b[0])
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
     })
-  }, [all])
+  }, [all, selected])
   const toggle = (w: string) => setPick(p => (p.includes(w) ? p.filter(x => x !== w) : [...p, w]))
 
   return (

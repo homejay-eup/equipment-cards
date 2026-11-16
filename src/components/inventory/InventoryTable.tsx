@@ -2,6 +2,7 @@
 // Step 54：樞紐表（列＝產品、欄＝自選倉＋總計）與列表兩種檢視；欄、列、分組都可拖曳排序（順序存到個人設定）
 import { useState } from 'react'
 import { ChevronRight, ChevronDown, Package } from 'lucide-react'
+import { prefetchBarcodes } from './BarcodeDrawer'
 import type { InvPrefs, InvProduct } from './types'
 import { cell, fmt } from './types'
 
@@ -71,7 +72,7 @@ function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, 
           const [o, b] = cell(p, w)
           return (
             <td key={w} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">
-              {o || b ? <button onClick={() => onCell(p, w)} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{fmt(o) || '0'}</button> : null}
+              {o || b ? <button onMouseEnter={() => prefetchBarcodes(p.key, w)} onClick={() => onCell(p, w)} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{fmt(o) || '0'}</button> : null}
               {b ? <span title="不可使用" className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{b}</span> : null}
             </td>
           )
@@ -172,7 +173,7 @@ function List({ rows, prefs, allowed, onMoveRow, onCell, onItem }: Props) {
                 <tbody>{ws.map(w => (
                   <tr key={w} className="border-t border-[#f0e8de]">
                     <td className="py-1">{w}</td>
-                    <td className="py-1 text-right"><button onClick={() => onCell(p, w)} className="tabular-nums hover:text-[#7a5230] hover:underline">{cell(p, w)[0].toLocaleString()}</button></td>
+                    <td className="py-1 text-right"><button onMouseEnter={() => prefetchBarcodes(p.key, w)} onClick={() => onCell(p, w)} className="tabular-nums hover:text-[#7a5230] hover:underline">{cell(p, w)[0].toLocaleString()}</button></td>
                     <td className={`py-1 text-right tabular-nums ${cell(p, w)[1] ? 'text-[#b5451b]' : 'text-[#c9b8a4]'}`}>{cell(p, w)[1]}</td>
                   </tr>
                 ))}</tbody>
