@@ -35,6 +35,10 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
     .sort((a, b) => (a.p.pid ? 0 : 1) - (b.p.pid ? 0 : 1) || (a.p.pid || a.p.name).localeCompare(b.p.pid || b.p.name, 'zh-Hant')),
   [products, previewWh.join('|'), qty, zero]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [fq, setFq] = useState('')
+  const fqT = fq.trim().toLowerCase()
+  const shownRows = useMemo(() => fqT ? rows.filter(({ p }) => (p.pid ?? '').toLowerCase().includes(fqT) || p.name.toLowerCase().includes(fqT)) : rows, [rows, fqT])
+
   const saveLoc = async (p: InvProduct, v: string) => {
     const loc = v.trim().toUpperCase()
     setLocs(l => ({ ...(l ?? {}), [locKey(p)]: loc }))
@@ -88,12 +92,16 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
           <div className="mb-2 rounded-md bg-[#f6efe4] px-3 py-1.5 text-xs">
             檔名：<b className="font-mono">{names?.file ?? '…'}</b>　分頁：<b className="font-mono">{names ? (each ? selected.map(w => names.ymd + w).join('、') : names.tab) : '…'}</b>
           </div>
-          <p className="mb-1 text-xs text-[#a08060]">預覽{each ? `（第一個分頁：${selected[0]}）` : ''}</p>
-          <div className="overflow-hidden rounded-lg border border-[#e8ddd0]">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-xs text-[#a08060]">品項與倉別{each ? `（第一個分頁：${selected[0]}）` : ''}</span>
+            <input value={fq} onChange={e => setFq(e.target.value)} placeholder="搜尋品號或品名…"
+              className="ml-auto w-48 rounded-md border border-[#e8ddd0] bg-white px-2 py-1 text-xs outline-none focus:border-[#c49a72]" />
+          </div>
+          <div className="max-h-[40vh] overflow-auto rounded-lg border border-[#e8ddd0]">
             <table className="w-full text-[12px]">
-              <thead><tr className="bg-[#7a5230] text-white">{['品號', '品名', '倉別', '總計', '實盤數', '盤差'].map(h => <th key={h} className="px-2 py-1.5 font-bold">{h}</th>)}</tr></thead>
+              <thead className="sticky top-0 z-10 bg-[#7a5230]"><tr className="bg-[#7a5230] text-white">{['品號', '品名', '倉別', '總計', '實盤數', '盤差'].map(h => <th key={h} className="px-2 py-1.5 font-bold">{h}</th>)}</tr></thead>
               <tbody>
-                {rows.slice(0, 8).map(({ p, n }, i) => {
+                {shownRows.map(({ p, n }, i) => {
                   const t = trial[p.key] ?? ''
                   const d = t === '' || isNaN(+t) ? null : +t - n
                   return (
@@ -112,10 +120,11 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
                     </tr>
                   )
                 })}
+                {!shownRows.length && <tr><td colSpan={6} className="px-2 py-6 text-center text-[#a08060]">沒有符合的品項</td></tr>}
               </tbody>
             </table>
           </div>
-          <p className="mt-1 text-xs text-[#a08060]">共 {rows.length.toLocaleString()} 個品項・依品號排序・標題列固定、每欄都有篩選・倉別點一下可直接改，離開格子就記住</p>
+          <p className="mt-1 text-xs text-[#a08060]">{fqT ? `符合 ${shownRows.length.toLocaleString()} / ` : '共 '}{rows.length.toLocaleString()} 個品項・依品號排序・倉別點一下可直接改，離開格子就記住（黃底「實盤數」只是試填，不會存）</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-[#e8ddd0] px-4 py-2.5">
           {result
