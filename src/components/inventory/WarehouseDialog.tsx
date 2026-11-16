@@ -25,41 +25,30 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
     })
   }, [all])
-  const names = new Set(all.map(w => w.name))
-  const presets = [
-    ['只看總倉', ['總倉']],
-    ['總倉＋固資倉', ['總倉', '固資倉(整新)', '固資倉(舊品)']],
-    ['總倉＋各區辦公室', ['總倉', '北區辦公室', '竹區辦公室', '中區辦公室', '南區辦公室']],
-  ] as const
   const toggle = (w: string) => setPick(p => (p.includes(w) ? p.filter(x => x !== w) : [...p, w]))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2c1e12]/40 p-4" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-[640px] flex-col rounded-xl bg-[#fff9f4] shadow-xl" onClick={e => e.stopPropagation()}>
         <h3 className="px-4 pb-1 pt-3.5 text-[15px] font-semibold text-[#2c1e12]">選擇要看的倉庫</h3>
-        <p className="px-4 pb-2 text-xs text-[#a08060]">只列出你的角色能看的倉庫。選好會自動記住，換電腦也一樣。</p>
-        <div className="flex flex-wrap gap-1.5 px-4 pb-2">
-          {presets.map(([label, ws]) => (
-            <button key={label} onClick={() => setPick(ws.filter(w => names.has(w)))}
-              className="rounded-md border border-[#e8ddd0] bg-white px-2 py-1 text-[11px] text-[#6b4f38] hover:text-[#7a5230]">{label}</button>
-          ))}
-          {pick.length > 0 && <button onClick={() => setPick([])} className="rounded-md px-2 py-1 text-[11px] text-[#a08060] underline">全部取消</button>}
+        <p className="px-4 pb-2 text-xs text-[#a08060]">列出角色權限倉庫。選好會自動記住，換電腦也一樣。</p>
+        <div className="flex items-center gap-2 px-4 pb-2">
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋倉庫／技師姓名（不分區域）…"
+            className="flex-1 rounded-md border border-[#e8ddd0] bg-white px-2 py-1 text-sm outline-none focus:border-[#c49a72]" />
+          {pick.length > 0 && <button onClick={() => setPick([])} className="shrink-0 rounded-md px-2 py-1 text-[11px] text-[#a08060] underline">全部取消</button>}
         </div>
         <div className="flex-1 overflow-auto px-4 pb-2">
           {groups.map(([region, ws]) => {
             const tech = region.includes('技師')
-            const shown = q && tech ? ws.filter(w => w.includes(q)) : ws
+            const shown = q ? ws.filter(w => w.includes(q)) : ws
+            if (q && shown.length === 0) return null
             const n = ws.filter(w => pick.includes(w)).length
             return (
-              <details key={region} open={!tech || (!!q && shown.length > 0)} className="mb-2 rounded-lg border border-[#e8ddd0] bg-white">
+              <details key={`${region}-${q ? 'q' : ''}`} open={!tech || !!q} className="mb-2 rounded-lg border border-[#e8ddd0] bg-white">
                 <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium text-[#2c1e12]">
                   <span>{region}</span><span className="text-xs font-normal text-[#a08060]">{n ? `${n} 已選` : `${ws.length} 個倉`}</span>
                 </summary>
                 <div className="grid grid-cols-1 gap-x-3 gap-y-1 px-3 pb-2.5 sm:grid-cols-3">
-                  {tech && (
-                    <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋技師姓名…"
-                      className="col-span-full mb-1 rounded-md border border-[#e8ddd0] px-2 py-1 text-sm outline-none focus:border-[#c49a72]" />
-                  )}
                   {shown.map(w => (
                     <label key={w} className="flex cursor-pointer items-center gap-1.5 text-[13px] text-[#4a3422]">
                       <input type="checkbox" className="accent-[#7a5230]" checked={pick.includes(w)} onChange={() => toggle(w)} />{w}
