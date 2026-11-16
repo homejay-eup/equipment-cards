@@ -3,7 +3,7 @@
 //   mode 'cell'：某產品 × 某倉的條碼（focus＝主搜尋找到的那顆，上方顯示「你搜尋的條碼」卡片並標亮）
 //   mode 'item'：品項總覽——這個產品在所有有權限的倉的數量；點倉展開條碼；「全部條碼」分頁一次列出
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { Download, X, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import type { InvItem, InvProduct } from './types'
 import { cell } from './types'
 
@@ -150,7 +150,9 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   const [exporting, setExporting] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const [seenAll, setSeenAll] = useState(false)
-  useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null) }, [target])
+  const [sort, setSort] = useState<{ k: 'name' | 'ok' | 'bad' | 'total'; dir: 1 | -1 }>({ k: 'total', dir: -1 })   // 依倉庫表的排序（預設：合計多的在前）
+  const [wq, setWq] = useState('')
+  useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null); setWq('') }, [target])
   // 開品項總覽時，背景先把「全部條碼」第一頁載好，切過去就是現成的
   useEffect(() => { if (target?.mode === 'item' && canBarcodes) prefetchBarcodes(target.product.key, null) }, [target, canBarcodes])
   useEffect(() => {
@@ -212,15 +214,25 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
       </>
     )
   } else {
-    const ws = allowedWarehouses.filter(w => cell(p, w)[0] + cell(p, w)[1])
-      .sort((a, b) => (cell(p, b)[0] + cell(p, b)[1]) - (cell(p, a)[0] + cell(p, a)[1]))
-    const ok = ws.reduce((s, w) => s + cell(p, w)[0], 0)
-    const bad = ws.reduce((s, w) => s + cell(p, w)[1], 0)
-    sub = <>全部 {ws.length} 個倉・可使用 <b>{ok.toLocaleString()}</b>{bad ? <>・不可使用 <span className="text-[#b5451b]">{bad.toLocaleString()}</span></> : null}</>
+    const val = (w: string) => sort.k === 'ok' ? cell(p, w)[0] : sort.k === 'bad' ? cell(p, w)[1] : cell(p, w)[0] + cell(p, w)[1]
+    const all = allowedWarehouses.filter(w => cell(p, w)[0] + cell(p, w)[1])
+    const ws = all.filter(w => !wq.trim() || w.includes(wq.trim()))
+      .sort((a, b) => sort.k === 'name' ? sort.dir * a.localeCompare(b, 'zh-Hant') : sort.dir * (val(a) - val(b)) || a.localeCompare(b, 'zh-Hant'))
+    const ok = all.reduce((s, w) => s + cell(p, w)[0], 0)
+    const bad = all.reduce((s, w) => s + cell(p, w)[1], 0)
+    const th = (k: typeof sort.k, label: string, right: boolean) => (
+      <th className={`px-2.5 py-2 font-medium ${right ? 'text-right' : 'text-left'}`} aria-sort={sort.k === k ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+        <button type="button" onClick={() => setSort(s => s.k === k ? { k, dir: (s.dir * -1) as 1 | -1 } : { k, dir: k === 'name' ? 1 : -1 })}
+          className={`inline-flex items-center gap-0.5 hover:text-[#7a5230] ${sort.k === k ? 'font-semibold text-[#2c1e12]' : ''}`}>
+          {label}{sort.k === k ? (sort.dir === 1 ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+        </button>
+      </th>
+    )
+    sub = <>全部 {all.length} 個倉・可使用 <b>{ok.toLocaleString()}</b>{bad ? <>・不可使用 <span className="text-[#b5451b]">{bad.toLocaleString()}</span></> : null}</>
     body = (
       <>
         <div className="mb-3 inline-flex overflow-hidden rounded-lg border border-[#e8ddd0] text-xs">
-          {([['wh', `依倉庫（${ws.length}）`], ['all', `全部條碼（${(ok + bad).toLocaleString()}）`]] as const).map(([k, l]) => (
+          {([['wh', `依倉庫（${all.length}）`], ['all', `全部條碼（${(ok + bad).toLocaleString()}）`]] as const).map(([k, l]) => (
             <button key={k} onClick={() => { setTab(k); if (k === 'all') setSeenAll(true) }}
               onMouseEnter={() => { if (k === 'all' && canBarcodes) prefetchBarcodes(p.key, null) }} disabled={k === 'all' && !canBarcodes}
               className={`px-3 py-1.5 ${tab === k ? 'bg-[#e8ddd0] font-semibold text-[#2c1e12]' : 'bg-white text-[#6b4f38]'} disabled:opacity-40`}>{l}</button>
@@ -228,11 +240,12 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
         </div>
         {/* 兩個分頁都保持掛載（用隱藏切換），切換時不用重新載入 */}
         <div className={tab === 'wh' ? '' : 'hidden'}>
+          <input value={wq} onChange={e => setWq(e.target.value)} placeholder="搜尋倉庫…"
+            className="mb-2 w-full rounded-md border border-[#e8ddd0] bg-white px-2 py-1 text-xs outline-none focus:border-[#c49a72] sm:w-56" />
           <div className="overflow-hidden rounded-lg border border-[#e8ddd0] bg-white">
             <table className="w-full text-[13px]">
               <thead><tr className="bg-[#faf6f0] text-[11px] text-[#6b4f38]">
-                <th className="px-2.5 py-2 text-left font-medium">倉庫</th><th className="px-2.5 py-2 text-right font-medium">可使用</th>
-                <th className="px-2.5 py-2 text-right font-medium">不可使用</th><th className="px-2.5 py-2 text-right font-medium">合計</th><th className="w-16" />
+                {th('name', '倉庫', false)}{th('ok', '可使用', true)}{th('bad', '不可使用', true)}{th('total', '合計', true)}<th className="w-16" />
               </tr></thead>
               <tbody>
                 {ws.map(w => {
