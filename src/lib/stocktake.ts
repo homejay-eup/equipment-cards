@@ -7,9 +7,11 @@ import { locKey, type InvProductRow } from '@/lib/inventory'
 
 export const STOCKTAKE_FOLDER_ID = process.env.GOOGLE_DRIVE_STOCKTAKE_FOLDER_ID ?? ''
 const HEAD = ['品號', '品名', '倉別', '總計', '實盤數', '盤差']
+const HEAD_WH = ['品號', '品名', '倉別', '倉庫', '總計', '實盤數', '盤差']   // 「同一張表、各倉分開」：多一欄倉庫
+const colLetter = (i: number) => String.fromCharCode(65 + i)
 const rgb = (hex: string) => ({ red: parseInt(hex.slice(1, 3), 16) / 255, green: parseInt(hex.slice(3, 5), 16) / 255, blue: parseInt(hex.slice(5, 7), 16) / 255 })
 
-export interface StocktakeOptions { warehouses: string[]; mode: 'merge' | 'each'; qty: 'all' | 'ok'; zero: boolean }
+export interface StocktakeOptions { warehouses: string[]; mode: 'merge' | 'each' | 'stack'; qty: 'all' | 'ok'; zero: boolean }
 
 /** 檔名「庫存明細表115 - 11月 16」、分頁「261116盤點表」（台灣時間） */
 export function stocktakeNames(now = new Date()) {
@@ -62,7 +64,7 @@ export async function syncLocationsFromLastSheet(): Promise<number> {
   return ups.length
 }
 
-type Row = [string, string, string, number]
+type Row = [string, string, string, number, string?]   // [品號, 品名, 倉別, 數量, 倉庫（stack 才有）]
 
 export function buildRows(products: InvProductRow[], whs: string[], opt: StocktakeOptions, locs: Map<string, { location: string }>): Row[] {
   return products
@@ -74,8 +76,13 @@ export function buildRows(products: InvProductRow[], whs: string[], opt: Stockta
     .sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1) || (a[0] || a[1]).localeCompare(b[0] || b[1], 'zh-Hant'))   // 沒料號的排最後
 }
 
+/** 同一張表、各倉分開：每個倉一段（依選擇順序），段內依品號排序；每列多一欄倉庫 */
+export function buildStackRows(products: InvProductRow[], whs: string[], opt: StocktakeOptions, locs: Map<string, { location: string }>): Row[] {
+  return whs.flatMap(w => buildRows(products, [w], opt, locs).map(r => [r[0], r[1], r[2], r[3], w] as Row))
+}
+
 /** 建立試算表並套好格式；回傳 { id, url, name } */
-export async function createStocktakeSheet(tabs: { title: string; rows: Row[] }[]) {
+export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; withWh?: boolean }[]) {
   if (!STOCKTAKE_FOLDER_ID) throw new Error('伺服器尚未設定盤點表資料夾（GOOGLE_DRIVE_STOCKTAKE_FOLDER_ID）')
   const drive = await getDriveClient()
   const sheets = await getSheetsClient()
@@ -108,30 +115,33 @@ export async function createStocktakeSheet(tabs: { title: string; rows: Row[] }[
     spreadsheetId: id,
     requestBody: {
       valueInputOption: 'USER_ENTERED',
-      data: tabs.map(t => ({
-        range: `'${t.title}'!A1`,
-        values: [HEAD, ...t.rows.map((r, i) => [r[0], r[1], r[2], r[3], '', `=IF(E${i + 2}="","",E${i + 2}-D${i + 2})`])],
-      })),
+      data: tabs.map(t => {
+        const w = t.withWh ? 1 : 0, Q = colLetter(3 + w), C = colLetter(4 + w)
+        return {
+          range: `'${t.title}'!A1`,
+          values: [t.withWh ? HEAD_WH : HEAD, ...t.rows.map((r, i) => [r[0], r[1], r[2], ...(w ? [r[4] ?? ''] : []), r[3], '', `=IF(${C}${i + 2}="","",${C}${i + 2}-${Q}${i + 2})`])],
+        }
+      }),
     },
   })
 
   // 格式（沿用料卡網站木質色調）
   const fmt: object[] = []
   tabs.forEach((t, k) => {
-    const sid = ids[k], n = t.rows.length + 1
+    const sid = ids[k], n = t.rows.length + 1, w = t.withWh ? 1 : 0, nc = 6 + w
     const range = (c0: number, c1: number, r0 = 0, r1 = n) => ({ sheetId: sid, startRowIndex: r0, endRowIndex: r1, startColumnIndex: c0, endColumnIndex: c1 })
     fmt.push(
       { updateSheetProperties: { properties: { sheetId: sid, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' } },
-      { repeatCell: { range: range(0, 6, 0, n), cell: { userEnteredFormat: { textFormat: { fontSize: 12 }, verticalAlignment: 'MIDDLE' } }, fields: 'userEnteredFormat(textFormat.fontSize,verticalAlignment)' } },
-      { repeatCell: { range: range(0, 6, 0, 1), cell: { userEnteredFormat: { backgroundColor: rgb('#7a5230'), horizontalAlignment: 'CENTER', textFormat: { foregroundColor: rgb('#ffffff'), bold: true, fontSize: 13 } } }, fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)' } },
-      { repeatCell: { range: range(2, 6, 1, n), cell: { userEnteredFormat: { horizontalAlignment: 'CENTER' } }, fields: 'userEnteredFormat.horizontalAlignment' } },
+      { repeatCell: { range: range(0, nc, 0, n), cell: { userEnteredFormat: { textFormat: { fontSize: 12 }, verticalAlignment: 'MIDDLE' } }, fields: 'userEnteredFormat(textFormat.fontSize,verticalAlignment)' } },
+      { repeatCell: { range: range(0, nc, 0, 1), cell: { userEnteredFormat: { backgroundColor: rgb('#7a5230'), horizontalAlignment: 'CENTER', textFormat: { foregroundColor: rgb('#ffffff'), bold: true, fontSize: 13 } } }, fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)' } },
+      { repeatCell: { range: range(2, nc, 1, n), cell: { userEnteredFormat: { horizontalAlignment: 'CENTER' } }, fields: 'userEnteredFormat.horizontalAlignment' } },
       { repeatCell: { range: range(0, 1, 1, n), cell: { userEnteredFormat: { horizontalAlignment: 'LEFT' } }, fields: 'userEnteredFormat.horizontalAlignment' } },
-      { addBanding: { bandedRange: { range: range(0, 6, 0, n), rowProperties: { headerColor: rgb('#7a5230'), firstBandColor: rgb('#ffffff'), secondBandColor: rgb('#faf6f0') } } } },
-      { repeatCell: { range: range(4, 5, 1, n), cell: { userEnteredFormat: { backgroundColor: rgb('#fffbe8') } }, fields: 'userEnteredFormat.backgroundColor' } },
-      { setBasicFilter: { filter: { range: range(0, 6, 0, n) } } },
-      { addConditionalFormatRule: { index: 0, rule: { ranges: [range(5, 6, 1, n)], booleanRule: { condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#e6f0e0'), textFormat: { foregroundColor: rgb('#3d7a3a'), bold: true } } } } } },
-      { addConditionalFormatRule: { index: 1, rule: { ranges: [range(5, 6, 1, n)], booleanRule: { condition: { type: 'NUMBER_LESS', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#f8e4dc'), textFormat: { foregroundColor: rgb('#b5451b'), bold: true } } } } } },
-      ...[[0, 120], [1, 320], [2, 80], [3, 90], [4, 90], [5, 80]].map(([c, px]) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: c, endIndex: c + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })),
+      { addBanding: { bandedRange: { range: range(0, nc, 0, n), rowProperties: { headerColor: rgb('#7a5230'), firstBandColor: rgb('#ffffff'), secondBandColor: rgb('#faf6f0') } } } },
+      { repeatCell: { range: range(4 + w, 5 + w, 1, n), cell: { userEnteredFormat: { backgroundColor: rgb('#fffbe8') } }, fields: 'userEnteredFormat.backgroundColor' } },
+      { setBasicFilter: { filter: { range: range(0, nc, 0, n) } } },
+      { addConditionalFormatRule: { index: 0, rule: { ranges: [range(5 + w, 6 + w, 1, n)], booleanRule: { condition: { type: 'NUMBER_GREATER', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#e6f0e0'), textFormat: { foregroundColor: rgb('#3d7a3a'), bold: true } } } } } },
+      { addConditionalFormatRule: { index: 1, rule: { ranges: [range(5 + w, 6 + w, 1, n)], booleanRule: { condition: { type: 'NUMBER_LESS', values: [{ userEnteredValue: '0' }] }, format: { backgroundColor: rgb('#f8e4dc'), textFormat: { foregroundColor: rgb('#b5451b'), bold: true } } } } } },
+      ...(w ? [[0, 120], [1, 320], [2, 80], [3, 130], [4, 90], [5, 90], [6, 80]] : [[0, 120], [1, 320], [2, 80], [3, 90], [4, 90], [5, 80]]).map(([c, px]) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: c, endIndex: c + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })),
     )
   })
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: id, requestBody: { requests: fmt } })

@@ -8,7 +8,7 @@ import { cell } from './types'
 const locKey = (p: InvProduct) => p.pid ?? `名稱:${p.name}`
 
 export default function StocktakeDialog({ products, selected, onClose }: { products: InvProduct[]; selected: string[]; onClose: () => void }) {
-  const [mode, setMode] = useState<'merge' | 'each'>('merge')
+  const [mode, setMode] = useState<'merge' | 'each' | 'stack'>('merge')
   const [qty, setQty] = useState<'all' | 'ok'>('all')
   const [zero, setZero] = useState(false)
   const [locs, setLocs] = useState<Record<string, string> | null>(null)
@@ -28,16 +28,20 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
   }, [])
 
   const each = mode === 'each' && selected.length > 1
+  const stack = mode === 'stack' && selected.length > 1
   const previewWh = each ? [selected[0]] : selected
-  const rows = useMemo(() => products
-    .map(p => ({ p, n: previewWh.reduce((s, w) => s + cell(p, w)[0] + (qty === 'all' ? cell(p, w)[1] : 0), 0) }))
-    .filter(r => zero || r.n > 0)
-    .sort((a, b) => (a.p.pid ? 0 : 1) - (b.p.pid ? 0 : 1) || (a.p.pid || a.p.name).localeCompare(b.p.pid || b.p.name, 'zh-Hant')),
-  [products, previewWh.join('|'), qty, zero]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 同一張表各倉分開（stack）：每個倉一段，每列帶倉庫名；其他模式一列一品項
+  const rows = useMemo(() => {
+    const one = (whs: string[]) => products
+      .map(p => ({ p, n: whs.reduce((s, w) => s + cell(p, w)[0] + (qty === 'all' ? cell(p, w)[1] : 0), 0), wh: '' }))
+      .filter(r => zero || r.n > 0)
+      .sort((a, b) => (a.p.pid ? 0 : 1) - (b.p.pid ? 0 : 1) || (a.p.pid || a.p.name).localeCompare(b.p.pid || b.p.name, 'zh-Hant'))
+    return stack ? selected.flatMap(w => one([w]).map(r => ({ ...r, wh: w }))) : one(previewWh)
+  }, [products, previewWh.join('|'), qty, zero, stack]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [fq, setFq] = useState('')
   const fqT = fq.trim().toLowerCase()
-  const shownRows = useMemo(() => fqT ? rows.filter(({ p }) => (p.pid ?? '').toLowerCase().includes(fqT) || p.name.toLowerCase().includes(fqT)) : rows, [rows, fqT])
+  const shownRows = useMemo(() => fqT ? rows.filter(({ p, wh }) => (p.pid ?? '').toLowerCase().includes(fqT) || p.name.toLowerCase().includes(fqT) || wh.toLowerCase().includes(fqT)) : rows, [rows, fqT])
 
   const saveLoc = async (p: InvProduct, v: string) => {
     const loc = v.trim().toUpperCase()
@@ -80,6 +84,7 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
                 <b>你選了 {selected.length} 個倉</b>
                 <label className={radio(mode === 'merge')}><input type="radio" className="accent-[#7a5230]" checked={mode === 'merge'} onChange={() => setMode('merge')} />數量加總，做成一張表</label>
                 <label className={radio(mode === 'each')}><input type="radio" className="accent-[#7a5230]" checked={mode === 'each'} onChange={() => setMode('each')} />每個倉分開，各一個分頁</label>
+                <label className={radio(mode === 'stack')}><input type="radio" className="accent-[#7a5230]" checked={mode === 'stack'} onChange={() => setMode('stack')} />每個倉分開，同一個工作表</label>
               </div>
             </div>
           )}
@@ -99,28 +104,30 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
           </div>
           <div className="max-h-[40vh] overflow-auto rounded-lg border border-[#e8ddd0]">
             <table className="w-full text-[12px]">
-              <thead className="sticky top-0 z-10 bg-[#7a5230]"><tr className="bg-[#7a5230] text-white">{['品號', '品名', '倉別', '總計', '實盤數', '盤差'].map(h => <th key={h} className="px-2 py-1.5 font-bold">{h}</th>)}</tr></thead>
+              <thead className="sticky top-0 z-10 bg-[#7a5230]"><tr className="bg-[#7a5230] text-white">{['品號', '品名', '倉別', ...(stack ? ['倉庫'] : []), '總計', '實盤數', '盤差'].map(h => <th key={h} className="px-2 py-1.5 font-bold">{h}</th>)}</tr></thead>
               <tbody>
-                {shownRows.map(({ p, n }, i) => {
-                  const t = trial[p.key] ?? ''
+                {shownRows.map(({ p, n, wh }, i) => {
+                  const tk = p.key + '|' + wh
+                  const t = trial[tk] ?? ''
                   const d = t === '' || isNaN(+t) ? null : +t - n
                   return (
-                    <tr key={p.key} className={i % 2 ? 'bg-[#faf6f0]' : 'bg-white'}>
+                    <tr key={tk} className={i % 2 ? 'bg-[#faf6f0]' : 'bg-white'}>
                       <td className="px-2 py-1 text-center font-mono">{p.pid ?? ''}</td>
                       <td className="px-2 py-1">{p.name}</td>
                       <td className="px-2 py-1 text-center">
                         <input defaultValue={locs?.[locKey(p)] ?? ''} disabled={!locs} placeholder="—" onBlur={e => { if ((locs?.[locKey(p)] ?? '') !== e.target.value.trim().toUpperCase()) saveLoc(p, e.target.value) }}
                           className="w-14 rounded border border-dashed border-[#c9b8a4] bg-white px-1 text-center uppercase outline-none focus:border-solid focus:border-[#7a5230]" />
                       </td>
+                      {stack && <td className="px-2 py-1 text-center">{wh}</td>}
                       <td className="px-2 py-1 text-center tabular-nums">{n}</td>
                       <td className="bg-[#fffbe8] px-2 py-1 text-center">
-                        <input value={t} onChange={e => setTrial(s => ({ ...s, [p.key]: e.target.value }))} className="w-14 rounded border border-[#e8ddd0] bg-[#fffbe8] px-1 text-center outline-none" />
+                        <input value={t} onChange={e => setTrial(s => ({ ...s, [tk]: e.target.value }))} className="w-14 rounded border border-[#e8ddd0] bg-[#fffbe8] px-1 text-center outline-none" />
                       </td>
                       <td className={`px-2 py-1 text-center font-bold tabular-nums ${d == null ? '' : d > 0 ? 'bg-[#e6f0e0] text-[#3d7a3a]' : d < 0 ? 'bg-[#f8e4dc] text-[#b5451b]' : ''}`}>{d ?? ''}</td>
                     </tr>
                   )
                 })}
-                {!shownRows.length && <tr><td colSpan={6} className="px-2 py-6 text-center text-[#a08060]">沒有符合的品項</td></tr>}
+                {!shownRows.length && <tr><td colSpan={stack ? 7 : 6} className="px-2 py-6 text-center text-[#a08060]">沒有符合的品項</td></tr>}
               </tbody>
             </table>
           </div>
