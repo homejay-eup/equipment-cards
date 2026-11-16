@@ -52,3 +52,56 @@ export function canSee(access: InventoryAccess, warehouse: string) {
 }
 
 export const forbidden = () => NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+export interface InvProductRow {
+  key: string; pid: string | null; name: string; crmNames: string[]; type: string; onCard: boolean
+  cells: Record<string, [number, number]>
+}
+interface SummaryRow {
+  product_id: string | null; category: string | null; name: string; warehouse: string; region: string | null
+  ok_count: number; bad_count: number
+}
+
+/** 產品 × 倉庫 數量（只含角色看得到的倉）；庫存頁與盤點表共用。錯誤會丟出 { code, message } */
+export async function loadProducts(access: InventoryAccess) {
+  const db = getServiceClient()
+  const rows: SummaryRow[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from('inventory_summary')
+      .select('product_id, category, name, warehouse, region, ok_count, bad_count').range(from, from + 999)
+    if (error) throw error
+    rows.push(...(data as SummaryRow[]))
+    if (!data || data.length < 1000) break
+  }
+  // 料卡名稱（有對到料卡就用料卡名稱顯示）
+  const pids = Array.from(new Set(rows.map(r => r.product_id).filter(Boolean))) as string[]
+  const cardName = new Map<string, string>()
+  for (let i = 0; i < pids.length; i += 300) {
+    const { data } = await db.from('equipment_cards').select('equipment_id, name').in('equipment_id', pids.slice(i, i + 300))
+    for (const c of data ?? []) cardName.set(c.equipment_id, c.name)
+  }
+  const products = new Map<string, InvProductRow>()
+  const whs = new Map<string, string>()   // 倉 → 區域
+  for (const r of rows) {
+    if (!canSee(access, r.warehouse)) continue
+    whs.set(r.warehouse, r.region ?? '')
+    const type = r.category || '其他'
+    const key = r.product_id ? r.product_id : `name:${type}|${r.name}`
+    let p = products.get(key)
+    if (!p) {
+      const onCard = !!(r.product_id && cardName.has(r.product_id))
+      p = { key, pid: r.product_id, name: onCard ? cardName.get(r.product_id!)! : (r.name || type), crmNames: [], type, onCard, cells: {} }
+      products.set(key, p)
+    }
+    if (r.name && !p.crmNames.includes(r.name)) p.crmNames.push(r.name)
+    const c = p.cells[r.warehouse] ?? [0, 0]
+    p.cells[r.warehouse] = [c[0] + Number(r.ok_count), c[1] + Number(r.bad_count)]
+  }
+  return {
+    products: Array.from(products.values()),
+    warehouses: Array.from(whs.entries()).map(([name, region]) => ({ name, region })),
+  }
+}
+
+/** 盤點表「倉別」（儲位）的記憶 key：有料號用料號，沒有用「名稱:<品名>」 */
+export const locKey = (p: { pid: string | null; name: string }) => p.pid ?? `名稱:${p.name}`

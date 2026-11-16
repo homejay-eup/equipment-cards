@@ -8,6 +8,7 @@ import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
 import BarcodeDrawer, { type DrawerTarget } from './BarcodeDrawer'
 import WarehouseDialog from './WarehouseDialog'
+import StocktakeDialog from './StocktakeDialog'
 
 interface Data { products: InvProduct[]; warehouses: InvWarehouse[]; batches: Record<string, InvBatch>; can: InvCan }
 interface RefreshReq { id: number; status: string; step: string | null; progress: Record<string, string> | null; error: string | null; created_at: string }
@@ -24,6 +25,7 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
   const [hits, setHits] = useState<InvItem[] | null>(null)
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null)
   const [whDlg, setWhDlg] = useState(false)
+  const [stkDlg, setStkDlg] = useState(false)
   const [req, setReq] = useState<RefreshReq | null>(null)
   const [delta, setDelta] = useState<Record<string, number>>({})
   const [toast, setToast] = useState('')
@@ -208,9 +210,13 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
         )}
         {stale && <span className="text-xs text-[#b5451b]">公司電腦沒有回應（可能休眠、關機或同步程式沒開），以下仍是 {hm(oldest)} 的資料；電腦恢復後會自動補做</span>}
         {req?.error && !running && <span className="text-xs text-[#b5451b]">部分失敗：{req.error.slice(0, 60)}</span>}
+        {data.can.stocktake && (
+          <button onClick={() => setStkDlg(true)}
+            className="ml-auto rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[#7a5230] hover:bg-[#faf6f0]">匯出盤點表</button>
+        )}
         {data.can.refresh && (
           <button onClick={startRefresh} disabled={running}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80">
+            className={`${data.can.stocktake ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80`}>
             <RefreshCw className={`h-3.5 w-3.5 ${running ? 'animate-spin' : ''}`} />
             {running ? `${STEPS[Math.max(0, stepIdx)]}…` : req?.status === 'done' ? '完成' : '刷新庫存'}
           </button>
@@ -307,6 +313,7 @@ export default function InventoryClient({ isActive = true }: { isActive?: boolea
       <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
       {whDlg && <WarehouseDialog all={data.warehouses} selected={sel} onClose={() => setWhDlg(false)}
         onApply={wh => { update(p => ({ ...p, wh })); setWhDlg(false) }} />}
+      {stkDlg && <StocktakeDialog products={data.products} selected={sel} onClose={() => setStkDlg(false)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#2c1e12] px-4 py-2 text-sm text-white shadow-lg">{toast}</div>}
     </div>
   )

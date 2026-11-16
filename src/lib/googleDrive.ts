@@ -1,5 +1,5 @@
 import path from 'path'
-import { google, drive_v3 } from 'googleapis'
+import { google, drive_v3, sheets_v4 } from 'googleapis'
 import { GoogleAuth } from 'google-auth-library'
 
 // Service Account 認證：equipment-cards-drive@...iam.gserviceaccount.com
@@ -29,6 +29,11 @@ function getAuth(): GoogleAuth {
     ? new GoogleAuth({ credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON), scopes: SCOPES })
     : new GoogleAuth({ keyFile: KEY_FILE, scopes: SCOPES })
   return cachedAuth
+}
+
+// Step 54 盤點表：Sheets API（drive 範圍即可存取 Sheets）
+export async function getSheetsClient(): Promise<sheets_v4.Sheets> {
+  return google.sheets({ version: 'v4', auth: getAuth() })
 }
 
 // 取得已認證的 Drive client（cache 住，同一個 serverless instance 內重用）
