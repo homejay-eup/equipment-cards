@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS role_inventory_defaults (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 8. 角色可看的倉庫範圍（沒有任何一列＝看不到任何倉）
+-- 8. 角色可看的倉庫範圍（沒有任何一列＝不限制、看全部倉；有列＝只能看列出的倉）
 CREATE TABLE IF NOT EXISTS role_inventory_warehouses (
   role_id      UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
   warehouse    TEXT NOT NULL,

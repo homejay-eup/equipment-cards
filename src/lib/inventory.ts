@@ -36,6 +36,8 @@ export const MISSING_MSG = '資料表尚未建立，請先執行 _開發檔案/s
 const ACCESS_TTL = 30_000
 const accessCache = new Map<string, { at: number; v: Omit<InventoryAccess, 'email'> | null }>()
 
+export function clearInventoryAccessCache() { accessCache.clear() }
+
 export async function getInventoryAccess(): Promise<InventoryAccess | null> {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,5 +1,6 @@
 'use client'
 
+import RoleWarehouseScope from '@/components/RoleWarehouseScope'
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Loader2, Check, X, GripVertical } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -87,7 +88,7 @@ const PERM_LABELS: Record<string, string> = {
   view_residual:              '可看設備殘值計算（使用計算器）',
   edit_residual:              '管理設備殘值計算的品項：新增／修改／刪除品項與金額年限、CSV 匯入匯出（隱含可看）',
   // 庫存（Step 54）
-  view_inventory:             '可看 CRM 庫存頁與料卡上的庫存數字',
+  view_inventory:             '可看 CRM 庫存頁（庫存分頁）',
   view_inventory_barcodes:    '可展開到條碼明細（沒有就只看數量）',
   refresh_inventory:          '可按「刷新庫存」（請公司電腦重抓 CRM）',
   export_stocktake:           '可匯出盤點表到 Google 試算表',
@@ -1290,6 +1291,7 @@ export default function RolesManager({ initialRoles, currentUserRoleName, deptGr
                       </label>
                     ))}
                   </div>
+                  {draft.includes('view_inventory') && <RoleWarehouseScope roleId={role.id} roleName={role.name} />}
                 </div>
 
                 {/* 列印 */}
