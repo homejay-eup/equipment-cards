@@ -50,7 +50,20 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
             return (
               <details key={`${region}-${q ? 'q' : ''}`} open={!tech || !!q} className="mb-2 rounded-lg border border-[#e8ddd0] bg-white">
                 <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium text-[#2c1e12]">
-                  <span>{region}</span><span className="text-xs font-normal text-[#a08060]">{n ? `${n} 已選` : `${ws.length} 個倉`}</span>
+                  <span>{region}</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="text-xs font-normal text-[#a08060]">{n ? `${n} 已選` : `${ws.length} 個倉`}</span>
+                    {(() => {
+                      const all = shown.length > 0 && shown.every(w => pick.includes(w))
+                      return (
+                        <button type="button"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); setPick(p => all ? p.filter(x => !shown.includes(x)) : [...p, ...shown.filter(x => !p.includes(x))]) }}
+                          className="rounded-md border border-[#e8ddd0] bg-white px-2 py-0.5 text-[11px] font-normal text-[#6b4f38] hover:text-[#7a5230]">
+                          {all ? '取消全選' : q ? '全選符合的' : '全選'}
+                        </button>
+                      )
+                    })()}
+                  </span>
                 </summary>
                 <div className="grid grid-cols-1 gap-x-3 gap-y-1 px-3 pb-2.5 sm:grid-cols-3">
                   {shown.map(w => (
