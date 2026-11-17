@@ -96,6 +96,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   const [sortDir,  setSortDir]  = useState<'asc' | 'desc'>(() => (searchParams.get('dir') ?? 'asc') as 'asc' | 'desc')
   const [isNewFilter, setIsNewFilter] = useState(() => searchParams.get('new') === '1')
   const [noPhotoFilter, setNoPhotoFilter] = useState(false)
+  const [changhuiFilter, setChanghuiFilter] = useState(false)
   const [selected, setSelected] = useState<EquipmentCard | null>(null)
 
   const [formMode,    setFormMode]    = useState<'create' | 'edit'>('create')
@@ -358,6 +359,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     if (selectedStatuses.size > 0) result = result.filter(c => selectedStatuses.has(c.status ?? ''))
     if (isNewFilter)               result = result.filter(c => c.is_new)
     if (noPhotoFilter)             result = result.filter(c => !c.main_photo)
+    if (changhuiFilter)            result = result.filter(c => c.vendor === '長輝')
     if (selectedSubTags.length > 0) {
       // 次級篩選是精確的預設標籤（例如「MDVR-4G-2鏡」），一律用精確包含比對，
       // 不能走 Fuse 模糊搜尋——否則「MDVR-4G-2鏡」跟「MDVR-4G-8鏡」這種只差一個字元
@@ -392,10 +394,10 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
       })
     }
     return result
-  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, fuse, selectedSubTags])
+  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, changhuiFilter, fuse, selectedSubTags])
 
-  const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter || selectedSubTags.length > 0)
-  const activeFilterCount = selectedCats.size + selectedStatuses.size + selectedSubTags.length + (isNewFilter ? 1 : 0) + (noPhotoFilter ? 1 : 0)
+  const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter || changhuiFilter || selectedSubTags.length > 0)
+  const activeFilterCount = selectedCats.size + selectedStatuses.size + selectedSubTags.length + (isNewFilter ? 1 : 0) + (noPhotoFilter ? 1 : 0) + (changhuiFilter ? 1 : 0)
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); setSelectedSubTags([]); return }
@@ -538,7 +540,7 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     }, 800)
   }, [])
 
-  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false); setNoPhotoFilter(false); setSelectedSubTags([]) }
+  const clearFilters = () => { setQuery(''); setSelectedCats(new Set()); setSelectedStatuses(new Set()); setSortBy('id'); setSortDir('asc'); setIsNewFilter(false); setNoPhotoFilter(false); setChanghuiFilter(false); setSelectedSubTags([]) }
 
   function openCreate() { setEditingCard(undefined); setFormMode('create'); setFormOpen(true) }
   function openEdit(card: EquipmentCard) { setEditingCard(card); setFormMode('edit'); setFormOpen(true) }
@@ -956,6 +958,12 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                   無主圖<X className="h-3 w-3" />
                 </button>
               )}
+              {changhuiFilter && (
+                <button onClick={() => setChanghuiFilter(false)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
+                  長輝<X className="h-3 w-3" />
+                </button>
+              )}
               <button onClick={clearFilters}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-[#a08060] border border-[#e8ddd0] hover:text-[#7a5230]">
                 <X className="h-3 w-3" />清除篩選
@@ -1001,6 +1009,14 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                   </button>
                 )
               })}
+              <button onClick={() => setChanghuiFilter(v => !v)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                  changhuiFilter
+                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.5),0_0_20px_rgba(122,82,48,.18)]'
+                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.4)] hover:text-[#7a5230] hover:shadow-[0_0_8px_rgba(122,82,48,.28)]'
+                }`}>
+                長輝
+              </button>
             </div>
             {/* 次級篩選：緊接在類別下方 */}
             {selectedCats.size === 1 &&
