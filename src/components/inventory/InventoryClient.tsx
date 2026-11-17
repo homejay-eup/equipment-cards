@@ -6,7 +6,7 @@ import { RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-r
 import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse, TransferItem } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
-import TransferTab, { daysOf } from './TransferTab'
+import TransferTab from './TransferTab'
 import BarcodeDrawer, { clearBarcodeCache, type DrawerTarget } from './BarcodeDrawer'
 import WarehouseDialog from './WarehouseDialog'
 import StocktakeDialog from './StocktakeDialog'
@@ -81,15 +81,6 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     if (data.can.transfers && !xAsked.current.transit) { xAsked.current.transit = true; loadX('transit') }
     if (data.can.idle && !xAsked.current.idle) { xAsked.current.idle = true; loadX('idle') }
   }, [data, loadX])
-  // 分頁標籤上的件數：移交出去／待接收＝移交中總件數（紅＝等超過 7 天）；持有過久＝技師超過 30 天（不含 Sim 卡，紅＝超過 90 天）
-  const counts = useMemo(() => {
-    const t = transit?.items ?? [], i = (idle?.items ?? []).filter(x => x.category !== 'Sim卡')
-    return {
-      out: [t.length, t.filter(x => daysOf(x.at) > 7).length],
-      in: [t.length, t.filter(x => daysOf(x.at) > 7).length],
-      idle: [i.length, i.filter(x => daysOf(x.at) > 90).length],
-    } as Record<'out' | 'in' | 'idle', number[]>
-  }, [transit, idle])
 
   // 個人設定：改了 0.8 秒後存到伺服器（每人一份，跨裝置）
   const update = (fn: (p: InvPrefs) => InvPrefs) => setPrefs(p => {
@@ -213,7 +204,19 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   if (!data || !prefs) return <div className="mx-auto max-w-5xl px-4 py-12 text-center text-sm text-[#a08060]">讀取庫存中…</div>
 
   const sel = prefs.wh
-  const chips = tab === 'stock' ? sel : (prefs.xwh ?? [])   // 目前分頁的倉庫範圍（新分頁空＝全部倉庫）
+  // 目前分頁的倉庫範圍：庫存＝自選倉；其餘三個分頁各自獨立。沒設過＝預設（持有過久：全部技師、不含測試倉；其餘：全部倉庫）
+  const xKey = tab === 'stock' ? null : tab
+  const xSet = xKey ? prefs.xs?.[xKey] : undefined
+  const techDefault = data.warehouses.filter(w => (w.region || '').includes('技師') && !w.name.includes('測試')).map(w => w.name)
+  const idleDefault = tab === 'idle' && xSet === undefined
+  const scopeList: string[] | null = tab === 'stock' ? sel : xSet === undefined ? (tab === 'idle' ? techDefault : null) : xSet?.length ? xSet : null
+  const chips = idleDefault ? [] : (scopeList ?? [])   // 畫面上顯示的小標籤（預設的全部技師太多，合併成一個標籤）
+  const setScope = (wh: string[] | null | undefined) => update(p => {
+    if (!xKey) return p
+    const xs = { ...p.xs }
+    if (wh === undefined) delete xs[xKey]; else xs[xKey] = wh
+    return { ...p, xs }
+  })
   const times = Object.values(data.batches).map(b => b.exportedAt).filter(Boolean) as string[]
   const oldest = times.sort()[0] ?? null
   const running = sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
@@ -265,20 +268,14 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       </div>
 
       {(data.can.transfers || data.can.idle) && (
-        <div className="mb-3 flex flex-wrap gap-1 border-b border-[#e8ddd0]">
+        <div className="mb-3 inline-flex max-w-full overflow-hidden rounded-lg border border-[#e8ddd0]" role="tablist">
           {([['stock', '庫存'], ['out', '移交出去'], ['in', '待接收'], ['idle', '持有過久']] as [Tab, string][])
-            .filter(([k]) => k === 'stock' || (k === 'idle' ? data.can.idle : data.can.transfers)).map(([k, label]) => {
-              const c = k === 'stock' ? null : counts[k]
-              return (
-                <button key={k} onClick={() => setTab(k)}
-                  className={`-mb-px border-b-2 px-4 py-2 text-[14px] ${tab === k ? 'border-[#7a5230] font-semibold text-[#2c1e12]' : 'border-transparent text-[#6b4f38] hover:text-[#7a5230]'}`}>
-                  {label}
-                  {c && (xErr[k === 'idle' ? 'idle' : 'transit'] ? null : (k === 'idle' ? idle : transit)) && (
-                    <span className="ml-1.5 text-xs text-[#a08060]">{c[0].toLocaleString()}{c[1] ? <span className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{c[1].toLocaleString()}</span> : null}</span>
-                  )}
-                </button>
-              )
-            })}
+            .filter(([k]) => k === 'stock' || (k === 'idle' ? data.can.idle : data.can.transfers)).map(([k, label]) => (
+              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                className={`px-5 py-1.5 text-[14px] ${tab === k ? 'bg-[#7a5230] font-semibold text-white' : 'bg-white text-[#6b4f38] hover:bg-[#faf6f0] hover:text-[#7a5230]'}`}>
+                {label}
+              </button>
+            ))}
         </div>
       )}
 
@@ -311,15 +308,15 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6b4f38]">
         <Warehouse className="h-4 w-4 text-[#a08060]" />
         倉庫（欄位順序可拖曳）：
-        {chips.length === 0 && <span className="rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">全部倉庫</span>}
+        {tab !== 'stock' && chips.length === 0 && <span className="rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{idleDefault ? '全部技師（不含測試倉）' : '全部倉庫'}</span>}
         {chips.map(w => (
           <span key={w} draggable
             onDragStart={e => e.dataTransfer.setData('text/wh', w)} onDragOver={e => e.preventDefault()}
-            onDrop={e => { const f = e.dataTransfer.getData('text/wh'); if (f && f !== w) { update(p => (tab === 'stock' ? { ...p, wh: moveIn(p.wh, f, w) } : { ...p, xwh: moveIn(p.xwh ?? [], f, w) })); say('欄位順序已記住') } }}
+            onDrop={e => { const f = e.dataTransfer.getData('text/wh'); if (f && f !== w) { if (tab === 'stock') update(p => ({ ...p, wh: moveIn(p.wh, f, w) })); else setScope(moveIn(chips, f, w)); say('欄位順序已記住') } }}
             className="cursor-grab rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{w}</span>
         ))}
         <button onClick={() => setWhDlg(true)} className="ml-1 text-xs text-[#7a5230] underline">編輯倉庫</button>
-        {tab !== 'stock' && chips.length > 0 && <button onClick={() => update(p => ({ ...p, xwh: null }))} className="text-xs text-[#a08060] underline">改回全部倉庫</button>}
+        {tab !== 'stock' && xSet !== undefined && <button onClick={() => setScope(undefined)} className="text-xs text-[#a08060] underline">{tab === 'idle' ? '改回全部技師' : '改回全部倉庫'}</button>}
       </div>
 
       {tab === 'stock' && liveHits && (
@@ -354,7 +351,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       {tab !== 'stock' ? (
         <TransferTab
-          kind={tab} products={data.products} warehouses={data.warehouses} scope={chips.length ? chips : null} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
+          kind={tab} products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : ''}，無法刷新；之後才移交的列在「接收倉未同步」，請至 CRM 查詢</> : undefined}
@@ -380,8 +377,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       />}
 
       <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
-      {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : chips} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
-        onApply={wh => { update(p => (tab === 'stock' ? { ...p, wh } : { ...p, xwh: wh.length ? wh : null })); setWhDlg(false) }} />}
+      {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : (scopeList ?? [])} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
+        onApply={wh => { if (tab === 'stock') update(p => ({ ...p, wh })); else setScope(wh.length ? wh : null); setWhDlg(false) }} />}
       {stkDlg && <StocktakeDialog products={data.products} selected={sel} onClose={() => setStkDlg(false)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#2c1e12] px-4 py-2 text-sm text-white shadow-lg">{toast}</div>}
     </div>

@@ -90,7 +90,7 @@ function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolea
             const hl = !!focus && r.barcode === focus
             return (
               <tr key={r.warehouse + r.barcode} data-hl={hl || undefined}
-                className={`border-t border-[#f0e8de] ${hl ? 'bg-[#f7e3c8] font-semibold shadow-[inset_4px_0_0_#7a5230] animate-pulse' : ''}`}>
+                className={`border-t border-[#f0e8de] ${hl ? 'barcode-hit' : ''}`}>
                 <td className="whitespace-nowrap px-2.5 py-1.5 font-mono">{r.barcode}</td>
                 {showWh && <td className="whitespace-nowrap px-2.5 py-1.5">{r.warehouse}</td>}
                 <td className="whitespace-nowrap px-2.5 py-1.5">{r.car}</td>
