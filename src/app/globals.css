@@ -153,12 +153,12 @@
   outline: none !important;
 }
 
-/* 庫存條碼明細：搜尋到的那顆條碼——反色（深底白字）＋閃爍＋跳動 */
-tr.barcode-hit { background-color: #7a5230; color: #fff; font-weight: 600; animation: barcodeFlash 0.9s ease-in-out 4; }
-tr.barcode-hit td { animation: barcodeJump 0.6s cubic-bezier(.3, 1.6, .5, 1) 3; }
-@keyframes barcodeFlash { 50% { background-color: #c98a2b; } }
-@keyframes barcodeJump { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
-@media (prefers-reduced-motion: reduce) { tr.barcode-hit, tr.barcode-hit td { animation: none; } }
+/* 庫存條碼明細：搜尋到的那顆條碼——淡色底＋左側深色邊＋閃爍（清單裡排第一列，上方卡片也一起閃） */
+tr.barcode-hit { background-color: #f7e3c8; font-weight: 600; box-shadow: inset 4px 0 0 #7a5230; animation: barcodeFlash 0.8s ease-in-out 5; }
+.barcode-card { animation: barcodeCardFlash 0.8s ease-in-out 5; }
+@keyframes barcodeFlash { 50% { background-color: #f0bd6e; } }
+@keyframes barcodeCardFlash { 50% { background-color: #f7e3c8; } }
+@media (prefers-reduced-motion: reduce) { tr.barcode-hit, .barcode-card { animation: none; } }
 
 /* 搜尋命中效果（SearchHit）：命中列標亮＋第一筆閃動 */
 html [data-search-hit] { background-color: #f7e3c8; box-shadow: inset 4px 0 0 #7a5230; }

@@ -115,6 +115,7 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
   const [page, setPage] = useState<Page>({ rows: [], total: 0 })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(true)
+  const [fr, setFr] = useState<InvItem | null>(null)   // 搜尋到的那顆條碼：固定排在清單第一列
   const load = useCallback(async (offset: number) => {
     const cached = offset === 0 && !focus ? firstCache.get(cacheKey(product.key, warehouse)) : undefined
     if (cached) { setPage({ rows: cached.d.rows, total: cached.d.total }); onFocusRow?.(null) }   // 先秀舊的，背景再更新
@@ -122,7 +123,7 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
     try {
       const d = await fetchPage(product.key, warehouse, offset, offset === 0 ? focus : undefined)
       setPage(p => ({ rows: offset === 0 ? d.rows : [...p.rows, ...d.rows], total: d.total }))
-      if (offset === 0) onFocusRow?.(d.focusRow)
+      if (offset === 0) { onFocusRow?.(d.focusRow); setFr(d.focusRow) }
     } catch (e) { setErr((e as Error).message) }
     setBusy(false)
   }, [product.key, warehouse, focus, onFocusRow])
@@ -130,7 +131,7 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
   if (err) return <p className="py-4 text-sm text-[#b5451b]">{err}</p>
   return (
     <div>
-      {page.rows.length > 0 && <BarcodeTable rows={page.rows} showWh={showWh} focus={focus} />}
+      {page.rows.length > 0 && <BarcodeTable rows={focus && fr ? [fr, ...page.rows.filter(r => r.barcode !== focus)] : page.rows} showWh={showWh} focus={focus} />}
       <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#a08060]">
         {busy ? '讀取中…' : `顯示 ${page.rows.length.toLocaleString()} / ${page.total.toLocaleString()} 筆`}
         {!busy && page.rows.length < page.total && (
@@ -155,11 +156,6 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null); setWq('') }, [target])
   // 開品項總覽時，背景先把「全部條碼」第一頁載好，切過去就是現成的
   useEffect(() => { if (target?.mode === 'item' && canBarcodes) prefetchBarcodes(target.product.key, null) }, [target, canBarcodes])
-  useEffect(() => {
-    if (!focusRow) return
-    const t = setTimeout(() => bodyRef.current?.querySelector('tr[data-hl]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)
-    return () => clearTimeout(t)
-  }, [focusRow])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -187,7 +183,7 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
     body = (
       <>
         {focusRow && (
-          <div className="mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5">
+          <div className="barcode-card mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5">
             <div className="mb-1 flex items-center text-[11px] font-bold text-[#7a5230]">
               你搜尋的條碼
               <button className="ml-auto text-[11px] font-normal underline"
