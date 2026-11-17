@@ -5,6 +5,7 @@ import { EquipmentCard } from '@/types/equipment'
 import { useDocumentUpload, DocumentAllRecord } from '@/hooks/useDocumentUpload'
 import BatchUploadPanel from '@/components/documents/BatchUploadPanel'
 import ExpandableDocumentList from '@/components/documents/ExpandableDocumentList'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 
 interface Props {
   allCards: EquipmentCard[]
@@ -31,11 +32,12 @@ export default function DocumentsClient({ allCards, documentTypes: initialDocume
   const [docsLoading, setDocsLoading] = useState(true)
   const [docsError, setDocsError] = useState<string | null>(null)
 
-  const refreshDocuments = useCallback(async () => {
-    setDocsLoading(true)
+  const refreshDocuments = useCallback(async (silent = false) => {
+    if (!silent) setDocsLoading(true)
     setDocsError(null)
     try {
       const all = await docApi.listAll()
+      writeSwr('documents-main', all)
       setDocuments(all)
     } catch (e) {
       setDocsError(e instanceof Error ? e.message : '查詢文件清單失敗')
@@ -45,7 +47,11 @@ export default function DocumentsClient({ allCards, documentTypes: initialDocume
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { refreshDocuments() }, [refreshDocuments])
+  useEffect(() => {
+    const c = readSwr<DocumentAllRecord[]>('documents-main')   // 先秀上次的資料，背景再更新
+    if (c) setDocuments(c)
+    refreshDocuments(!!c)
+  }, [refreshDocuments])
 
   return (
     <div className="max-w-5xl mx-auto px-4 pt-4 pb-16 space-y-6">
@@ -55,7 +61,7 @@ export default function DocumentsClient({ allCards, documentTypes: initialDocume
         onDocumentTypesChange={setDocumentTypes}
         documents={documents}
         onBusyChange={onBusyChange}
-        onUploaded={refreshDocuments}
+        onUploaded={() => refreshDocuments()}
       />
 
       <ExpandableDocumentList
@@ -65,7 +71,7 @@ export default function DocumentsClient({ allCards, documentTypes: initialDocume
         loading={docsLoading}
         error={docsError}
         formatDateTime={formatDateTime}
-        onChanged={refreshDocuments}
+        onChanged={() => refreshDocuments()}
         onBusyChange={onBusyChange}
         stickyTop={stickyTop}
       />

@@ -13,7 +13,7 @@ import PackageBatchActionsBar from './PackageBatchActionsBar'
 import PackageListView from './PackageListView'
 import EquipmentListView from './EquipmentListView'
 import { unlinkKey } from './unlinkKey'
-import SearchHitBanner, { locateFirstHit, useAutoLocate } from '@/components/common/SearchHit'
+import SearchHitBanner, { locateFirstHit } from '@/components/common/SearchHit'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { logUsageEvent } from '@/lib/analyticsClient'
@@ -211,7 +211,6 @@ export default function PackageExplorer({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimmedQuery, view, hitCount])
-  useAutoLocate(listRef, trimmedQuery, `${view}|${hitCount}|${expanded.size}`)
 
   function alignmentBadge(pkg: EquipmentPackage | SharedEquipmentPackage) {
     const groupUpdatedAt = pkg.source_group_id ? sourceGroupUpdatedAt[pkg.source_group_id] : undefined

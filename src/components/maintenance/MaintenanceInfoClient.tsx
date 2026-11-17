@@ -15,6 +15,7 @@ import RuleListPanel, { BatchAction } from '@/components/maintenance/RuleListPan
 import RuleEditPanel, { RuleDraft } from '@/components/maintenance/RuleEditPanel'
 import BatchPanel, { BatchPanelMode, BATCH_PANEL_TITLE } from '@/components/maintenance/BatchPanel'
 import VendorManageDialog from '@/components/maintenance/VendorManageDialog'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 
 interface Props {
   isActive: boolean
@@ -191,6 +192,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       if (!res.ok) { setLoadError(data?.error ?? '查詢規則失敗'); return null }
       const next: MaintenanceRule[] = ((data.rules ?? []) as (Partial<MaintenanceRule> & { id: string })[]).map(normalizeRule)
       setLoadError(null)
+      writeSwr('maint-rules', next)
       setRules(next)
       return next
     } catch {
@@ -205,6 +207,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       const res = await fetch('/api/maintenance/vendors')
       const data = await res.json().catch(() => ({}))
       if (seq !== vendorsSeq.current || !res.ok) return
+      writeSwr('maint-vendors', data.vendors ?? [])
       setVendors(data.vendors ?? [])
     } catch { /* 廠商清單抓取失敗不阻擋主畫面 */ }
   }, [])
@@ -213,7 +216,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
     try {
       const res = await fetch('/api/maintenance/options')
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setExitOptions(data.options ?? [])
+      if (res.ok) { writeSwr('maint-options', data.options ?? []); setExitOptions(data.options ?? []) }
     } catch { /* 選項抓取失敗時維持現有清單 */ }
   }, [])
 
@@ -236,6 +239,7 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
   // 從料卡細節頁「查看維修資訊」跳進來：搜尋框帶入料號，切到第一個有該料號專屬規則的區塊
   const appliedFilterRef = useRef<{ equipmentId: string } | null>(null)
   const pendingJumpRef = useRef<string | null>(null)
+  const swrSeededRef = useRef(false)
 
   // 首次進入 + 每次切回這個分頁都重新抓最新資料（比照 PackagesClient 的 isActive 模式）
   useEffect(() => {
@@ -244,6 +248,15 @@ export default function MaintenanceInfoClient({ isActive, filter, permissions, a
       appliedFilterRef.current = filter
       pendingJumpRef.current = filter.equipmentId
       setQ(filter.equipmentId)
+    }
+    if (!swrSeededRef.current) {   // 先秀上次的資料，背景再更新
+      swrSeededRef.current = true
+      const cr = readSwr<MaintenanceRule[]>('maint-rules')
+      if (cr) {
+        setRules(cr)
+        const cv = readSwr<MaintenanceVendor[]>('maint-vendors'); if (cv) setVendors(cv)
+        const co = readSwr<MaintenanceExitOption[]>('maint-options'); if (co) setExitOptions(co)
+      }
     }
     let cancelled = false
     ;(async () => {

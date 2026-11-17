@@ -153,15 +153,8 @@
   outline: none !important;
 }
 
-/* 庫存條碼明細：搜尋到的那顆條碼——淡色底＋左側深色邊＋閃爍（清單裡排第一列，上方卡片也一起閃） */
-tr.barcode-hit { background-color: #f7e3c8; font-weight: 600; box-shadow: inset 4px 0 0 #7a5230; animation: barcodeFlash 0.8s ease-in-out 5; }
-.barcode-card { animation: barcodeCardFlash 0.8s ease-in-out 5; }
-@keyframes barcodeFlash { 50% { background-color: #f0bd6e; } }
-@keyframes barcodeCardFlash { 50% { background-color: #f7e3c8; } }
-@media (prefers-reduced-motion: reduce) { tr.barcode-hit, .barcode-card { animation: none; } }
+/* 庫存條碼明細：搜尋到的那顆條碼——淡色底＋左側深色邊（不閃爍） */
+tr.barcode-hit { background-color: #f7e3c8; font-weight: 600; box-shadow: inset 4px 0 0 #7a5230; }
 
-/* 搜尋命中效果（SearchHit）：命中列標亮＋第一筆閃動 */
-html [data-search-hit] { background-color: #f7e3c8; box-shadow: inset 4px 0 0 #7a5230; }
-.search-hit-pulse { animation: searchHitPulse 1.1s ease-in-out 3; }
-@keyframes searchHitPulse { 50% { background-color: #fde9a8; } }
-@media (prefers-reduced-motion: reduce) { .search-hit-pulse { animation: none; } }
+/* 搜尋命中（SearchHit）：整列不塗色，只留左側細線；命中的字由 HighlightText 螢光筆標示 */
+html [data-search-hit] { box-shadow: inset 3px 0 0 #7a5230; }

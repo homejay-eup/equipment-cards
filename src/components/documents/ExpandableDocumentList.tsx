@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import SearchHitBanner, { locateFirstHit, useAutoLocate } from '@/components/common/SearchHit'
+import SearchHitBanner, { locateFirstHit } from '@/components/common/SearchHit'
 import { HighlightText } from '@/components/maintenance/RuleContent'
 import {
   FileText, Loader2, Search, Trash2, AlertTriangle,
@@ -183,7 +183,6 @@ export default function ExpandableDocumentList({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hitQ, view, hitCount])
-  useAutoLocate(listRef, listQuery, `${view}|${hitCount}|${expanded.size}`)
   const cardHit = (c: { equipment_id: string; name: string }) => !!hitQ && (c.equipment_id.toLowerCase().includes(hitQ) || c.name.toLowerCase().includes(hitQ))
 
   function handleDocSort(key: DocSortKey) {
@@ -611,7 +610,7 @@ export default function ExpandableDocumentList({
                                   onClick={e => e.stopPropagation()}
                                   className="flex items-center gap-1.5 text-[#4a3422] hover:text-[#7a5230] truncate">
                                   <FileText className="h-3.5 w-3.5 text-[#a08060] flex-shrink-0" />
-                                  <span className="truncate">{doc.name}</span>
+                                  <span className="truncate"><HighlightText text={doc.name} query={listQuery} /></span>
                                   <span className="text-[#a08060] flex-shrink-0">（{doc.type}）</span>
                                 </a>
                                 <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">

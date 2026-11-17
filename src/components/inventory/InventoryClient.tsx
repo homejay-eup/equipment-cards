@@ -9,6 +9,7 @@ import InventoryTable from './InventoryTable'
 import TransferTab from './TransferTab'
 import BarcodeDrawer, { clearBarcodeCache, type DrawerTarget } from './BarcodeDrawer'
 import WarehouseDialog from './WarehouseDialog'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 import StocktakeDialog from './StocktakeDialog'
 
 interface Data { products: InvProduct[]; warehouses: InvWarehouse[]; batches: Record<string, InvBatch>; can: InvCan }
@@ -49,32 +50,46 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       const r = await fetch(`/api/inventory/transfers?kind=${kind}`, { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取失敗')
+      writeSwr(`inv-${kind}`, { items: d.items, destAsOf: d.destAsOf ?? null })
       if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf })
       else setIdle({ items: d.items })
       setXErr(e => ({ ...e, [kind]: '' }))
     } catch (e) { setXErr(x => ({ ...x, [kind]: (e as Error).message })) }
   }, [])
 
+  const applyData = useCallback((d: Data & { prefs?: InvPrefs | null }, keepPrefs: boolean) => {
+    setData({ products: d.products, warehouses: d.warehouses, batches: d.batches, can: d.can })
+    if (!keepPrefs) {
+      const base = defaultPrefs(d.warehouses)
+      const p: InvPrefs = d.prefs ? { ...base, ...d.prefs } : base
+      // 已選的倉即使這次資料裡暫時沒有（上傳中、或庫存剛好為 0）也保留，不能自動剔除，否則重新上傳後選擇會跑掉
+      if (!Array.isArray(p.wh) || !p.wh.length) p.wh = base.wh
+      setPrefs(p)
+    }
+  }, [])
   const load = useCallback(async (keepPrefs = false): Promise<InvProduct[] | null> => {
     try {
       const r = await fetch('/api/inventory', { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取庫存失敗')
+      writeSwr('inv-main', d)
       clearBarcodeCache()   // 庫存資料更新了，舊的明細記憶作廢
-      setData({ products: d.products, warehouses: d.warehouses, batches: d.batches, can: d.can })
-      if (!keepPrefs) {
-        const base = defaultPrefs(d.warehouses)
-        const p: InvPrefs = d.prefs ? { ...base, ...d.prefs } : base
-        // 已選的倉即使這次資料裡暫時沒有（上傳中、或庫存剛好為 0）也保留，不能自動剔除，否則重新上傳後選擇會跑掉
-        if (!Array.isArray(p.wh) || !p.wh.length) p.wh = base.wh
-        setPrefs(p)
-      }
+      applyData(d, keepPrefs)
       setErr('')
       return d.products as InvProduct[]
     } catch (e) { setErr((e as Error).message); return null }
-  }, [])
+  }, [applyData])
   // 進網站就先在背景載入（PhotoWall 會提早掛載），切到庫存分頁時資料已經在了
-  useEffect(() => { if (!loaded.current) { loaded.current = true; load() } }, [load])
+  // 先秀上次看過的資料（秒開），同時背景抓最新的，抓到再悄悄換掉
+  useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
+    const c = readSwr<Data & { prefs?: InvPrefs | null }>('inv-main')
+    if (c?.products && c.warehouses) applyData(c, false)
+    const t = readSwr<{ items: TransferItem[]; destAsOf: string | null }>('inv-transit'); if (t) setTransit(t)
+    const i = readSwr<{ items: TransferItem[] }>('inv-idle'); if (i) setIdle(i)
+    load()
+  }, [load, applyData])
 
   useEffect(() => {
     if (!data) return
@@ -308,7 +323,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6b4f38]">
         <Warehouse className="h-4 w-4 text-[#a08060]" />
         倉庫（欄位順序可拖曳）：
-        {tab !== 'stock' && chips.length === 0 && <span className="rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{idleDefault ? '全部技師（不含測試倉）' : '全部倉庫'}</span>}
+        {tab !== 'stock' && chips.length === 0 && <span className="rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{idleDefault ? '全部技師' : '全部倉庫'}</span>}
         {chips.map(w => (
           <span key={w} draggable
             onDragStart={e => e.dataTransfer.setData('text/wh', w)} onDragOver={e => e.preventDefault()}
@@ -351,7 +366,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       {tab !== 'stock' ? (
         <TransferTab
-          kind={tab} products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
+          key={tab} kind={tab} transposed={!!prefs.tp?.[tab]} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, [tab]: !p.tp?.[tab] } }))}
+          products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : ''}，無法刷新；之後才移交的列在「接收倉未同步」，請至 CRM 查詢</> : undefined}
@@ -360,6 +376,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>
       ) : <InventoryTable
         rows={shown} prefs={prefs} allowed={allowed} delta={delta}
+        transposed={!!prefs.tp?.stock} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, stock: !p.tp?.stock } }))}
         onSort={k => update(p => ({ ...p, sort: p.sort.k === k ? { k, d: (p.sort.d * -1) as 1 | -1 } : { k, d: k === 'pid' || k === 'name' ? 1 : -1 } }))}
         onToggleGroup={g => update(p => ({ ...p, col: { ...p.col, [g]: !p.col[g] } }))}
         onMoveCol={(f, t) => { update(p => ({ ...p, wh: moveIn(p.wh, f, t) })); say('欄位順序已記住') }}

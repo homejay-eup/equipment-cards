@@ -2,7 +2,8 @@
 // ERP（鼎新 Cosmos）品號庫存。和 CRM 庫存分開授權（view_erp_inventory）。
 // 資料由公司電腦在使用者登入 ERP 後背景匯出，不能即時刷新；預設只列「無條碼」品項（ERP 對這類最準），CRM 管有條碼的。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Search, Upload } from 'lucide-react'
+import { ChevronDown, ChevronUp, Info, Search, Upload } from 'lucide-react'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 
 interface ErpItem { pid: string; name: string; qty: number; wh: string | null; vendor: string | null; hasSerial: boolean; ownBarcode: boolean; prefix: string | null; warranty: number | null }
 interface Run { exportedAt: string; uploadedAt: string; rows: number }
@@ -29,16 +30,30 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
   const [uploading, setUploading] = useState(false)
   const [drag, setDrag] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [help, setHelp] = useState(false)
+  const helpRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!help) return
+    const off = (e: MouseEvent) => { if (!helpRef.current?.contains(e.target as Node)) setHelp(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setHelp(false) }
+    document.addEventListener('mousedown', off); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', off); document.removeEventListener('keydown', esc) }
+  }, [help])
 
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/inventory/erp', { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取 ERP 庫存失敗')
+      writeSwr('erp-main', d)
       setItems(d.items); setRun(d.run); setCanUpload(!!d.can?.upload); setErr('')
     } catch (e) { setErr((e as Error).message) }
   }, [])
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const c = readSwr<{ items: ErpItem[]; run: Run | null; can?: { upload?: boolean } }>('erp-main')   // 先秀上次的資料
+    if (c?.items) { setItems(c.items); setRun(c.run); setCanUpload(!!c.can?.upload) }
+    load()
+  }, [load])
 
   const upload = async (f: File | undefined) => {
     if (!f || uploading) return
@@ -109,9 +124,18 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
   return (
     <div className="mx-auto max-w-[1400px] px-4 pb-16 pt-4">
       <div className="mb-3 flex flex-wrap items-start gap-3">
-        <div className="mr-auto">
-          <h2 className="text-lg font-semibold text-[#2c1e12]">ERP 庫存</h2>
-          <p className="text-xs text-[#a08060]">數量來自鼎新 ERP「品號資料建立作業」；公司電腦在登入 ERP 後自動匯出，不能即時刷新。有條碼的品項請看 CRM 庫存（較準）。</p>
+        <div className="relative mr-auto" ref={helpRef}>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-[#2c1e12]">
+            ERP 庫存
+            <button type="button" aria-label="資料來源與更新說明" aria-expanded={help} onClick={() => setHelp(v => !v)}
+              className="rounded-full p-0.5 text-[#a08060] hover:bg-[#f0e8de] hover:text-[#7a5230]"><Info className="h-4 w-4" /></button>
+          </h2>
+          {help && (
+            <div role="dialog" className="absolute left-0 top-full z-30 mt-1 w-[min(420px,90vw)] rounded-lg border border-[#e8ddd0] bg-white p-3 text-xs leading-relaxed text-[#6b4f38] shadow-lg">
+              <p>數量來自鼎新 ERP「品號資料建立作業」；公司電腦在登入 ERP 後自動匯出，不能即時刷新。有條碼的品項請看 CRM 庫存（較準）。</p>
+              {canUpload && <p className="mt-2">手動更新：在 ERP「品號資料建立作業」查詢、把資料捲到最後一筆後匯出 Excel，再把檔案按「上傳匯出檔更新」選取（或直接拖進來）。</p>}
+            </div>
+          )}
         </div>
         {switcher}
       </div>
@@ -122,7 +146,6 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
         {uploadBox}
       </div>
       {upMsg && <p className={`mb-3 -mt-1 text-xs ${upMsg.ok ? 'text-[#3d7a3a]' : 'text-[#b5451b]'}`}>{upMsg.text}</p>}
-      {canUpload && <p className="mb-3 -mt-1 text-[11px] text-[#a08060]">手動更新：在 ERP「品號資料建立作業」查詢、把資料捲到最後一筆後匯出 Excel，再把檔案按上面按鈕選取（或直接拖進來）。</p>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-[#a08060]" />

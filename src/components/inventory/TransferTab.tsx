@@ -4,7 +4,7 @@
 //   樞紐表：品項 × 倉庫；列表：一個倉庫（技師）一列，展開看他持有哪些品項。
 // 搜尋、倉庫範圍（編輯倉庫）、樞紐表／列表、分組由上層共用。
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Copy, Download, X } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, ChevronRight, Copy, Download, X } from 'lucide-react'
 import type { InvProduct, InvWarehouse, TransferItem } from './types'
 import { TYPE_ORDER } from './types'
 
@@ -33,6 +33,8 @@ interface Props {
   view: 'pivot' | 'list'
   grp: 'type' | 'none'
   note?: React.ReactNode     // 只有待接收頁有：接收倉資料時間說明
+  transposed?: boolean       // 樞紐表列欄交換（倉庫在左、品項在上）
+  onTranspose?: () => void
   onCopied: (msg: string) => void
 }
 
@@ -46,9 +48,9 @@ function Switch({ checked, onChange, children }: { checked: boolean; onChange: (
   )
 }
 
-export default function TransferTab({ kind, items, loading, error, products, warehouses, scope, q, view, grp, note, onCopied }: Props) {
+export default function TransferTab({ kind, items, loading, error, products, warehouses, scope, q, view, grp, note, transposed, onTranspose, onCopied }: Props) {
   const thr = THRESH[kind]
-  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [overdueOnly, setOverdueOnly] = useState(kind !== 'idle')   // 移交出去／待接收：預設只看等超過 7 天
   const [withSim, setWithSim] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
@@ -163,12 +165,63 @@ export default function TransferTab({ kind, items, loading, error, products, war
   return (
     <div>
       {toggleBar}
-      {!rows.length ? empty : view === 'pivot' ? (
+      {!rows.length ? empty : view === 'pivot' && transposed ? (
         <div className="max-h-[70vh] overflow-auto rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
           <table className="min-w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-[2] bg-[#faf6f0]">
               <tr>
-                <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`}>品號</th>
+                <th className={`${th} sticky left-0 z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`}>
+                  <button type="button" title="列欄交換：品項改排在左邊" aria-label="列欄交換" onClick={onTranspose}
+                    className="mr-1 inline-flex rounded border border-[#e8ddd0] bg-white p-0.5 align-[-2px] text-[#7a5230] hover:bg-[#f3e9dc]"><ArrowLeftRight className="h-3 w-3" /></button>
+                  {kind === 'idle' ? '技師' : kind === 'in' ? '接收倉' : '送出倉'}
+                </th>
+                {rows.map(r => (
+                  <th key={r.key} className={`${th} min-w-[96px] max-w-[150px] whitespace-normal text-right align-bottom`}>
+                    <div className="font-mono text-[11px] font-normal text-[#a08060]">{r.pid ?? '—'}</div>
+                    <button type="button" onClick={() => setDetail({ row: r, col: null })} className="text-right font-medium hover:text-[#7a5230] hover:underline">{r.name}</button>
+                  </th>
+                ))}
+                <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cols.map(c => {
+                const list = itemsOfCol(c)
+                return (
+                  <tr key={c} className="group border-t border-[#f0e8de] hover:bg-[#fdf8f2]">
+                    <td className="sticky left-0 z-[1] whitespace-nowrap bg-white px-2.5 py-1.5 text-[13px] shadow-[1px_0_0_#e8ddd0] group-hover:bg-[#fdf8f2]">{colHead(c)}</td>
+                    {rows.map(r => {
+                      const n = cnt(r, c)
+                      return (
+                        <td key={r.key} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">
+                          {n ? <><button onClick={() => setDetail({ row: r, col: c })} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{n}</button>{badge(over(r.cells.get(c)!))}</> : null}
+                        </td>
+                      )
+                    })}
+                    <td className="whitespace-nowrap bg-[#faf6f0] px-2.5 py-1.5 text-right font-semibold tabular-nums">{list.length}{badge(over(list))}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot className="sticky bottom-0 z-[2]">
+              <tr className="bg-[#f6efe4] font-semibold">
+                <td className="sticky left-0 bg-[#f6efe4] px-2.5 py-2 text-[13px]">總計</td>
+                {rows.map(r => <td key={r.key} className="px-2.5 py-2 text-right tabular-nums text-[13px]">{r.all.length}{badge(over(r.all))}</td>)}
+                <td className="bg-[#efe5d6] px-2.5 py-2 text-right tabular-nums text-[13px]">{totalOf(rows)}{badge(overOf(rows))}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : view === 'pivot' ? (
+        <div className="max-h-[70vh] overflow-auto rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
+          <table className="min-w-full border-separate border-spacing-0">
+            <thead className="sticky top-0 z-[2] bg-[#faf6f0]">
+              <tr>
+                <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`}>
+                  <button type="button" title="列欄交換：倉庫改排在左邊" aria-label="列欄交換" onClick={onTranspose}
+                    className="mr-1 inline-flex rounded border border-[#e8ddd0] bg-white p-0.5 align-[-2px] text-[#7a5230] hover:bg-[#f3e9dc]"><ArrowLeftRight className="h-3 w-3" /></button>
+                  品號
+                </th>
                 <th className={`${th} sticky left-[128px] z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`}>品名</th>
                 {cols.map(c => <th key={c} className={`${th} text-right`}>{colHead(c)}</th>)}
                 <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>

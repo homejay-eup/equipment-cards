@@ -33,6 +33,7 @@ export interface InvPrefs {
   gorder: string[]                      // 分組順序
   col: Record<string, boolean>          // 分組收合
   onlyStock: boolean
+  tp?: Partial<Record<'stock' | 'out' | 'in' | 'idle', boolean>>   // 樞紐表「列欄交換」（倉庫在左、品項在上）：庫存與三個分頁各自記住
   xs?: Partial<Record<'out' | 'in' | 'idle', string[] | null>>   // 移交出去／待接收／持有過久各自的倉庫範圍；沒設＝預設（持有過久＝全部技師不含測試倉，其餘＝全部倉庫）；null／空＝全部倉庫
 }
 

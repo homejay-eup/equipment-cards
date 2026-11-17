@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 import UserManagementTable from '@/components/UserManagementTable'
 
 interface UserRow {
@@ -45,6 +46,7 @@ export default function UserManagementPanel({ isActive }: Props) {
       const res = await fetch('/api/admin/users')
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d?.error ?? '載入失敗'); return }
+      writeSwr('admin-users', d)
       setData(d)
     } catch {
       setError('載入失敗，請重試')
@@ -55,6 +57,8 @@ export default function UserManagementPanel({ isActive }: Props) {
 
   useEffect(() => {
     if (!isActive) return
+    const c = readSwr<UsersData>('admin-users')   // 先秀上次的資料，背景再更新
+    if (c) setData(c)
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive])

@@ -9,6 +9,7 @@ import SheetUploadDialog from './SheetUploadDialog'
 import SheetEditor from './SheetEditor'
 import SheetRevisionsDialog from './SheetRevisionsDialog'
 import { importLegacySheet } from './legacySheetImport'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 import { emailName, formatDateTime, formatMonth, readApiError } from './standardPriceUtils'
 
 interface Props {
@@ -41,14 +42,15 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
   const [opening, setOpening] = useState(false)
   const [revisionsOpen, setRevisionsOpen] = useState(false)
 
-  const loadList = useCallback(async (selectId?: string) => {
-    setListLoading(true)
+  const loadList = useCallback(async (selectId?: string, silent = false) => {
+    if (!silent) setListLoading(true)
     setListError(null)
     try {
       const res = await fetch('/api/standard-prices/sheets')
       if (!res.ok) { setListError(await readApiError(res, '讀取價目表失敗')); return }
       const json = await res.json()
       const list: StandardPriceSheetMeta[] = json.sheets ?? []
+      writeSwr('std-price-sheets', list)   // 只快取清單，不快取 HTML 內容
       setSheets(list)
       setSelectedId(prev => selectId ?? (prev && list.some(s => s.id === prev) ? prev : list[0]?.id ?? null))
     } catch {
@@ -58,7 +60,11 @@ export default function StandardPriceSheetClient({ canEdit }: Props) {
     }
   }, [])
 
-  useEffect(() => { loadList() }, [loadList])
+  useEffect(() => {
+    const c = readSwr<StandardPriceSheetMeta[]>('std-price-sheets')   // 先秀上次的清單，背景再更新
+    if (c?.length) { setSheets(c); setSelectedId(c[0].id); setListLoading(false) }
+    loadList(undefined, !!c?.length)
+  }, [loadList])
 
   // 選到的版本還沒抓過 html 才去抓；抓過的放 cache，切換歷史版本不重抓
   useEffect(() => {

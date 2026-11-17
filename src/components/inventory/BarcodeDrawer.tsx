@@ -183,14 +183,8 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
     body = (
       <>
         {focusRow && (
-          <div className="barcode-card mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5">
-            <div className="mb-1 flex items-center text-[11px] font-bold text-[#7a5230]">
-              你搜尋的條碼
-              <button className="ml-auto text-[11px] font-normal underline"
-                onClick={() => bodyRef.current?.querySelector('tr[data-hl]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })}>
-                在下方清單中定位 ↓
-              </button>
-            </div>
+          <div className="mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5">
+            <div className="mb-1 text-[11px] font-bold text-[#7a5230]">你搜尋的條碼</div>
             <div className="font-mono text-[17px] font-bold">{focusRow.barcode}</div>
             <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
               {([['倉庫', focusRow.warehouse], ['車代', focusRow.car || '—'], ['更新', (focusRow.crm_updated ?? '').slice(0, 10)], ['操作', focusRow.op],

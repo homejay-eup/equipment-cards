@@ -1,7 +1,7 @@
 'use client'
 // Step 54：樞紐表（列＝產品、欄＝自選倉＋總計）與列表兩種檢視；欄、列、分組都可拖曳排序（順序存到個人設定）
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Package } from 'lucide-react'
+import { ChevronRight, ChevronDown, Package, ArrowLeftRight } from 'lucide-react'
 import { prefetchBarcodes } from './BarcodeDrawer'
 import type { InvPrefs, InvProduct } from './types'
 import { cell, fmt } from './types'
@@ -11,6 +11,8 @@ interface Props {
   prefs: InvPrefs
   allowed: string[]
   delta: Record<string, number>
+  transposed: boolean
+  onTranspose: () => void
   onSort: (k: string) => void
   onToggleGroup: (g: string) => void
   onMoveCol: (from: string, to: string) => void
@@ -30,7 +32,7 @@ function Other({ p, sel, allowed }: { p: InvProduct; sel: string[]; allowed: str
 function Grip() { return <span className="mr-1 cursor-grab select-none text-[10px] text-[#c9b8a4] opacity-0 group-hover:opacity-100">⋮⋮</span> }
 
 export default function InventoryTable(props: Props) {
-  return props.prefs.view === 'pivot' ? <Pivot {...props} /> : <List {...props} />
+  return props.prefs.view === 'pivot' ? (props.transposed ? <PivotT {...props} /> : <Pivot {...props} />) : <List {...props} />
 }
 
 function useDrag() {
@@ -46,7 +48,7 @@ function useDrag() {
   return { bind, over, dragging: drag }
 }
 
-function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, onMoveRow, onMoveGroup, onCell, onItem }: Props) {
+function Pivot({ rows, prefs, allowed, delta, onTranspose, onSort, onToggleGroup, onMoveCol, onMoveRow, onMoveGroup, onCell, onItem }: Props) {
   const sel = prefs.wh
   const { bind, over } = useDrag()
   const arrow = (k: string) => (prefs.sort.k === k ? <span className="ml-0.5 text-[10px]">{prefs.sort.d > 0 ? '▲' : '▼'}</span> : null)
@@ -113,7 +115,10 @@ function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, 
       <table className="min-w-full border-separate border-spacing-0">
         <thead className="sticky top-0 z-[2] bg-[#faf6f0]">
           <tr>
-            <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`} onClick={() => onSort('pid')}>品號{arrow('pid')}</th>
+            <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`} onClick={() => onSort('pid')}>
+              <button type="button" title="列欄交換：倉庫改排在左邊" aria-label="列欄交換" onClick={e => { e.stopPropagation(); onTranspose() }}
+                className="mr-1 inline-flex rounded border border-[#e8ddd0] bg-white p-0.5 align-[-2px] text-[#7a5230] hover:bg-[#f3e9dc]"><ArrowLeftRight className="h-3 w-3" /></button>
+              品號{arrow('pid')}</th>
             <th className={`${th} sticky left-[128px] z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`} onClick={() => onSort('name')}>品名{arrow('name')}</th>
             {sel.map(w => (
               <th key={w} {...bind('col', w, onMoveCol)} onClick={() => onSort(w)} title="拖曳可調整欄位順序"
@@ -128,6 +133,60 @@ function Pivot({ rows, prefs, allowed, delta, onSort, onToggleGroup, onMoveCol, 
             <td colSpan={2} className="sticky left-0 bg-[#f6efe4] px-2.5 py-2 text-[13px]">總計</td>
             {sel.map(w => <td key={w} className="px-2.5 py-2 text-right tabular-nums text-[13px]">{fmt(sum(rows, w))}</td>)}
             <td className="bg-[#efe5d6] px-2.5 py-2 text-right tabular-nums text-[13px]">{fmt(sel.reduce((a, w) => a + sum(rows, w), 0))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  )
+}
+
+// 列欄交換：倉庫在左（直排）、品項在上（橫排）；倉庫很多時不用一直往右拉
+function PivotT({ rows, prefs, onTranspose, onCell, onItem }: Props) {
+  const sel = prefs.wh
+  const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
+  const sumW = (w: string) => rows.reduce((a, p) => a + cell(p, w)[0], 0)
+  if (!rows.length) return <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]">找不到符合的產品</div>
+  return (
+    <div className="max-h-[70vh] overflow-auto rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
+      <table className="min-w-full border-separate border-spacing-0">
+        <thead className="sticky top-0 z-[2] bg-[#faf6f0]">
+          <tr>
+            <th className={`${th} sticky left-0 z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`}>
+              <button type="button" title="列欄交換：品項改排在左邊" aria-label="列欄交換" onClick={onTranspose}
+                className="mr-1 inline-flex rounded border border-[#e8ddd0] bg-white p-0.5 align-[-2px] text-[#7a5230] hover:bg-[#f3e9dc]"><ArrowLeftRight className="h-3 w-3" /></button>
+              倉庫
+            </th>
+            {rows.map(p => (
+              <th key={p.key} className={`${th} min-w-[96px] max-w-[150px] whitespace-normal text-right align-bottom`}>
+                <div className="font-mono text-[11px] font-normal text-[#a08060]">{p.pid ?? '—'}</div>
+                <button type="button" onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-right font-medium hover:text-[#7a5230] hover:underline">{p.name}</button>
+              </th>
+            ))}
+            <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sel.map(w => (
+            <tr key={w} className="group border-t border-[#f0e8de] hover:bg-[#fdf8f2]">
+              <td className="sticky left-0 z-[1] whitespace-nowrap bg-white px-2.5 py-1.5 text-[13px] shadow-[1px_0_0_#e8ddd0] group-hover:bg-[#fdf8f2]">{w}</td>
+              {rows.map(p => {
+                const [o, b] = cell(p, w)
+                return (
+                  <td key={p.key} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">
+                    {o || b ? <button onMouseEnter={() => prefetchBarcodes(p.key, w)} onClick={() => onCell(p, w)} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{fmt(o) || '0'}</button> : null}
+                    {b ? <span title="不可使用" className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{b}</span> : null}
+                  </td>
+                )
+              })}
+              <td className="whitespace-nowrap bg-[#faf6f0] px-2.5 py-1.5 text-right font-semibold tabular-nums">{fmt(sumW(w)) || '0'}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="sticky bottom-0 z-[2]">
+          <tr className="bg-[#f6efe4] font-semibold">
+            <td className="sticky left-0 bg-[#f6efe4] px-2.5 py-2 text-[13px]">總計</td>
+            {rows.map(p => <td key={p.key} className="px-2.5 py-2 text-right tabular-nums text-[13px]">{fmt(sel.reduce((a, w) => a + cell(p, w)[0], 0))}</td>)}
+            <td className="bg-[#efe5d6] px-2.5 py-2 text-right tabular-nums text-[13px]">{fmt(sel.reduce((a, w) => a + sumW(w), 0))}</td>
           </tr>
         </tfoot>
       </table>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 import DepartmentsManager from '@/components/DepartmentsManager'
 
 interface Department {
@@ -46,6 +47,7 @@ export default function DepartmentsPanel({ isActive }: Props) {
       const res = await fetch('/api/admin/departments')
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d?.error ?? '載入失敗'); return }
+      writeSwr('admin-departments', d)
       setData(d)
     } catch {
       setError('載入失敗，請重試')
@@ -56,6 +58,8 @@ export default function DepartmentsPanel({ isActive }: Props) {
 
   useEffect(() => {
     if (!isActive) return
+    const c = readSwr<DepartmentsData>('admin-departments')   // 先秀上次的資料，背景再更新
+    if (c) setData(c)
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive])

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { clearSessionId } from '@/lib/analyticsClient'
+import { clearSwr } from '@/lib/swrCache'
 
 interface UserMenuProps {
   email: string
@@ -15,6 +16,7 @@ export default function UserMenu({ email }: UserMenuProps) {
     const supabase = createSupabaseBrowserClient()
     await supabase.auth.signOut()
     clearSessionId()
+    clearSwr()
     router.push('/login')
     router.refresh()
   }

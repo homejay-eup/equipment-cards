@@ -10,6 +10,7 @@ import {
 } from '@/lib/residualCalc'
 import ResidualItemsPanel from './ResidualItemsPanel'
 import { readError } from './residualUtils'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 
 interface Props {
   isActive: boolean
@@ -64,6 +65,7 @@ export default function ResidualClient({ isActive, canEdit }: Props) {
       const res = await fetch('/api/residual/items', { cache: 'no-store' })
       if (!res.ok) { setLoadError(await readError(res, '讀取品項失敗')); return }
       const json = (await res.json()) as ResidualListResponse
+      writeSwr('residual-items', { items: json.items ?? [], version: json.version ?? null })
       setItems(json.items ?? [])
       setVersion(json.version ?? null)
       setLoadError(null)
@@ -73,7 +75,15 @@ export default function ResidualClient({ isActive, canEdit }: Props) {
       setLoading(false)
     }
   }, [])
-  useEffect(() => { if (isActive) load(items.length > 0) }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isActive) return
+    let hasData = items.length > 0
+    if (!hasData) {   // 先秀上次的資料，背景再更新
+      const c = readSwr<{ items: ResidualItem[]; version: string | null }>('residual-items')
+      if (c?.items?.length) { setItems(c.items); setVersion(c.version ?? null); hasData = true }
+    }
+    load(hasData)
+  }, [isActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const index = useMemo(() => buildIndex(items), [items])
   const calcs = useMemo<CalcResult[]>(

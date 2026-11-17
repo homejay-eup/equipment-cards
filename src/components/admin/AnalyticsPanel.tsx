@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
+import { readSwr, writeSwr } from '@/lib/swrCache'
 import type { UsageAnalyticsRow, UsageHeatmapPoint } from '@/lib/analytics'
 import AnalyticsClient from '@/components/AnalyticsClient'
 import UsageHeatmap from '@/components/UsageHeatmap'
@@ -31,6 +32,7 @@ export default function AnalyticsPanel({ isActive }: Props) {
       const res = await fetch('/api/admin/analytics')
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { setError(d?.error ?? '載入失敗'); return }
+      writeSwr('admin-analytics', d)
       setData(d)
     } catch {
       setError('載入失敗，請重試')
@@ -41,6 +43,8 @@ export default function AnalyticsPanel({ isActive }: Props) {
 
   useEffect(() => {
     if (!isActive) return
+    const c = readSwr<AnalyticsData>('admin-analytics')   // 先秀上次的資料，背景再更新
+    if (c) setData(c)
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive])
