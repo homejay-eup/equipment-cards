@@ -5,8 +5,9 @@ import type { InvWarehouse } from './types'
 
 const REGION_ORDER = ['公司', '北區技師', '竹區技師', '中區技師', '南區技師', '送修', '其他']
 
-export default function WarehouseDialog({ all, selected, onApply, onClose }: {
+export default function WarehouseDialog({ all, selected, onApply, onClose, emptyMeansAll }: {
   all: InvWarehouse[]; selected: string[]; onApply: (wh: string[]) => void; onClose: () => void
+  emptyMeansAll?: boolean   // 移交出去／待接收／持有過久用：一個都不選＝全部倉庫
 }) {
   const [pick, setPick] = useState<string[]>(selected)
   const [q, setQ] = useState('')
@@ -77,9 +78,11 @@ export default function WarehouseDialog({ all, selected, onApply, onClose }: {
           })}
         </div>
         <div className="flex items-center gap-2 border-t border-[#e8ddd0] px-4 py-2.5">
-          <span className={`text-xs ${pick.length > 8 ? 'text-[#b5451b]' : 'text-[#a08060]'}`}>已選 {pick.length} 個（樞紐表建議 8 欄以內）</span>
+          <span className={`text-xs ${!emptyMeansAll && pick.length > 8 ? 'text-[#b5451b]' : 'text-[#a08060]'}`}>
+            {emptyMeansAll ? (pick.length ? `已選 ${pick.length} 個` : '沒有勾選＝看全部倉庫') : `已選 ${pick.length} 個（樞紐表建議 8 欄以內）`}
+          </span>
           <button onClick={onClose} className="ml-auto rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-sm text-[#7a5230]">取消</button>
-          <button disabled={!pick.length} onClick={() => onApply(pick)}
+          <button disabled={!emptyMeansAll && !pick.length} onClick={() => onApply(pick)}
             className="rounded-md bg-[#7a5230] px-3 py-1.5 text-sm text-white hover:bg-[#9c6b42] disabled:opacity-50">套用</button>
         </div>
       </div>

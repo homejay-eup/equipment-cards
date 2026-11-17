@@ -40,7 +40,6 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // ---- 移交出去／待接收／持有過久（Step 55）：分頁、資料（切到分頁前先在背景載好，才能在分頁標籤上顯示件數）----
   type Tab = 'stock' | 'out' | 'in' | 'idle'
   const [tab, setTab] = useState<Tab>('stock')
-  const [scopeAll, setScopeAll] = useState(true)   // 新分頁的倉庫範圍：全部倉庫／只看我選的倉庫
   const [transit, setTransit] = useState<{ items: TransferItem[]; destAsOf: string | null } | null>(null)
   const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
   const [xErr, setXErr] = useState({ transit: '', idle: '' })
@@ -214,6 +213,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   if (!data || !prefs) return <div className="mx-auto max-w-5xl px-4 py-12 text-center text-sm text-[#a08060]">讀取庫存中…</div>
 
   const sel = prefs.wh
+  const chips = tab === 'stock' ? sel : (prefs.xwh ?? [])   // 目前分頁的倉庫範圍（新分頁空＝全部倉庫）
   const times = Object.values(data.batches).map(b => b.exportedAt).filter(Boolean) as string[]
   const oldest = times.sort()[0] ?? null
   const running = sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
@@ -310,20 +310,16 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6b4f38]">
         <Warehouse className="h-4 w-4 text-[#a08060]" />
-        {tab !== 'stock' && (
-          <span className="mr-1 inline-flex overflow-hidden rounded-md border border-[#e8ddd0]">
-            <button className={seg(scopeAll)} onClick={() => setScopeAll(true)}>全部倉庫</button>
-            <button className={seg(!scopeAll)} onClick={() => setScopeAll(false)}>只看我選的</button>
-          </span>
-        )}
-        {tab === 'stock' ? '倉庫（欄位順序可拖曳）：' : scopeAll ? '我選的倉庫（選「只看我選的」才套用）：' : '只看這些倉庫：'}
-        {sel.map(w => (
+        倉庫（欄位順序可拖曳）：
+        {chips.length === 0 && <span className="rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">全部倉庫</span>}
+        {chips.map(w => (
           <span key={w} draggable
             onDragStart={e => e.dataTransfer.setData('text/wh', w)} onDragOver={e => e.preventDefault()}
-            onDrop={e => { const f = e.dataTransfer.getData('text/wh'); if (f && f !== w) { update(p => ({ ...p, wh: moveIn(p.wh, f, w) })); say('欄位順序已記住') } }}
+            onDrop={e => { const f = e.dataTransfer.getData('text/wh'); if (f && f !== w) { update(p => (tab === 'stock' ? { ...p, wh: moveIn(p.wh, f, w) } : { ...p, xwh: moveIn(p.xwh ?? [], f, w) })); say('欄位順序已記住') } }}
             className="cursor-grab rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{w}</span>
         ))}
         <button onClick={() => setWhDlg(true)} className="ml-1 text-xs text-[#7a5230] underline">編輯倉庫</button>
+        {tab !== 'stock' && chips.length > 0 && <button onClick={() => update(p => ({ ...p, xwh: null }))} className="text-xs text-[#a08060] underline">改回全部倉庫</button>}
       </div>
 
       {tab === 'stock' && liveHits && (
@@ -358,12 +354,10 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       {tab !== 'stock' ? (
         <TransferTab
-          kind={tab} products={data.products} scope={sel} scopeAll={scopeAll} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
+          kind={tab} products={data.products} warehouses={data.warehouses} scope={chips.length ? chips : null} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
-          note={tab === 'idle'
-            ? <>CRM 資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '—'}</b>（刷新後即時）・技師手上超過 30 天沒有任何異動</>
-            : <>送出倉、移交時間為 CRM 資料（{oldest ? `${md(oldest)} ${hm(oldest)}` : '—'}，刷新後即時）；<b className="text-[#8a5a1c]">接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : '（尚未載入）'}，無法刷新</b>；當天剛移交的接收倉會顯示「未知」</>}
+          note={tab === 'in' ? <>接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : ''}，無法刷新；之後才移交的列在「接收倉未同步」，請至 CRM 查詢</> : undefined}
         />
       ) : searchingBarcode ? (
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>
@@ -386,8 +380,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       />}
 
       <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
-      {whDlg && <WarehouseDialog all={data.warehouses} selected={sel} onClose={() => setWhDlg(false)}
-        onApply={wh => { update(p => ({ ...p, wh })); setWhDlg(false) }} />}
+      {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : chips} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
+        onApply={wh => { update(p => (tab === 'stock' ? { ...p, wh } : { ...p, xwh: wh.length ? wh : null })); setWhDlg(false) }} />}
       {stkDlg && <StocktakeDialog products={data.products} selected={sel} onClose={() => setStkDlg(false)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#2c1e12] px-4 py-2 text-sm text-white shadow-lg">{toast}</div>}
     </div>

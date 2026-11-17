@@ -1,15 +1,18 @@
 'use client'
-// Step 55：移交出去／待接收／持有過久 三個分頁共用的畫面（樞紐表／列表、點數字看條碼、匯出 Excel）
-//   out：A 倉移交出去、對方還沒接收（欄＝送出倉）；in：B 倉待接收（欄＝接收倉）；idle：技師手上超過 30 天沒異動（欄＝技師倉）
-// 搜尋、倉庫範圍、樞紐表／列表、分組由上層共用（切分頁不用重設）。
+// Step 55：移交出去／待接收／持有過久 三個分頁共用的畫面
+//   out：A 倉移交出去、對方還沒接收（欄／列＝送出倉）；in：B 倉待接收（欄／列＝接收倉）；idle：技師手上超過 30 天沒異動（欄／列＝技師倉）
+//   樞紐表：品項 × 倉庫；列表：一個倉庫（技師）一列，展開看他持有哪些品項。
+// 搜尋、倉庫範圍（編輯倉庫）、樞紐表／列表、分組由上層共用。
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Copy, Download, X } from 'lucide-react'
-import type { InvProduct, TransferItem } from './types'
+import type { InvProduct, InvWarehouse, TransferItem } from './types'
 import { TYPE_ORDER } from './types'
 
 export type TabKind = 'out' | 'in' | 'idle'
-const UNKNOWN = '（接收倉未知）'
+const UNKNOWN = '接收倉未同步'
+const UNKNOWN_HINT = '備份日之後才移交的設備，接收倉資料庫還沒有，請至 CRM 查詢'
 const THRESH: Record<TabKind, number> = { out: 7, in: 7, idle: 90 }
+const REGION_ORDER = ['公司', '北區技師', '竹區技師', '中區技師', '南區技師', '送修', '其他']
 
 const parseAt = (s: string | null) => (s ? new Date(s.replace(/\//g, '-').replace(' ', 'T') + '+08:00').getTime() : NaN)
 export const daysOf = (s: string | null) => { const t = parseAt(s); return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((Date.now() - t) / 86400000)) }
@@ -24,16 +27,26 @@ interface Props {
   loading: boolean
   error: string
   products: InvProduct[]
-  scope: string[]            // 我選的倉庫（欄位順序）
-  scopeAll: boolean          // true＝不限倉庫範圍（有搜尋字時也一樣）
+  warehouses: InvWarehouse[]
+  scope: string[] | null     // 編輯倉庫選的倉；null＝全部倉庫
   q: string
   view: 'pivot' | 'list'
   grp: 'type' | 'none'
-  note: React.ReactNode      // 資料時間說明
+  note?: React.ReactNode     // 只有待接收頁有：接收倉資料時間說明
   onCopied: (msg: string) => void
 }
 
-export default function TransferTab({ kind, items, loading, error, products, scope, scopeAll, q, view, grp, note, onCopied }: Props) {
+function Switch({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1 text-[13px] text-[#6b4f38]">
+      <input type="checkbox" className="peer sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span className="relative h-4 w-7 rounded-full bg-[#d8ccbd] transition peer-checked:bg-[#7a5230] after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-3" />
+      {children}
+    </label>
+  )
+}
+
+export default function TransferTab({ kind, items, loading, error, products, warehouses, scope, q, view, grp, note, onCopied }: Props) {
   const thr = THRESH[kind]
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [withSim, setWithSim] = useState(false)
@@ -42,12 +55,14 @@ export default function TransferTab({ kind, items, loading, error, products, sco
   const [detail, setDetail] = useState<{ row: Row; col: string | null } | null>(null)
 
   const pmap = useMemo(() => new Map(products.map(p => [p.key, p])), [products])
+  const regionOf = useMemo(() => new Map(warehouses.map(w => [w.name, w.region || '其他'])), [warehouses])
+  const rank = (c: string) => { if (c === UNKNOWN) return 1000; const i = REGION_ORDER.indexOf(regionOf.get(c) ?? ''); return i < 0 ? 98 : i }
   const colOf = (it: TransferItem) => (kind === 'in' ? it.to ?? UNKNOWN : it.from)
 
   const { rows, cols, matched, hidden } = useMemo(() => {
     const qq = q.trim().toLowerCase()
-    const everything = scopeAll || !!qq
-    const inScope = new Set(scope)
+    const everything = scope === null || !!qq
+    const inScope = new Set(scope ?? [])
     const byKey = new Map<string, Row>()
     const colCount = new Map<string, number>()
     let matched = 0, hidden = 0
@@ -67,18 +82,20 @@ export default function TransferTab({ kind, items, loading, error, products, sco
       list.push(it); r.cells.set(col, list); r.all.push(it)
       colCount.set(col, (colCount.get(col) ?? 0) + 1)
     }
+    // 全部倉庫（或搜尋中）：依區域（公司、北區、竹區、中區、南區…）再依倉名；自選倉庫：照編輯倉庫的順序，沒東西的也列出來
     const cols = everything
-      ? Array.from(colCount.keys()).sort((a, b) => (colCount.get(b)! - colCount.get(a)!) || a.localeCompare(b))
-      : scope
+      ? Array.from(colCount.keys()).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'zh-Hant'))
+      : scope!
     const rows = Array.from(byKey.values()).sort((a, b) => (a.pid ?? '~' + a.name).localeCompare(b.pid ?? '~' + b.name))
     return { rows, cols, matched, hidden }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, pmap, scope, scopeAll, q, overdueOnly, withSim, kind])
+  }, [items, pmap, scope, q, overdueOnly, withSim, kind, regionOf])
 
   const over = (list: TransferItem[]) => list.filter(i => daysOf(i.at) > thr).length
   const cnt = (r: Row, c: string) => r.cells.get(c)?.length ?? 0
   const totalOf = (list: Row[], c?: string) => list.reduce((a, r) => a + (c ? cnt(r, c) : r.all.length), 0)
   const overOf = (list: Row[], c?: string) => list.reduce((a, r) => a + over(c ? r.cells.get(c) ?? [] : r.all), 0)
+  const itemsOfCol = (c: string) => rows.flatMap(r => r.cells.get(c) ?? [])
 
   const groups = useMemo(() => {
     if (grp !== 'type' || view !== 'pivot') return [{ t: '', rows }]
@@ -94,6 +111,7 @@ export default function TransferTab({ kind, items, loading, error, products, sco
 
   const badge = (n: number) => (n ? <span title={kind === 'idle' ? `超過 ${thr} 天` : `等超過 ${thr} 天`} className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{n}</span> : null)
   const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
+  const colHead = (c: string) => (c === UNKNOWN ? <span title={UNKNOWN_HINT} className="cursor-help underline decoration-dotted">{c}</span> : c)
 
   // ---- 匯出 Excel：明細＋總覽兩張工作表，依目前的搜尋、倉庫範圍與開關 ----
   const exportXlsx = async () => {
@@ -104,7 +122,7 @@ export default function TransferTab({ kind, items, loading, error, products, sco
       : ['品類', '品名', '條碼', '送出倉', '接收倉', '移交人', '移交日期', '等待天數']
     const detailRows = rows.flatMap(r => r.all.map(i => kind === 'idle'
       ? [r.type, r.name, i.barcode, i.from, day(i.at), opLabel(i.op), daysOf(i.at)]
-      : [r.type, r.name, i.barcode, i.from, i.to ?? '（未知）', i.who ?? '', day(i.at), daysOf(i.at)]))
+      : [r.type, r.name, i.barcode, i.from, i.to ?? UNKNOWN, i.who ?? '', day(i.at), daysOf(i.at)]))
     const sumHead = ['品類', '品名', ...cols, '總計', `其中超過${thr}天`]
     const sumRows = rows.map(r => [r.type, r.name, ...cols.map(c => cnt(r, c) || ''), r.all.length, over(r.all)])
     sumRows.push(['', '總計', ...cols.map(c => totalOf(rows, c) || ''), all.length, over(all)])
@@ -116,47 +134,32 @@ export default function TransferTab({ kind, items, loading, error, products, sco
     XLSX.writeFile(wb, `${title}_${d}.xlsx`)
   }
 
-  const copyBarcodes = (list: TransferItem[]) => {
-    navigator.clipboard?.writeText(list.map(i => i.barcode).join('\n')).then(() => onCopied(`已複製 ${list.length} 個條碼`), () => onCopied('複製失敗'))
-  }
-  // 持有過久：依技師分組的寄回清單（貼到 LINE 用）
-  const copyReturnList = () => {
-    const by = new Map<string, TransferItem[]>()
-    for (const r of rows) for (const i of r.all) by.set(i.from, [...(by.get(i.from) ?? []), i])
-    const text = Array.from(by.entries()).map(([w, list]) =>
-      `【${w}】共 ${list.length} 件\n` + list.map(i => `${i.name}  ${i.barcode}  (放了 ${daysOf(i.at)} 天)`).join('\n')).join('\n\n')
-    navigator.clipboard?.writeText(text).then(() => onCopied('已複製寄回清單'), () => onCopied('複製失敗'))
-  }
+  const copyText = (text: string, msg: string) => { navigator.clipboard?.writeText(text).then(() => onCopied(msg), () => onCopied('複製失敗')) }
+  const copyBarcodes = (list: TransferItem[]) => copyText(list.map(i => i.barcode).join('\n'), `已複製 ${list.length} 個條碼`)
+  // 持有過久：這位技師的寄回清單（貼到 LINE 用）
+  const returnList = (c: string, list: TransferItem[]) =>
+    `【${c}】共 ${list.length} 件\n` + list.map(i => `${i.name}  ${i.barcode}  (放了 ${daysOf(i.at)} 天)`).join('\n')
 
   if (error) return <div className="rounded-xl border border-[#e8ddd0] bg-white py-10 text-center text-sm text-[#b5451b]">{error}</div>
   if (loading || !items) return <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]">讀取中…</div>
 
   const toggleBar = (
     <div className="mb-2.5 flex flex-wrap items-center gap-2 text-[13px] text-[#6b4f38]">
-      {kind !== 'idle' && (
-        <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1">
-          <input type="checkbox" checked={overdueOnly} onChange={e => setOverdueOnly(e.target.checked)} />只看等超過 {thr} 天
-        </label>
-      )}
-      {kind === 'idle' && (
-        <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1">
-          <input type="checkbox" checked={withSim} onChange={e => setWithSim(e.target.checked)} />含 Sim 卡
-        </label>
-      )}
-      <span className="text-xs text-[#a08060]">{note}</span>
-      <span className="ml-auto flex items-center gap-2">
-        {kind === 'idle' && <button onClick={copyReturnList} disabled={!matched} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Copy className="h-3.5 w-3.5" />複製寄回清單</button>}
-        <button onClick={exportXlsx} disabled={!matched} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Download className="h-3.5 w-3.5" />匯出</button>
-      </span>
+      {kind !== 'idle'
+        ? <Switch checked={overdueOnly} onChange={setOverdueOnly}>只看等超過 {thr} 天</Switch>
+        : <Switch checked={withSim} onChange={setWithSim}>含 Sim 卡</Switch>}
+      {note && <span className="text-xs text-[#8a5a1c]">{note}</span>}
+      <button onClick={exportXlsx} disabled={!matched} className="ml-auto inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Download className="h-3.5 w-3.5" />匯出</button>
     </div>
   )
 
   const empty = (
     <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]">
-      {matched === 0 && hidden > 0 ? `目前選的倉庫範圍內沒有項目；範圍外還有 ${hidden} 筆，可切到「全部倉庫」查看` : '沒有符合的項目'}
+      {matched === 0 && hidden > 0 ? `選的倉庫範圍內沒有項目；範圍外還有 ${hidden} 筆，可到「編輯倉庫」調整` : '沒有符合的項目'}
     </div>
   )
 
+  let lastRegion = ''
   return (
     <div>
       {toggleBar}
@@ -167,7 +170,7 @@ export default function TransferTab({ kind, items, loading, error, products, sco
               <tr>
                 <th className={`${th} sticky left-0 z-[3] w-[128px] min-w-[128px] max-w-[128px] bg-[#faf6f0] text-left`}>品號</th>
                 <th className={`${th} sticky left-[128px] z-[3] bg-[#faf6f0] text-left shadow-[1px_0_0_#e8ddd0]`}>品名</th>
-                {cols.map(c => <th key={c} className={`${th} text-right`}>{c}</th>)}
+                {cols.map(c => <th key={c} className={`${th} text-right`}>{colHead(c)}</th>)}
                 <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>
               </tr>
             </thead>
@@ -211,31 +214,48 @@ export default function TransferTab({ kind, items, loading, error, products, sco
           </table>
         </div>
       ) : (
+        // 列表：一個倉庫（技師）一列，依區域、倉名排列；展開看他持有的品項（車機、配件分組）
         <div className="space-y-1.5">
-          {rows.map(r => {
-            const ws = cols.filter(c => cnt(r, c))
+          {cols.map(c => {
+            const list = itemsOfCol(c)
+            if (!list.length) return null
+            const region = c === UNKNOWN ? '' : regionOf.get(c) ?? ''
+            const heading = region !== lastRegion ? region : ''
+            lastRegion = region
+            const prods = rows.filter(r => cnt(r, c))
+            const typeCount = (t: string) => prods.filter(r => r.type === t).reduce((a, r) => a + cnt(r, c), 0)
+            const types = [...TYPE_ORDER, ...Array.from(new Set(prods.map(r => r.type))).filter(t => !TYPE_ORDER.includes(t))].filter(t => typeCount(t))
             return (
-              <div key={r.key} className="rounded-lg border border-[#e8ddd0] bg-white">
-                <div className="flex cursor-pointer items-center gap-2.5 px-3 py-2" onClick={() => setOpen(s => ({ ...s, [r.key]: !s[r.key] }))}>
-                  {open[r.key] ? <ChevronDown className="h-4 w-4 text-[#a08060]" /> : <ChevronRight className="h-4 w-4 text-[#a08060]" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="font-mono text-[11px] text-[#a08060]">{r.pid ?? '未對應料卡'}</div>
-                    <div className="text-sm">{r.name}</div>
-                    <span className="mr-1 rounded bg-[#f0e8de] px-1.5 text-[10px] text-[#8a7058]">{r.type}</span>
-                    <span className="rounded bg-[#f0e8de] px-1.5 text-[10px] text-[#8a7058]">{ws.length} 個倉</span>
+              <div key={c}>
+                {heading && <div className="px-1 pb-0.5 pt-2 text-xs font-medium text-[#a08060]">{heading}</div>}
+                <div className="rounded-lg border border-[#e8ddd0] bg-white">
+                  <div className="flex cursor-pointer items-center gap-2.5 px-3 py-2" onClick={() => setOpen(s => ({ ...s, [c]: !s[c] }))}>
+                    {open[c] ? <ChevronDown className="h-4 w-4 text-[#a08060]" /> : <ChevronRight className="h-4 w-4 text-[#a08060]" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-[#2c1e12]">{colHead(c)}{region && <span className="ml-1.5 text-[11px] text-[#a08060]">{region}</span>}</div>
+                      <div className="text-xs text-[#8a7058]">{types.map(t => `${t} ${typeCount(t)}`).join('・')}</div>
+                    </div>
+                    <div className="text-right"><b className="text-lg tabular-nums">{list.length}</b>{badge(over(list))}</div>
+                    {c !== UNKNOWN && (kind === 'idle'
+                      ? <button onClick={e => { e.stopPropagation(); copyText(returnList(c, list), `已複製 ${c} 的寄回清單`) }} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] px-2 py-1 text-xs text-[#7a5230] hover:bg-[#faf6f0]"><Copy className="h-3.5 w-3.5" />複製寄回清單</button>
+                      : <button onClick={e => { e.stopPropagation(); copyBarcodes(list) }} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] px-2 py-1 text-xs text-[#7a5230] hover:bg-[#faf6f0]"><Copy className="h-3.5 w-3.5" />複製條碼</button>)}
                   </div>
-                  <div className="text-right"><b className="text-lg tabular-nums">{r.all.length}</b>{badge(over(r.all))}</div>
+                  {open[c] && (
+                    <div className="mx-3 mb-2.5 text-[13px]">
+                      {types.map(t => (
+                        <div key={t}>
+                          <div className="pt-1.5 text-[11px] text-[#a08060]">{t}（{typeCount(t)}）</div>
+                          {prods.filter(r => r.type === t).map(r => (
+                            <div key={r.key} className="flex items-center justify-between border-t border-[#f0e8de] py-1">
+                              <span><span className="mr-2 font-mono text-[11px] text-[#a08060]">{r.pid ?? '—'}</span>{r.name}</span>
+                              <span><button onClick={() => setDetail({ row: r, col: c })} className="tabular-nums hover:text-[#7a5230] hover:underline">{cnt(r, c)}</button>{badge(over(r.cells.get(c)!))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {open[r.key] && (
-                  <table className="mx-3 mb-2.5 w-[calc(100%-1.5rem)] text-[13px]">
-                    <tbody>{ws.map(c => (
-                      <tr key={c} className="border-t border-[#f0e8de]">
-                        <td className="py-1">{c}</td>
-                        <td className="py-1 text-right"><button onClick={() => setDetail({ row: r, col: c })} className="tabular-nums hover:text-[#7a5230] hover:underline">{cnt(r, c)}</button>{badge(over(r.cells.get(c)!))}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                )}
               </div>
             )
           })}
@@ -270,7 +290,7 @@ export default function TransferTab({ kind, items, loading, error, products, sco
                     <tr key={i.barcode} className="border-t border-[#f0e8de]">
                       <td className="py-1 pr-2 font-mono">{i.barcode}</td>
                       {!detail.col && <td className="py-1 pr-2">{kind === 'in' ? i.to ?? UNKNOWN : i.from}</td>}
-                      <td className="py-1 pr-2">{kind === 'out' ? i.to ?? '—' : kind === 'in' ? i.from : opLabel(i.op)}</td>
+                      <td className="py-1 pr-2">{kind === 'out' ? i.to ?? UNKNOWN : kind === 'in' ? i.from : opLabel(i.op)}</td>
                       {kind !== 'idle' && <td className="py-1 pr-2">{i.who}</td>}
                       <td className="py-1 pr-2 tabular-nums">{day(i.at)}</td>
                       <td className={`py-1 text-right tabular-nums ${d > thr ? 'font-semibold text-[#b5451b]' : ''}`}>{d} 天</td>

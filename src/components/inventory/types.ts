@@ -33,6 +33,7 @@ export interface InvPrefs {
   gorder: string[]                      // 分組順序
   col: Record<string, boolean>          // 分組收合
   onlyStock: boolean
+  xwh?: string[] | null                 // 移交出去／待接收／持有過久共用的倉庫範圍；null／沒設＝全部倉庫
 }
 
 export const TYPE_ORDER = ['車機', '配件', 'Sim卡']
