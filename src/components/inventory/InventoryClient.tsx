@@ -3,9 +3,10 @@
 // 畫面各自獨立：別人刷新或排程跑完，你的畫面不動；只有你自己按刷新或重新進頁面才拿新數字。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
-import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse } from './types'
+import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse, TransferItem } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
+import TransferTab, { daysOf } from './TransferTab'
 import BarcodeDrawer, { clearBarcodeCache, type DrawerTarget } from './BarcodeDrawer'
 import WarehouseDialog from './WarehouseDialog'
 import StocktakeDialog from './StocktakeDialog'
@@ -36,6 +37,25 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
   const say = (t: string) => { setToast(t); setTimeout(() => setToast(''), 1800) }
 
+  // ---- 移交出去／待接收／持有過久（Step 55）：分頁、資料（切到分頁前先在背景載好，才能在分頁標籤上顯示件數）----
+  type Tab = 'stock' | 'out' | 'in' | 'idle'
+  const [tab, setTab] = useState<Tab>('stock')
+  const [scopeAll, setScopeAll] = useState(true)   // 新分頁的倉庫範圍：全部倉庫／只看我選的倉庫
+  const [transit, setTransit] = useState<{ items: TransferItem[]; destAsOf: string | null } | null>(null)
+  const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
+  const [xErr, setXErr] = useState({ transit: '', idle: '' })
+  const xAsked = useRef({ transit: false, idle: false })
+  const loadX = useCallback(async (kind: 'transit' | 'idle') => {
+    try {
+      const r = await fetch(`/api/inventory/transfers?kind=${kind}`, { cache: 'no-store' })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || '讀取失敗')
+      if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf })
+      else setIdle({ items: d.items })
+      setXErr(e => ({ ...e, [kind]: '' }))
+    } catch (e) { setXErr(x => ({ ...x, [kind]: (e as Error).message })) }
+  }, [])
+
   const load = useCallback(async (keepPrefs = false): Promise<InvProduct[] | null> => {
     try {
       const r = await fetch('/api/inventory', { cache: 'no-store' })
@@ -56,6 +76,21 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   }, [])
   // 進網站就先在背景載入（PhotoWall 會提早掛載），切到庫存分頁時資料已經在了
   useEffect(() => { if (!loaded.current) { loaded.current = true; load() } }, [load])
+
+  useEffect(() => {
+    if (!data) return
+    if (data.can.transfers && !xAsked.current.transit) { xAsked.current.transit = true; loadX('transit') }
+    if (data.can.idle && !xAsked.current.idle) { xAsked.current.idle = true; loadX('idle') }
+  }, [data, loadX])
+  // 分頁標籤上的件數：移交出去／待接收＝移交中總件數（紅＝等超過 7 天）；持有過久＝技師超過 30 天（不含 Sim 卡，紅＝超過 90 天）
+  const counts = useMemo(() => {
+    const t = transit?.items ?? [], i = (idle?.items ?? []).filter(x => x.category !== 'Sim卡')
+    return {
+      out: [t.length, t.filter(x => daysOf(x.at) > 7).length],
+      in: [t.length, t.filter(x => daysOf(x.at) > 7).length],
+      idle: [i.length, i.filter(x => daysOf(x.at) > 90).length],
+    } as Record<'out' | 'in' | 'idle', number[]>
+  }, [transit, idle])
 
   // 個人設定：改了 0.8 秒後存到伺服器（每人一份，跨裝置）
   const update = (fn: (p: InvPrefs) => InvPrefs) => setPrefs(p => {
@@ -96,7 +131,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // 主搜尋：料號、品名都沒找到 → 改找條碼（可只打部分號碼）
   useEffect(() => {
     const qq = q.trim()
-    if (!data?.can.barcodes || qq.length < 4 || rows.length) { setHits(null); setHitsFor(''); return }
+    if (tab !== 'stock' || !data?.can.barcodes || qq.length < 4 || rows.length) { setHits(null); setHitsFor(''); return }
     let cancelled = false   // 搜尋字又變了／被清空：舊的回應不能再寫進來
     const t = setTimeout(async () => {
       const r = await fetch(`/api/inventory/barcodes?q=${encodeURIComponent(qq)}`).catch(() => null)
@@ -106,7 +141,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       setHitsFor(qq)
     }, 350)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [q, rows.length, data?.can.barcodes])
+  }, [q, rows.length, data?.can.barcodes, tab])
 
   const liveHits = hitsFor === q.trim() ? hits : null   // 只採用「這個搜尋字」查到的結果
   const hitRows = useMemo(() => {
@@ -158,6 +193,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   useEffect(() => {
     if (!req || (req.status !== 'done' && req.status !== 'failed') || !before.current) return
     const prev = before.current; before.current = null
+    if (xAsked.current.transit) loadX('transit')   // 移交／持有過久也跟著重抓（CRM 部分是剛同步的新資料）
+    if (xAsked.current.idle) loadX('idle')
     const wh = prefs?.wh ?? []
     load(true).then(products => {
       const d: Record<string, number> = {}
@@ -214,18 +251,36 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         )}
         {stale && <span className="text-xs text-[#b5451b]">公司電腦沒有回應（可能休眠、關機或同步程式沒開），以下仍是 {hm(oldest)} 的資料；電腦恢復後會自動補做</span>}
         {req?.error && !running && <span className="text-xs text-[#b5451b]">部分失敗：{req.error.slice(0, 60)}</span>}
-        {data.can.stocktake && (
+        {data.can.stocktake && tab === 'stock' && (
           <button onClick={() => setStkDlg(true)}
             className="ml-auto rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[#7a5230] hover:bg-[#faf6f0]">匯出盤點表</button>
         )}
         {data.can.refresh && (
           <button onClick={startRefresh} disabled={running}
-            className={`${data.can.stocktake ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80`}>
+            className={`${data.can.stocktake && tab === 'stock' ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80`}>
             <RefreshCw className={`h-3.5 w-3.5 ${running ? 'animate-spin' : ''}`} />
             {running ? `${STEPS[Math.max(0, stepIdx)]}…` : req?.status === 'done' ? '完成' : '刷新庫存'}
           </button>
         )}
       </div>
+
+      {(data.can.transfers || data.can.idle) && (
+        <div className="mb-3 flex flex-wrap gap-1 border-b border-[#e8ddd0]">
+          {([['stock', '庫存'], ['out', '移交出去'], ['in', '待接收'], ['idle', '持有過久']] as [Tab, string][])
+            .filter(([k]) => k === 'stock' || (k === 'idle' ? data.can.idle : data.can.transfers)).map(([k, label]) => {
+              const c = k === 'stock' ? null : counts[k]
+              return (
+                <button key={k} onClick={() => setTab(k)}
+                  className={`-mb-px border-b-2 px-4 py-2 text-[14px] ${tab === k ? 'border-[#7a5230] font-semibold text-[#2c1e12]' : 'border-transparent text-[#6b4f38] hover:text-[#7a5230]'}`}>
+                  {label}
+                  {c && (xErr[k === 'idle' ? 'idle' : 'transit'] ? null : (k === 'idle' ? idle : transit)) && (
+                    <span className="ml-1.5 text-xs text-[#a08060]">{c[0].toLocaleString()}{c[1] ? <span className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{c[1].toLocaleString()}</span> : null}</span>
+                  )}
+                </button>
+              )
+            })}
+        </div>
+      )}
 
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <label className="flex h-9 min-w-[220px] flex-1 items-center gap-1.5 rounded-md border border-[#e8ddd0] bg-white px-2.5 focus-within:border-[#c49a72]">
@@ -242,19 +297,26 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
             <button className={seg(prefs.grp === 'none')} onClick={() => update(p => ({ ...p, grp: 'none' }))}>不分組</button>
           </div>
         )}
-        <div className="flex overflow-hidden rounded-md border border-[#e8ddd0]">
+        {tab === 'stock' && <div className="flex overflow-hidden rounded-md border border-[#e8ddd0]">
           <button className={seg(false)} title="清除拖曳過的順序、收合狀態，回到品號排序"
             onClick={() => { update(p => ({ ...p, order: [], gorder: [...TYPE_ORDER], sort: { k: 'pid', d: 1 }, col: {} })); say('已恢復預設排列') }}>↺ 恢復預設</button>
-        </div>
-        <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1 text-[13px] text-[#6b4f38]">
+        </div>}
+        {tab === 'stock' && <label className="flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-[#e8ddd0] bg-white px-2.5 py-1 text-[13px] text-[#6b4f38]">
           <input type="checkbox" className="peer sr-only" checked={prefs.onlyStock} onChange={e => { const v = e.target.checked; update(p => ({ ...p, onlyStock: v })) }} />
           <span className="relative h-4 w-7 rounded-full bg-[#d8ccbd] transition peer-checked:bg-[#7a5230] after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-3" />
           只看有庫存
-        </label>
+        </label>}
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6b4f38]">
-        <Warehouse className="h-4 w-4 text-[#a08060]" />倉庫（欄位順序可拖曳）：
+        <Warehouse className="h-4 w-4 text-[#a08060]" />
+        {tab !== 'stock' && (
+          <span className="mr-1 inline-flex overflow-hidden rounded-md border border-[#e8ddd0]">
+            <button className={seg(scopeAll)} onClick={() => setScopeAll(true)}>全部倉庫</button>
+            <button className={seg(!scopeAll)} onClick={() => setScopeAll(false)}>只看我選的</button>
+          </span>
+        )}
+        {tab === 'stock' ? '倉庫（欄位順序可拖曳）：' : scopeAll ? '我選的倉庫（選「只看我選的」才套用）：' : '只看這些倉庫：'}
         {sel.map(w => (
           <span key={w} draggable
             onDragStart={e => e.dataTransfer.setData('text/wh', w)} onDragOver={e => e.preventDefault()}
@@ -264,7 +326,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         <button onClick={() => setWhDlg(true)} className="ml-1 text-xs text-[#7a5230] underline">編輯倉庫</button>
       </div>
 
-      {liveHits && (
+      {tab === 'stock' && liveHits && (
         <div className="mb-3 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2.5 text-[13px]">
           {liveHits.length ? (
             <>
@@ -287,14 +349,23 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           ) : <span className="text-[#a08060]">料號、品名、條碼都找不到「{q.trim()}」</span>}
         </div>
       )}
-      {!liveHits && q.trim() && rows.length > 0 && rows.length <= 5 && (
+      {tab === 'stock' && !liveHits && q.trim() && rows.length > 0 && rows.length <= 5 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2 text-[13px]">
           <b>搜尋到 {rows.length} 個品項</b>，點品名可看它在<b>所有倉</b>的位置、數量和全部條碼：
           {rows.map(p => <button key={p.key} onClick={() => setDrawer({ mode: 'item', product: p })} className="rounded-md border border-[#e8ddd0] bg-white px-2 py-0.5 text-xs hover:text-[#7a5230]">{p.name}</button>)}
         </div>
       )}
 
-      {searchingBarcode ? (
+      {tab !== 'stock' ? (
+        <TransferTab
+          kind={tab} products={data.products} scope={sel} scopeAll={scopeAll} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
+          items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
+          error={xErr[tab === 'idle' ? 'idle' : 'transit']}
+          note={tab === 'idle'
+            ? <>CRM 資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '—'}</b>（刷新後即時）・技師手上超過 30 天沒有任何異動</>
+            : <>送出倉、移交時間為 CRM 資料（{oldest ? `${md(oldest)} ${hm(oldest)}` : '—'}，刷新後即時）；<b className="text-[#8a5a1c]">接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : '（尚未載入）'}，無法刷新</b>；當天剛移交的接收倉會顯示「未知」</>}
+        />
+      ) : searchingBarcode ? (
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>
       ) : <InventoryTable
         rows={shown} prefs={prefs} allowed={allowed} delta={delta}

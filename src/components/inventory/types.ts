@@ -10,7 +10,13 @@ export interface InvProduct {
 }
 export interface InvWarehouse { name: string; region: string }
 export interface InvBatch { label: string; exportedAt: string | null }
-export interface InvCan { barcodes: boolean; refresh: boolean; stocktake: boolean }
+export interface InvCan { barcodes: boolean; refresh: boolean; stocktake: boolean; transfers?: boolean; idle?: boolean }
+
+/** 移交出去／待接收／持有過久用的設備一筆（對應 /api/inventory/transfers） */
+export interface TransferItem {
+  barcode: string; from: string; to: string | null; category: string | null; name: string
+  product_id: string | null; at: string | null; op: string | null; who: string | null
+}
 
 export interface InvItem {
   barcode: string; warehouse: string; region: string | null; category: string | null; name: string

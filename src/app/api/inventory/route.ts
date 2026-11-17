@@ -42,6 +42,8 @@ export async function GET() {
       barcodes: access.permissions.includes('view_inventory_barcodes'),
       refresh: access.permissions.includes('refresh_inventory'),
       stocktake: access.permissions.includes('export_stocktake'),
+      transfers: access.permissions.includes('view_inventory_transfers'),
+      idle: access.permissions.includes('view_inventory_idle_tech'),
     },
   })
 }

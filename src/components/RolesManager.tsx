@@ -94,6 +94,8 @@ const PERM_LABELS: Record<string, string> = {
   export_stocktake:           '可匯出盤點表到 Google 試算表',
   view_erp_inventory:         '可看 ERP 庫存分頁（無條碼品項；公司電腦登入 ERP 後才會更新，不能即時刷新）',
   upload_erp_inventory:       '可手動上傳 ERP 匯出檔更新 ERP 庫存',
+  view_inventory_transfers:   '可看「移交出去／待接收」分頁（哪些倉庫移交了東西、誰還沒接收）',
+  view_inventory_idle_tech:   '可看「持有過久」分頁（技師手上超過 30 天沒異動的設備明細）',
   // 列印
   print_cards:                '列印料卡（A6，單張/批次）',
   // 使用統計
@@ -172,6 +174,8 @@ const INVENTORY_PERMS = [
   'export_stocktake',
   'view_erp_inventory',
   'upload_erp_inventory',
+  'view_inventory_transfers',
+  'view_inventory_idle_tech',
 ] as const
 
 // 列印分組：獨立單一權限，不需父子連動
