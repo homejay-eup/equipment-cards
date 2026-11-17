@@ -331,7 +331,6 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
             className="cursor-grab rounded-full border border-[#e8ddd0] bg-[#f6efe4] px-2.5 py-0.5 text-xs">{w}</span>
         ))}
         <button onClick={() => setWhDlg(true)} className="ml-1 text-xs text-[#7a5230] underline">編輯倉庫</button>
-        {tab !== 'stock' && xSet !== undefined && <button onClick={() => setScope(undefined)} className="text-xs text-[#a08060] underline">{tab === 'idle' ? '改回全部技師' : '改回全部倉庫'}</button>}
       </div>
 
       {tab === 'stock' && liveHits && (
@@ -370,7 +369,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
-          note={tab === 'in' ? <>接收倉來自資料庫前一日備份{transit?.destAsOf ? `（${md(transit.destAsOf)}）` : ''}，無法刷新；之後才移交的列在「接收倉未同步」，請至 CRM 查詢</> : undefined}
+          note={tab === 'in' ? <>接收倉為{transit?.destAsOf ? ` ${md(transit.destAsOf)} ` : ''}備份資料，無法刷新；新移交的歸在「接收倉未同步」，請至 CRM 查</> : undefined}
         />
       ) : searchingBarcode ? (
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>

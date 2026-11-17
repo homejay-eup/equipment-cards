@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
-import SearchHitBanner, { locateFirstHit } from '@/components/common/SearchHit'
+import { useState, useMemo, useEffect } from 'react'
+import SearchHitBanner from '@/components/common/SearchHit'
 import { HighlightText } from '@/components/maintenance/RuleContent'
 import {
   FileText, Loader2, Search, Trash2, AlertTriangle,
@@ -172,7 +172,6 @@ export default function ExpandableDocumentList({
 
   // 搜尋命中：結果少（5 筆內）就自動展開，並自動捲到第一筆命中、標亮閃動
   const hitQ = listQuery.trim().toLowerCase()
-  const listRef = useRef<HTMLDivElement>(null)
   const hitCount = view === 'byDoc' ? filteredDocs.length : filteredCardGroups.length
   useEffect(() => {
     if (!hitQ || hitCount === 0 || hitCount > 5) return
@@ -183,7 +182,6 @@ export default function ExpandableDocumentList({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hitQ, view, hitCount])
-  const cardHit = (c: { equipment_id: string; name: string }) => !!hitQ && (c.equipment_id.toLowerCase().includes(hitQ) || c.name.toLowerCase().includes(hitQ))
 
   function handleDocSort(key: DocSortKey) {
     setDocSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
@@ -476,8 +474,8 @@ export default function ExpandableDocumentList({
         </div>
       )}
 
-      <SearchHitBanner query={listQuery} count={hitCount} unit={view === 'byDoc' ? '份文件' : '個料號'} onLocate={() => locateFirstHit(listRef.current)} />
-      <div ref={listRef}>
+      <SearchHitBanner query={listQuery} count={hitCount} unit={view === 'byDoc' ? '份文件' : '個料號'} />
+      <div>
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-[#a08060] py-6 justify-center">
           <Loader2 className="h-4 w-4 animate-spin" /> 載入中…
@@ -503,7 +501,7 @@ export default function ExpandableDocumentList({
               const scopedUnlinkCount = doc.linked_cards.filter(c => selectedUnlinkKeys.has(unlinkKey(doc.id, c.equipment_id))).length
               return (
                 <div key={doc.id} className={`border-t border-[#f0e8dc] ${isDeleting ? 'opacity-50' : ''}`}>
-                  <div data-search-hit={hitQ && doc.name.toLowerCase().includes(hitQ) ? '' : undefined} className="grid grid-cols-[24px_28px_1fr_100px_80px_140px] gap-2 px-3 py-2 items-center text-xs">
+                  <div className="grid grid-cols-[24px_28px_1fr_100px_80px_140px] gap-2 px-3 py-2 items-center text-xs">
                     <input type="checkbox" checked={selectedDocIds.has(doc.id)} onChange={() => toggleSelectDoc(doc.id)}
                       disabled={isDeleting} className="accent-[#7a5230]" />
                     <button type="button" onClick={() => toggleExpand(doc.id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors">
@@ -528,7 +526,7 @@ export default function ExpandableDocumentList({
                           {doc.linked_cards.map(c => {
                             const k = unlinkKey(doc.id, c.equipment_id)
                             return (
-                              <label key={c.equipment_id} data-search-hit={cardHit(c) ? '' : undefined} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
+                              <label key={c.equipment_id} className="flex items-center justify-between gap-2 text-xs py-0.5 cursor-pointer">
                                 <span className="text-[#4a3422] truncate"><HighlightText text={`${c.equipment_id} ${c.name}`} query={listQuery} /></span>
                                 <span className="flex items-center gap-1.5 text-[#a08060] flex-shrink-0">
                                   移除
@@ -584,7 +582,7 @@ export default function ExpandableDocumentList({
               const scopedUnlinkCount = g.docs.filter(d => selectedUnlinkKeys.has(unlinkKey(d.id, g.equipment_id))).length
               return (
                 <div key={g.equipment_id} className="border-t border-[#f0e8dc]">
-                  <div data-search-hit={cardHit(g) ? '' : undefined} className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
+                  <div className="flex sm:grid sm:grid-cols-[28px_120px_1fr_100px] gap-2 px-3 py-2 items-center text-xs">
                     <button type="button" onClick={() => toggleExpand(g.equipment_id)} className="text-[#a08060] hover:text-[#7a5230] transition-colors flex-shrink-0">
                       {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </button>

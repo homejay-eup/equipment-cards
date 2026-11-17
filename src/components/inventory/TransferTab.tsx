@@ -150,7 +150,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
       {kind !== 'idle'
         ? <Switch checked={overdueOnly} onChange={setOverdueOnly}>只看等超過 {thr} 天</Switch>
         : <Switch checked={withSim} onChange={setWithSim}>含 Sim 卡</Switch>}
-      {note && <span className="text-xs text-[#8a5a1c]">{note}</span>}
+      {note && <span className="rounded-md bg-[#fdf3e3] px-2 py-1 text-[13px] font-semibold text-[#8a5a1c]">{note}</span>}
       <button onClick={exportXlsx} disabled={!matched} className="ml-auto inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Download className="h-3.5 w-3.5" />匯出</button>
     </div>
   )

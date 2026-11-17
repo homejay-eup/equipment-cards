@@ -13,7 +13,7 @@ import PackageBatchActionsBar from './PackageBatchActionsBar'
 import PackageListView from './PackageListView'
 import EquipmentListView from './EquipmentListView'
 import { unlinkKey } from './unlinkKey'
-import SearchHitBanner, { locateFirstHit } from '@/components/common/SearchHit'
+import SearchHitBanner from '@/components/common/SearchHit'
 import { usePackages, EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
 import { reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { logUsageEvent } from '@/lib/analyticsClient'
@@ -200,7 +200,6 @@ export default function PackageExplorer({
   }, [equipmentGroups, query])
 
   // 搜尋命中：結果少（5 筆內）就自動展開，並自動捲到第一筆命中、標亮閃動
-  const listRef = useRef<HTMLDivElement>(null)
   const hitCount = view === 'byPackage' ? filteredPackages.length : filteredEquipmentGroups.length
   useEffect(() => {
     if (!trimmedQuery || hitCount === 0 || hitCount > 5) return
@@ -551,8 +550,8 @@ export default function PackageExplorer({
 
       {actionError && <p className="text-xs text-[#b5451b] mb-2 whitespace-pre-wrap">{actionError}</p>}
 
-      <SearchHitBanner query={trimmedQuery} count={hitCount} unit={view === 'byPackage' ? '個組合' : '個料號'} onLocate={() => locateFirstHit(listRef.current)} />
-      <div ref={listRef}>
+      <SearchHitBanner query={trimmedQuery} count={hitCount} unit={view === 'byPackage' ? '個組合' : '個料號'} />
+      <div>
       {view === 'byPackage' ? (
         <PackageListView
           filteredPackages={filteredPackages}

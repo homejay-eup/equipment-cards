@@ -124,7 +124,7 @@ export default function PackageListView({
             {isDragOverThisPackage && (
               <div className={`absolute left-2 right-2 h-0.5 bg-[#c49a72] rounded-full pointer-events-none ${dragOverPackagePosition === 'after' ? '-bottom-1' : '-top-1'}`} />
             )}
-            <div data-search-hit={query.trim() && pkg.name.toLowerCase().includes(query.trim().toLowerCase()) ? '' : undefined} className="group/header flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs transition-all sm:hover:bg-[#faf6f0] sm:hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] sm:hover:-translate-y-px">
+            <div className="group/header flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-3 py-2 text-xs transition-all sm:hover:bg-[#faf6f0] sm:hover:shadow-[0_2px_6px_rgba(122,82,48,.12)] sm:hover:-translate-y-px">
               <div className="flex items-center gap-2 min-w-0 sm:flex-1">
                 {canReorderPackages && (
                   <span

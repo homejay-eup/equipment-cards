@@ -156,5 +156,4 @@
 /* 庫存條碼明細：搜尋到的那顆條碼——淡色底＋左側深色邊（不閃爍） */
 tr.barcode-hit { background-color: #f7e3c8; font-weight: 600; box-shadow: inset 4px 0 0 #7a5230; }
 
-/* 搜尋命中（SearchHit）：整列不塗色，只留左側細線；命中的字由 HighlightText 螢光筆標示 */
-html [data-search-hit] { box-shadow: inset 3px 0 0 #7a5230; }
+/* 搜尋命中：只靠 HighlightText 螢光筆標字，不再塗列、不畫側線 */

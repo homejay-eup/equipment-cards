@@ -51,7 +51,6 @@ export default function EquipmentListView({
             <div
               role="button"
               tabIndex={0}
-              data-search-hit={query.trim() ? '' : undefined}
               onClick={() => toggleExpand(g.equipment_id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(g.equipment_id) }
