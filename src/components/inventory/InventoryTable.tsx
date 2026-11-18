@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, Package, ArrowLeftRight } from 'lucide-react
 import { prefetchBarcodes } from './BarcodeDrawer'
 import type { InvPrefs, InvProduct } from './types'
 import { cell, fmt } from './types'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 
 interface Props {
   rows: InvProduct[]
@@ -20,6 +21,8 @@ interface Props {
   onMoveGroup: (from: string, to: string) => void
   onCell: (p: InvProduct, w: string) => void
   onItem: (p: InvProduct) => void
+  /** 搜尋字：料號、品名用螢光筆標出（選填，預設不標） */
+  q?: string
 }
 
 function Other({ p, sel, allowed }: { p: InvProduct; sel: string[]; allowed: string[] }) {
@@ -48,7 +51,7 @@ function useDrag() {
   return { bind, over, dragging: drag }
 }
 
-function Pivot({ rows, prefs, allowed, delta, onTranspose, onSort, onToggleGroup, onMoveCol, onMoveRow, onMoveGroup, onCell, onItem }: Props) {
+function Pivot({ rows, prefs, allowed, delta, q = '', onTranspose, onSort, onToggleGroup, onMoveCol, onMoveRow, onMoveGroup, onCell, onItem }: Props) {
   const sel = prefs.wh
   const { bind, over } = useDrag()
   const arrow = (k: string) => (prefs.sort.k === k ? <span className="ml-0.5 text-[10px]">{prefs.sort.d > 0 ? '▲' : '▼'}</span> : null)
@@ -63,10 +66,10 @@ function Pivot({ rows, prefs, allowed, delta, onTranspose, onSort, onToggleGroup
       <tr key={p.key} {...bind('row', p.key, onMoveRow)}
         className={`group border-t border-[#f0e8de] hover:bg-[#fdf8f2] ${over === 'row' + p.key ? 'shadow-[inset_0_2px_0_#7a5230]' : ''} ${d ? 'bg-[#fff3d6]' : ''}`}>
         <td className="sticky left-0 z-[1] w-[128px] min-w-[128px] max-w-[128px] truncate bg-white px-2.5 py-1.5 font-mono text-[12px] text-[#6b4f38] group-hover:bg-[#fdf8f2]">
-          <Grip />{p.pid ?? '—'}
+          <Grip />{p.pid ? <HighlightText text={p.pid} query={q} /> : '—'}
         </td>
         <td className="sticky left-[128px] z-[1] min-w-[180px] bg-white px-2.5 lg:whitespace-nowrap py-1.5 group-hover:bg-[#fdf8f2] shadow-[1px_0_0_#e8ddd0]">
-          <button onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-left text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{p.name}</button>
+          <button onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-left text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline"><HighlightText text={p.name} query={q} /></button>
           {!p.onCard && <span className="ml-1 rounded bg-[#f0e8de] px-1 text-[10px] text-[#a08060]">未對應料卡</span>}
           <Other p={p} sel={sel} allowed={allowed} />
         </td>
@@ -141,7 +144,7 @@ function Pivot({ rows, prefs, allowed, delta, onTranspose, onSort, onToggleGroup
 }
 
 // 列欄交換：倉庫在左（直排）、品項在上（橫排）；倉庫很多時不用一直往右拉
-function PivotT({ rows, prefs, onTranspose, onCell, onItem }: Props) {
+function PivotT({ rows, prefs, q = '', onTranspose, onCell, onItem }: Props) {
   const sel = prefs.wh
   const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
   const sumW = (w: string) => rows.reduce((a, p) => a + cell(p, w)[0], 0)
@@ -158,8 +161,8 @@ function PivotT({ rows, prefs, onTranspose, onCell, onItem }: Props) {
             </th>
             {rows.map(p => (
               <th key={p.key} className={`${th} min-w-[96px] max-w-[150px] whitespace-normal text-right align-bottom`}>
-                <div className="font-mono text-[11px] font-normal text-[#a08060]">{p.pid ?? '—'}</div>
-                <button type="button" onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-right font-medium hover:text-[#7a5230] hover:underline">{p.name}</button>
+                <div className="font-mono text-[11px] font-normal text-[#a08060]">{p.pid ? <HighlightText text={p.pid} query={q} /> : '—'}</div>
+                <button type="button" onClick={() => onItem(p)} title="看這個品項在所有倉的位置、數量與條碼" className="text-right font-medium hover:text-[#7a5230] hover:underline"><HighlightText text={p.name} query={q} /></button>
               </th>
             ))}
             <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>
@@ -194,7 +197,7 @@ function PivotT({ rows, prefs, onTranspose, onCell, onItem }: Props) {
   )
 }
 
-function List({ rows, prefs, allowed, onMoveRow, onCell, onItem }: Props) {
+function List({ rows, prefs, allowed, q = '', onMoveRow, onCell, onItem }: Props) {
   const sel = prefs.wh
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const { bind, over } = useDrag()
@@ -212,9 +215,9 @@ function List({ rows, prefs, allowed, onMoveRow, onCell, onItem }: Props) {
               {open[p.key] ? <ChevronDown className="h-4 w-4 text-[#a08060]" /> : <ChevronRight className="h-4 w-4 text-[#a08060]" />}
               <Package className="h-8 w-8 shrink-0 rounded bg-[#faf6f0] p-1.5 text-[#c9b8a4]" />
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-[11px] text-[#a08060]">{p.pid ?? '未對應料卡'}</div>
+                <div className="font-mono text-[11px] text-[#a08060]">{p.pid ? <HighlightText text={p.pid} query={q} /> : '未對應料卡'}</div>
                 <div className="text-sm">
-                  <button onClick={e => { e.stopPropagation(); onItem(p) }} className="text-left hover:text-[#7a5230] hover:underline">{p.name}</button>
+                  <button onClick={e => { e.stopPropagation(); onItem(p) }} className="text-left hover:text-[#7a5230] hover:underline"><HighlightText text={p.name} query={q} /></button>
                   <Other p={p} sel={sel} allowed={allowed} />
                 </div>
                 <span className="mr-1 rounded bg-[#f0e8de] px-1.5 text-[10px] text-[#8a7058]">{p.type}</span>

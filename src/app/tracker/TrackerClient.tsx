@@ -7,6 +7,7 @@ import type { Issue } from './page'
 import IssueDetailDialog from '@/components/IssueDetailDialog'
 import NewIssueDialog from '@/components/NewIssueDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import { useIssueRealtime } from '@/hooks/useIssueRealtime'
 import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { logUsageEvent } from '@/lib/analyticsClient'
@@ -834,7 +835,7 @@ export default function TrackerClient({
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
                               <span className="flex-1 text-xs font-medium leading-snug break-words line-through text-[#a08060]">
-                                {issue.title}
+                                <HighlightText text={issue.title} query={searchQuery} />
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConfirmDeleteIssueId(issue.id) }}
@@ -891,7 +892,7 @@ export default function TrackerClient({
                             {/* 標題行 */}
                             <div className="flex items-start gap-1.5 mb-1.5">
                               <span className="flex-1 text-xs font-medium leading-snug break-words text-[#2c1e12]">
-                                {issue.title}
+                                <HighlightText text={issue.title} query={searchQuery} />
                               </span>
                             </div>
                             {/* meta 行 */}

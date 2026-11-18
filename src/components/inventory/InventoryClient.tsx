@@ -11,12 +11,14 @@ import BarcodeDrawer, { clearBarcodeCache, type DrawerTarget } from './BarcodeDr
 import WarehouseDialog from './WarehouseDialog'
 import { readSwr, writeSwr } from '@/lib/swrCache'
 import StocktakeDialog from './StocktakeDialog'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 
 interface Data { products: InvProduct[]; warehouses: InvWarehouse[]; batches: Record<string, InvBatch>; can: InvCan }
 interface RefreshReq { id: number; status: string; step: string | null; progress: Record<string, string> | null; error: string | null; created_at: string }
 
 const STEPS = ['開始', '刷新', 'CRM', '完成']
 const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—')
+const hitKey = (h: InvItem) => h.product_id ?? `name:${h.category || '其他'}|${h.name}`
 const md = (iso: string) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}` }
 
 export default function InventoryClient({ switcher }: { switcher?: React.ReactNode }) {
@@ -155,6 +157,26 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     return data.products.filter(p => keys.has(p.key))
   }, [liveHits, data])
 
+  // ---- S06：鍵盤選取條碼命中（↑↓ 換一筆、Enter 開啟）；條碼槍 Enter 早於查詢結果時先記住，結果回來再開 ----
+  const defaultPick = useMemo(() => {
+    if (!liveHits?.length) return 0
+    const qq = q.trim().toLowerCase()
+    const i = liveHits.findIndex(h => h.barcode.toLowerCase() === qq)
+    return i < 0 ? 0 : i
+  }, [liveHits, q])
+  const [pick, setPick] = useState<{ of: InvItem[] | null; i: number }>({ of: null, i: 0 })
+  const pickIdx = liveHits && pick.of === liveHits ? pick.i : defaultPick   // 換了一批結果就回到預設那筆
+  const [pendingOpen, setPendingOpen] = useState<string | null>(null)   // 記下「哪個搜尋字」按了 Enter 但結果還沒回來
+  const openHit = useCallback((h: InvItem, query: string) => {
+    const p = data?.products.find(x => x.key === hitKey(h))
+    if (p) setDrawer({ mode: 'cell', product: p, warehouse: h.warehouse, focus: h.barcode, query })
+  }, [data])
+  useEffect(() => {
+    if (!pendingOpen || !liveHits || pendingOpen !== q.trim()) return
+    setPendingOpen(null)
+    if (liveHits.length) openHit(liveHits[defaultPick], pendingOpen)   // defaultPick：完全符合的那筆，沒有就第一筆
+  }, [pendingOpen, liveHits, q, defaultPick, openHit])
+
   // ---- 刷新 ----
   const totals = () => new Map((data?.products ?? []).map(p => [p.key, (prefs?.wh ?? []).reduce((s, w) => s + cell(p, w)[0], 0)]))
   const [sending, setSending] = useState(false)   // 按下去到伺服器回應之間：立刻有反應，避免以為沒按到而狂按
@@ -270,6 +292,22 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const qTrim = q.trim()
   const searchingBarcode = !!data.can.barcodes && qTrim.length >= 4 && rows.length === 0 && hitsFor !== qTrim
 
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (tab !== 'stock' || drawer || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && liveHits?.length) {
+      e.preventDefault()
+      const n = liveHits.length
+      setPick({ of: liveHits, i: (pickIdx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n })
+      return
+    }
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    if (liveHits?.length) openHit(liveHits[pickIdx], qTrim)
+    else if (searchingBarcode) setPendingOpen(qTrim)
+    else if (!liveHits && qTrim && rows.length === 1) setDrawer({ mode: 'item', product: rows[0] })
+  }
+  const enterHint = <span className="ml-1 hidden rounded border border-[#e8ddd0] bg-[#faf6f0] px-1.5 text-[11px] font-normal text-[#a08060] md:inline">按 Enter 開啟</span>
+
   const seg = (on: boolean) => `px-3 py-1.5 text-[13px] ${on ? 'bg-[#e8ddd0] font-semibold text-[#2c1e12]' : 'bg-white text-[#6b4f38] hover:text-[#7a5230]'}`
   const moveIn = (list: string[], from: string, to: string) => { const a = list.filter(x => x !== from); a.splice(a.indexOf(to), 0, from); return a }
 
@@ -331,7 +369,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <label className="flex h-9 min-w-[220px] flex-1 items-center gap-1.5 rounded-md border border-[#e8ddd0] bg-white px-2.5 focus-within:border-[#c49a72]">
           <Search className="h-4 w-4 text-[#a08060]" />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜尋料號、品名，或貼上條碼" className="w-full bg-transparent text-sm outline-none placeholder:text-[#a08060]" />
+          <input value={q} onChange={e => { setQ(e.target.value); setPendingOpen(null) }} onKeyDown={onSearchKey} placeholder="搜尋料號、品名，或貼上條碼" className="w-full bg-transparent text-sm outline-none placeholder:text-[#a08060]" />
         </label>
         <div className="flex overflow-hidden rounded-md border border-[#e8ddd0]">
           <button className={seg(prefs.view === 'pivot')} onClick={() => update(p => ({ ...p, view: 'pivot' }))}><Table2 className="mr-1 inline h-3.5 w-3.5" />樞紐表</button>
@@ -371,15 +409,14 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         <div className="mb-3 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2.5 text-[13px]">
           {liveHits.length ? (
             <>
-              <b>找到 {liveHits.length}{liveHits.length >= 30 ? '+' : ''} 筆條碼</b>，點一筆打開它所在倉的條碼明細：
+              <b>找到 {liveHits.length}{liveHits.length >= 30 ? '+' : ''} 筆條碼</b>，點一筆打開它所在倉的條碼明細：{enterHint}
               <table className="mt-1.5 w-full text-xs">
-                <tbody>{liveHits.map(h => {
-                  const key = h.product_id ?? `name:${h.category || '其他'}|${h.name}`
-                  const p = data.products.find(x => x.key === key)
+                <tbody>{liveHits.map((h, i) => {
+                  const p = data.products.find(x => x.key === hitKey(h))
                   return (
-                    <tr key={h.warehouse + h.barcode} onClick={() => p && setDrawer({ mode: 'cell', product: p, warehouse: h.warehouse, focus: h.barcode })}
-                      className="cursor-pointer border-t border-[#f0e8de] hover:bg-[#f6efe4]">
-                      <td className="py-1 pr-2 font-mono">{h.barcode}</td><td className="py-1 pr-2">{p?.name ?? h.name}</td>
+                    <tr key={h.warehouse + h.barcode} onClick={() => openHit(h, qTrim)} aria-selected={i === pickIdx}
+                      className={`cursor-pointer border-t border-[#f0e8de] hover:bg-[#f6efe4] ${i === pickIdx ? 'bg-[#f6efe4]' : ''}`}>
+                      <td className="py-1 pr-2 font-mono"><HighlightText text={h.barcode} query={qTrim} /></td><td className="py-1 pr-2">{p?.name ?? h.name}</td>
                       <td className="py-1 pr-2">{h.warehouse}</td><td className="py-1 pr-2">{h.car}</td>
                       <td className="py-1">{h.unusable ? <span className="rounded bg-[#f8e4dc] px-1.5 text-[#b5451b]">不可使用</span> : <span className="rounded bg-[#e6f0e0] px-1.5 text-[#3d7a3a]">可用</span>}</td>
                     </tr>
@@ -392,7 +429,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       )}
       {tab === 'stock' && !liveHits && q.trim() && rows.length > 0 && rows.length <= 5 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2 text-[13px]">
-          <b>搜尋到 {rows.length} 個品項</b>，點品名可看它在<b>所有倉</b>的位置、數量和全部條碼：
+          <b>搜尋到 {rows.length} 個品項</b>，點品名可看它在<b>所有倉</b>的位置、數量和全部條碼：{rows.length === 1 && enterHint}
           {rows.map(p => <button key={p.key} onClick={() => setDrawer({ mode: 'item', product: p })} className="rounded-md border border-[#e8ddd0] bg-white px-2 py-0.5 text-xs hover:text-[#7a5230]">{p.name}</button>)}
         </div>
       )}
@@ -416,7 +453,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       ) : searchingBarcode ? (
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>
       ) : <InventoryTable
-        rows={shown} prefs={prefs} allowed={allowed} delta={delta}
+        rows={shown} prefs={prefs} allowed={allowed} delta={delta} q={qTrim}
         transposed={!!prefs.tp?.stock} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, stock: !p.tp?.stock } }))}
         onSort={k => update(p => ({ ...p, sort: p.sort.k === k ? { k, d: (p.sort.d * -1) as 1 | -1 } : { k, d: k === 'pid' || k === 'name' ? 1 : -1 } }))}
         onToggleGroup={g => update(p => ({ ...p, col: { ...p.col, [g]: !p.col[g] } }))}

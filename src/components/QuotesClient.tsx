@@ -6,6 +6,7 @@ import { Search, X, Plus, Pencil, Trash2, Loader2, GripVertical, Info } from 'lu
 import { QuoteItem } from '@/types/equipment'
 import SettingsPopover from '@/components/SettingsPopover'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 
 interface Props {
@@ -389,7 +390,7 @@ export default function QuotesClient({ initialItems, categories, permissions }: 
                         {canEdit && (
                           <GripVertical className={`h-4 w-4 text-[#d4bda0] flex-shrink-0 ${canReorder ? 'cursor-grab opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity`} />
                         )}
-                        <span className="text-sm text-[#2c1e12] truncate min-w-0 flex-1">{item.name}</span>
+                        <span className="text-sm text-[#2c1e12] truncate min-w-0 flex-1"><HighlightText text={item.name} query={query} /></span>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                         <span className="text-sm font-medium text-[#7a5230] sm:w-20 sm:text-right">

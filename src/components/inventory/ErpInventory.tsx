@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, FileSpreadsheet, Info, Search, Upload } from 'lucide-react'
 import ErpStocktakeDialog from './ErpStocktakeDialog'
 import { readSwr, writeSwr } from '@/lib/swrCache'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 
 interface ErpItem { pid: string; name: string; qty: number; wh: string | null; vendor: string | null; hasSerial: boolean; ownBarcode: boolean; prefix: string | null; warranty: number | null }
 interface Run { exportedAt: string; uploadedAt: string; rows: number }
@@ -186,8 +187,8 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
             <tbody>
               {rows.map(r => (
                 <tr key={r.pid} className="border-t border-[#f0e8de] hover:bg-[#faf6f0]">
-                  <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[12px]">{r.pid}</td>
-                  <td className="px-2.5 py-1.5">{r.name}</td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 font-mono text-[12px]"><HighlightText text={r.pid} query={q} /></td>
+                  <td className="px-2.5 py-1.5"><HighlightText text={r.name} query={q} /></td>
                   <td className={`whitespace-nowrap px-2.5 py-1.5 text-right font-semibold tabular-nums ${r.qty < 0 ? 'text-[#b5451b]' : ''}`}>{r.qty.toLocaleString()}</td>
                   <td className="whitespace-nowrap px-2.5 py-1.5 text-xs text-[#6b4f38]">
                     {!r.hasSerial ? '無' : r.ownBarcode ? <>自有條碼{r.prefix ? <span className="ml-1 font-mono text-[#a08060]">{r.prefix}</span> : null}</> : '廠商序號'}

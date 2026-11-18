@@ -166,6 +166,8 @@ function FieldSelect({
   )
 }
 
+type PhotoDropZone = 'main' | 'detail' | 'weight'
+
 // 共用 input class
 const inputCls = 'w-full border border-[#e8ddd0] rounded-lg px-3 py-2 text-sm text-[#2c1e12] placeholder:text-[#a08060] bg-[#faf6f0] focus:outline-none focus:ring-2 focus:ring-[#c49a72] focus:border-[#c49a72] transition-all'
 
@@ -264,6 +266,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [photoError, setPhotoError]   = useState<string | null>(null)
+  // Step 55-14：目前拖曳經過哪一個照片區（亮起並顯示「放開即可加入 N 張」）
+  const [photoDrag, setPhotoDrag]     = useState<{ zone: PhotoDropZone; count: number } | null>(null)
   const [selectMode, setSelectMode]               = useState(false)
   const [selectedDetailIds, setSelectedDetailIds] = useState<Set<string>>(new Set())
   const [selectedPendingIdxs, setSelectedPendingIdxs] = useState<Set<number>>(new Set())
@@ -361,6 +365,63 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   }, [open, mode, card])
 
   if (!open) return null
+
+  // ── Step 55-14：照片拖放 ─────────────────────────────────────────
+  // 三區各自可拖放；沿用選檔時的所有限制（權限、處理中、選取模式中不接受），新增模式的料號檢查在 add* 函式內
+  function canDropTo(zone: PhotoDropZone): boolean {
+    if (isBusy) return false
+    if (zone === 'main') return canEdit('edit_card_main_photo')
+    if (zone === 'detail') return canEdit('edit_card_detail_photos') && !selectMode
+    return canEdit('edit_card_weight') && !selectWeightMode
+  }
+
+  function hasFiles(e: React.DragEvent) {
+    return Array.from(e.dataTransfer.types ?? []).includes('Files')
+  }
+
+  function dropZoneProps(zone: PhotoDropZone) {
+    return {
+      onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(e)) return
+        e.preventDefault()
+        if (!canDropTo(zone)) { e.dataTransfer.dropEffect = 'none'; return }
+        e.dataTransfer.dropEffect = 'copy'
+        const n = Array.from(e.dataTransfer.items ?? []).filter(i => i.kind === 'file').length
+        const count = zone === 'main' ? 1 : Math.max(n, 1)
+        if (photoDrag?.zone !== zone || photoDrag.count !== count) setPhotoDrag({ zone, count })
+      },
+      onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+        setPhotoDrag(d => (d?.zone === zone ? null : d))
+      },
+      onDrop: (e: React.DragEvent<HTMLDivElement>) => {
+        if (!hasFiles(e)) return
+        e.preventDefault()
+        setPhotoDrag(null)
+        if (!canDropTo(zone)) return
+        const files = Array.from(e.dataTransfer.files ?? [])
+        const images = files.filter(f => f.type.startsWith('image/'))
+        if (images.length < files.length) {
+          setPhotoError(images.length === 0
+            ? '只接受圖片檔，請拖放照片'
+            : `只接受圖片檔，已略過 ${files.length - images.length} 個非圖片檔案`)
+        }
+        if (images.length === 0) return
+        if (zone === 'main') addMainPhotoFile(images[0])
+        else if (zone === 'detail') addDetailFiles(images)
+        else addWeightFiles(images)
+      },
+    }
+  }
+
+  function dropOverlay(zone: PhotoDropZone) {
+    if (photoDrag?.zone !== zone) return null
+    return (
+      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-[#c49a72] bg-[rgba(250,246,240,.88)] text-sm font-medium text-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.25)]">
+        放開即可加入 {photoDrag.count} 張
+      </div>
+    )
+  }
 
   function set(field: keyof FormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -925,14 +986,19 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setDocUpdateTargetId(null)
   }
 
-  function handleMainPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  // Step 55-14：選檔與拖放共用的加入邏輯（仍走暫存機制，按儲存才上傳 Cloudinary）
+  function addMainPhotoFile(file: File) {
     if (mainPhotoPreview) URL.revokeObjectURL(mainPhotoPreview)
     setMainPhotoFile(file)
     setMainPhotoPreview(URL.createObjectURL(file))
     setDeleteMainPending(false)
+  }
+
+  function handleMainPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    addMainPhotoFile(file)
   }
 
   function handleDeleteMain() {
@@ -945,9 +1011,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     }
   }
 
-  function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
-    const fileArray = Array.from(e.target.files ?? [])
-    e.target.value = ''
+  function addDetailFiles(fileArray: File[]) {
     if (!fileArray.length) return
     if (mode === 'create') {
       const equipId = form.equipment_id.trim()
@@ -955,6 +1019,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     }
     const newItems: PendingDetail[] = fileArray.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
     setPendingDetails(prev => [...prev, ...newItems])
+  }
+
+  function handleAddDetail(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileArray = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    addDetailFiles(fileArray)
   }
 
   function handleDeletePendingDetail(index: number) {
@@ -965,9 +1035,7 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     setDeleteDetailIds(prev => new Set([...Array.from(prev), publicId]))
   }
 
-  function handleAddWeightPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const fileArray = Array.from(e.target.files ?? [])
-    e.target.value = ''
+  function addWeightFiles(fileArray: File[]) {
     if (!fileArray.length) return
     if (mode === 'create') {
       const equipId = form.equipment_id.trim()
@@ -975,6 +1043,12 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
     }
     const newItems: PendingDetail[] = fileArray.map(f => ({ file: f, preview: URL.createObjectURL(f) }))
     setPendingWeightPhotos(prev => [...prev, ...newItems])
+  }
+
+  function handleAddWeightPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileArray = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    addWeightFiles(fileArray)
   }
 
   function handleDeleteExistingWeight(publicId: string) {
@@ -1041,7 +1115,21 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
   const filteredDocSearchResults = docSearchResults.filter(r => !linkedDocIds.has(r.id))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      // Step 55-14：檔案拖到照片區以外的地方放開時，瀏覽器預設會直接打開那張圖片（整頁離開網站、表單內容全丟），
+      // 這裡在對話框層級攔截；照片區自己的 handler 先處理過（defaultPrevented）就不覆蓋它的 dropEffect
+      onDragOver={e => {
+        if (!Array.from(e.dataTransfer.types ?? []).includes('Files') || e.defaultPrevented) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'none'
+      }}
+      onDrop={e => {
+        if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return
+        e.preventDefault()
+        setPhotoDrag(null)
+      }}
+    >
       <div className="bg-[#fff9f4] rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col border border-[rgba(122,82,48,.18)]"
         style={{ boxShadow: '0 0 30px rgba(122,82,48,.15), 0 20px 60px rgba(0,0,0,.2)' }}>
 
@@ -1413,7 +1501,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           )}
 
           {/* 主照片 */}
-          <div>
+          <div className="relative" {...dropZoneProps('main')}>
+            {dropOverlay('main')}
             <label className="block text-sm font-medium text-[#6b4f38] mb-2">主照片</label>
             {currentMainPhoto ? (
               <div className="flex items-center gap-3">
@@ -1443,7 +1532,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           </div>
 
           {/* 細節照片 */}
-          <div>
+          <div className="relative" {...dropZoneProps('detail')}>
+            {dropOverlay('detail')}
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-[#6b4f38]">細節照片</label>
               {(visibleDetails.length > 0 || pendingDetails.length > 0) && canEdit('edit_card_detail_photos') && (
@@ -1572,7 +1662,8 @@ export default function CardFormDialog({ mode, card, open, onClose, settings, pe
           </div>
 
           {/* 淨重照片 */}
-          <div>
+          <div className="relative" {...dropZoneProps('weight')}>
+            {dropOverlay('weight')}
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-[#6b4f38]">淨重照片</label>
               {(visibleWeightPhotos.length > 0 || pendingWeightPhotos.length > 0) && canEdit('edit_card_weight') && (

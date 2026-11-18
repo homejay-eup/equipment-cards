@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ImageOff, Maximize2, Minimize2, Pencil, Prin
 import { logUsageEvent } from '@/lib/analyticsClient'
 import RichContentView from '@/components/tracker/RichContentView'
 import UpdateImageLightbox from '@/components/UpdateImageLightbox'
+import { prefersReducedMotion } from '@/hooks/useFlipAnimation'
 
 interface Props {
   card: EquipmentCard
@@ -25,6 +26,13 @@ interface Props {
 }
 
 const SWIPE_THRESHOLD = 50
+// Step 55-08：燈箱手勢參數
+const ZOOM_SCALE = 2
+const DIRECTION_LOCK_PX = 10
+const SWIPE_CLOSE_DISTANCE = 120
+const SWIPE_CLOSE_VELOCITY = 0.6 // px/ms
+const DOUBLE_TAP_MS = 300
+const DOUBLE_TAP_SLOP = 30
 
 function isSafeUrl(url: string): boolean {
   try {
@@ -84,12 +92,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   const next = () => setPhotoIndex(i => (i + 1) % allPhotos.length)
 
   function handleTouchStart(e: React.TouchEvent) {
+    if (zoomed) { touchStartX.current = null; return }
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null || allPhotos.length <= 1) return
+    if (touchStartX.current === null || allPhotos.length <= 1 || zoomed) return
     const dx = e.changedTouches[0].clientX - touchStartX.current
     const dy = e.changedTouches[0].clientY - (touchStartY.current ?? 0)
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
@@ -118,6 +127,229 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     setMobileToast(msg)
     if (mobileToastTimer.current) clearTimeout(mobileToastTimer.current)
     mobileToastTimer.current = setTimeout(() => setMobileToast(null), 900)
+  }
+
+  /* ── Step 55-08：雙擊放大＋拖曳查看、手機下滑關閉 ──
+     縮放狀態放在本體（MobilePhotoArea 等是每次 render 重建的內部元件，狀態放裡面會一 re-render 就歸零）。
+     拖曳移動時直接改 DOM（不觸發 re-render），位置記在 zoomPanRef，重建時從 ref 讀回。 */
+  const [zoomed, setZoomed] = useState(false)
+  const zoomPanRef = useRef({ x: 0, y: 0 })
+  const prevZoomTransformRef = useRef('none')
+  const mobileZoomLayerRef = useRef<HTMLDivElement>(null)
+  const desktopZoomLayerRef = useRef<HTMLDivElement>(null)
+  const zoomSourceRef = useRef<'mobile' | 'desktop'>('desktop')
+  const contentRef = useRef<HTMLDivElement>(null)
+  const gestureRef = useRef<{ x: number; y: number; t: number; mode: 'h' | 'v' | 'none' | null; panX: number; panY: number } | null>(null)
+  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null)
+  const lastTouchZoomAtRef = useRef(0)
+  const desktopPanRef = useRef<{ x: number; y: number; panX: number; panY: number; id: number } | null>(null)
+
+  function zoomTransform(): string {
+    return zoomed
+      ? `translate(${zoomPanRef.current.x}px, ${zoomPanRef.current.y}px) scale(${ZOOM_SCALE})`
+      : 'none'
+  }
+
+  function clampPan(layer: HTMLElement, x: number, y: number) {
+    const w = layer.offsetWidth
+    const h = layer.offsetHeight
+    return {
+      x: Math.min(0, Math.max(-(ZOOM_SCALE - 1) * w, x)),
+      y: Math.min(0, Math.max(-(ZOOM_SCALE - 1) * h, y)),
+    }
+  }
+
+  function toggleZoomAt(layer: HTMLElement | null, clientX: number, clientY: number, source: 'mobile' | 'desktop') {
+    if (!layer || allPhotos.length === 0) return
+    if (zoomed) { setZoomed(false); return }
+    const r = layer.getBoundingClientRect()
+    const cx = clientX - r.left
+    const cy = clientY - r.top
+    // 以點擊位置為中心放大：放大後該點維持在原位置（transform-origin 0 0）
+    zoomPanRef.current = clampPan(layer, cx - ZOOM_SCALE * cx, cy - ZOOM_SCALE * cy)
+    zoomSourceRef.current = source
+    setZoomed(true)
+  }
+
+  function applyPan(layer: HTMLElement | null, x: number, y: number) {
+    if (!layer) return
+    zoomPanRef.current = clampPan(layer, x, y)
+    layer.style.transition = 'none'
+    layer.style.transform = `translate(${zoomPanRef.current.x}px, ${zoomPanRef.current.y}px) scale(${ZOOM_SCALE})`
+  }
+
+  // 換照片、關閉、換卡片、切換視窗大小時自動縮回（直接縮回，不播放從 2 倍縮回的過場，
+  // 否則放大中按箭頭換照片時，新照片會先以 2 倍出現再縮回）
+  const zoomedRef = useRef(false)
+  zoomedRef.current = zoomed
+  const skipZoomAnimRef = useRef(false)
+  useEffect(() => {
+    if (zoomedRef.current) skipZoomAnimRef.current = true
+    setZoomed(false)
+    zoomPanRef.current = { x: 0, y: 0 }
+  }, [photoIndex, open, card.equipment_id, expanded])
+
+  // 縮放切換的過場（內部照片區每次 render 都是新元素，CSS transition 不會生效，改用 WAAPI）
+  useLayoutEffect(() => {
+    const to = zoomTransform()
+    const from = prevZoomTransformRef.current
+    prevZoomTransformRef.current = to
+    if (skipZoomAnimRef.current) { skipZoomAnimRef.current = false; return }
+    if (from === to || prefersReducedMotion()) return
+    const layer = zoomSourceRef.current === 'mobile' ? mobileZoomLayerRef.current : desktopZoomLayerRef.current
+    if (!layer || typeof layer.animate !== 'function') return
+    layer.animate([{ transform: from }, { transform: to }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomed])
+
+  function canSwipeToClose() {
+    return !zoomed && !expanded && (contentRef.current?.scrollTop ?? 0) <= 0
+  }
+
+  function setDialogDrag(dy: number, withTransition: boolean) {
+    const content = contentRef.current
+    if (!content) return
+    const prevEl = content.previousElementSibling as HTMLElement | null
+    // shadcn DialogContent 的前一個兄弟節點就是遮罩（DialogOverlay），兩者都帶 data-state
+    const overlay = prevEl?.hasAttribute('data-state') ? prevEl : null
+    const d = Math.max(0, dy)
+    if (withTransition && prefersReducedMotion()) withTransition = false
+    content.style.transition = withTransition ? 'transform .25s cubic-bezier(.2,.8,.2,1)' : 'none'
+    content.style.transform = d > 0 ? `translate(-50%, calc(-50% + ${d}px))` : ''
+    if (overlay) {
+      overlay.style.transition = withTransition ? 'opacity .25s' : 'none'
+      overlay.style.opacity = d > 0 ? String(Math.max(0.25, 1 - d / 400)) : ''
+    }
+    if (d === 0) {
+      // 彈回後把 inline transition 拿掉，還給原本 className 的 transition（放大／縮小視窗的過場）
+      setTimeout(() => {
+        if (contentRef.current === content && !content.style.transform) content.style.transition = ''
+        if (overlay) overlay.style.transition = ''
+      }, 300)
+    }
+  }
+
+  function closeBySwipe() {
+    const content = contentRef.current
+    const prevEl = content?.previousElementSibling as HTMLElement | null | undefined
+    const overlay = prevEl?.hasAttribute('data-state') ? prevEl : null
+    if (!content || prefersReducedMotion()) { onClose(); return }
+    content.style.transition = 'transform .2s ease-in'
+    content.style.transform = 'translate(-50%, calc(-50% + 100vh))'
+    if (overlay) { overlay.style.transition = 'opacity .2s'; overlay.style.opacity = '0' }
+    setTimeout(() => {
+      // 已經滑出畫面：關掉 shadcn 的關閉動畫（否則會從 +100vh 往上飄回中央再淡出），直接消失
+      content.style.animation = 'none'
+      content.style.opacity = '0'
+      if (overlay) { overlay.style.animation = 'none'; overlay.style.opacity = '0' }
+      onClose()
+    }, 180)
+  }
+
+  /* 手機照片區的統一觸控入口：方向鎖定 10px 後分流
+     - 放大中：單指拖曳移動查看
+     - 水平：交給既有換照片邏輯（handleMobileTouch*，行為不變）
+     - 垂直往下且內容捲在最上面、未放大：下滑關閉 */
+  function onMobileGestureStart(e: React.TouchEvent) {
+    if (e.touches.length > 1) { gestureRef.current = null; return }
+    const t = e.touches[0]
+    gestureRef.current = { x: t.clientX, y: t.clientY, t: performance.now(), mode: null, panX: zoomPanRef.current.x, panY: zoomPanRef.current.y }
+    if (zoomed) return
+    handleMobileTouchStart(e)
+  }
+
+  function onMobileGestureMove(e: React.TouchEvent) {
+    const g = gestureRef.current
+    if (!g || e.touches.length > 1) return
+    const dx = e.touches[0].clientX - g.x
+    const dy = e.touches[0].clientY - g.y
+    if (zoomed) {
+      if (g.mode === null && Math.hypot(dx, dy) < DIRECTION_LOCK_PX) return
+      g.mode = 'none'
+      applyPan(mobileZoomLayerRef.current, g.panX + dx, g.panY + dy)
+      return
+    }
+    if (g.mode === null) {
+      if (Math.abs(dx) < DIRECTION_LOCK_PX && Math.abs(dy) < DIRECTION_LOCK_PX) return
+      if (Math.abs(dx) > Math.abs(dy)) {
+        g.mode = 'h'
+      } else if (dy > 0 && canSwipeToClose()) {
+        g.mode = 'v'
+        mobileDragStart.current = null
+      } else {
+        g.mode = 'none'
+        mobileDragStart.current = null
+      }
+    }
+    if (g.mode === 'h') handleMobileTouchMove(e)
+    else if (g.mode === 'v') setDialogDrag(dy, false)
+  }
+
+  function onMobileGestureEnd(e: React.TouchEvent) {
+    const g = gestureRef.current
+    gestureRef.current = null
+    if (!g) return
+    const touch = e.changedTouches[0]
+    const dy = touch.clientY - g.y
+    const elapsed = Math.max(1, performance.now() - g.t)
+    if (g.mode === 'h') { handleMobileTouchEnd(); return }
+    if (g.mode === 'v') {
+      if (dy > SWIPE_CLOSE_DISTANCE || (dy > 30 && dy / elapsed > SWIPE_CLOSE_VELOCITY)) closeBySwipe()
+      else setDialogDrag(0, true)
+      return
+    }
+    if (g.mode === null) {
+      // 沒有移動：判斷是否為雙點（點在箭頭等按鈕上不算）
+      mobileDragStart.current = null
+      if ((e.target as HTMLElement).closest('button')) { lastTapRef.current = null; return }
+      const now = performance.now()
+      const last = lastTapRef.current
+      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < DOUBLE_TAP_SLOP) {
+        lastTapRef.current = null
+        lastTouchZoomAtRef.current = now
+        toggleZoomAt(mobileZoomLayerRef.current, touch.clientX, touch.clientY, 'mobile')
+      } else {
+        lastTapRef.current = { t: now, x: touch.clientX, y: touch.clientY }
+      }
+    }
+  }
+
+  function onMobileGestureCancel() {
+    const g = gestureRef.current
+    gestureRef.current = null
+    if (g?.mode === 'v') setDialogDrag(0, true)
+    else if (g?.mode === 'h') handleMobileTouchEnd()
+    else mobileDragStart.current = null
+  }
+
+  /* 桌機照片區：雙擊放大、放大後按住拖曳移動 */
+  function onDesktopDoubleClick(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest('button')) return
+    // 觸控裝置的雙點已在觸控事件處理過，避免同一下又被 dblclick 切回去
+    if (performance.now() - lastTouchZoomAtRef.current < 500) return
+    e.preventDefault()
+    toggleZoomAt(desktopZoomLayerRef.current, e.clientX, e.clientY, 'desktop')
+  }
+
+  function onDesktopPointerDown(e: React.PointerEvent) {
+    if (!zoomed || e.pointerType === 'touch' || e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button')) return
+    desktopPanRef.current = { x: e.clientX, y: e.clientY, panX: zoomPanRef.current.x, panY: zoomPanRef.current.y, id: e.pointerId }
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+    e.preventDefault()
+  }
+
+  function onDesktopPointerMove(e: React.PointerEvent) {
+    const p = desktopPanRef.current
+    if (!p || p.id !== e.pointerId) return
+    applyPan(desktopZoomLayerRef.current, p.panX + e.clientX - p.x, p.panY + e.clientY - p.y)
+  }
+
+  function onDesktopPointerUp(e: React.PointerEvent) {
+    const p = desktopPanRef.current
+    if (!p || p.id !== e.pointerId) return
+    desktopPanRef.current = null
+    ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
   }
 
   function handleMobileTouchStart(e: React.TouchEvent) {
@@ -258,7 +490,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   }
 
   /* ── 照片內容（共用） ── */
-  function PhotoContent({ sizes }: { sizes: string }) {
+  function PhotoContent({ sizes, zoomLayerRef }: { sizes: string; zoomLayerRef: React.RefObject<HTMLDivElement> }) {
     if (allPhotos.length === 0) {
       return (
         <div className="absolute inset-0 flex items-center justify-center text-[#c49a72]">
@@ -268,15 +500,22 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     }
     return (
       <>
-        <Image
-          key={allPhotos[photoIndex].url}
-          src={allPhotos[photoIndex].url}
-          alt={card.name}
-          fill
-          sizes={sizes}
-          className="object-contain"
-          priority
-        />
+        <div
+          ref={zoomLayerRef}
+          className="absolute inset-0"
+          style={{ transform: zoomTransform(), transformOrigin: '0 0' }}
+        >
+          <Image
+            key={allPhotos[photoIndex].url}
+            src={allPhotos[photoIndex].url}
+            alt={card.name}
+            fill
+            sizes={sizes}
+            className="object-contain"
+            priority
+            draggable={false}
+          />
+        </div>
         {allPhotos.length > 1 && (
           <>
             <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-[rgba(44,30,18,.45)] hover:bg-[rgba(44,30,18,.7)] text-white rounded-full p-2 transition-colors shadow">
@@ -312,13 +551,14 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         )}
         <div
           ref={mobileActiveRef}
-          className="absolute inset-0"
-          style={{ touchAction: 'pan-y' }}
-          onTouchStart={handleMobileTouchStart}
-          onTouchMove={handleMobileTouchMove}
-          onTouchEnd={handleMobileTouchEnd}
+          className="absolute inset-0 select-none"
+          style={{ touchAction: zoomed ? 'none' : 'pan-y' }}
+          onTouchStart={onMobileGestureStart}
+          onTouchMove={onMobileGestureMove}
+          onTouchEnd={onMobileGestureEnd}
+          onTouchCancel={onMobileGestureCancel}
         >
-          <PhotoContent sizes="100vw" />
+          <PhotoContent sizes="100vw" zoomLayerRef={mobileZoomLayerRef} />
         </div>
         {allPhotos.length > 1 && (
           <>
@@ -351,12 +591,17 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   function DesktopPhotoArea() {
     return (
       <div
-        className="relative flex-1"
-        style={{ minHeight: '200px', touchAction: 'pan-y' }}
+        className={`relative flex-1 overflow-hidden select-none ${allPhotos.length > 0 ? (zoomed ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in') : ''}`}
+        style={{ minHeight: '200px', touchAction: zoomed ? 'none' : 'pan-y' }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onDoubleClick={onDesktopDoubleClick}
+        onPointerDown={onDesktopPointerDown}
+        onPointerMove={onDesktopPointerMove}
+        onPointerUp={onDesktopPointerUp}
+        onPointerCancel={onDesktopPointerUp}
       >
-        <PhotoContent sizes="(max-width: 768px) 100vw, 500px" />
+        <PhotoContent sizes="(max-width: 768px) 100vw, 500px" zoomLayerRef={desktopZoomLayerRef} />
       </div>
     )
   }
@@ -388,7 +633,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
     <>
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       {/* 手機：overflow-y-auto 可上下捲動；桌機：overflow-hidden 固定高 */}
-      <DialogContent className={`w-full p-0 transition-all duration-200 ${
+      <DialogContent ref={contentRef} className={`w-full p-0 transition-all duration-200 ${
         expanded
           ? 'max-w-[min(90vh,90vw)] overflow-hidden'
           : 'max-w-5xl overflow-x-hidden overflow-y-auto max-h-[92vh] md:overflow-hidden md:max-h-none'

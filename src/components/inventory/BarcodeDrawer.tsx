@@ -6,9 +6,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, X, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
 import type { InvItem, InvProduct } from './types'
 import { cell } from './types'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 
 export type DrawerTarget =
-  | { mode: 'cell'; product: InvProduct; warehouse: string; focus?: string }
+  | { mode: 'cell'; product: InvProduct; warehouse: string; focus?: string; /** 從搜尋點進來時的原始搜尋字（標螢光筆用） */ query?: string }
   | { mode: 'item'; product: InvProduct }
 
 interface Page { rows: InvItem[]; total: number }
@@ -74,7 +75,7 @@ function Status({ bad }: { bad: boolean }) {
     : <span className="inline-block whitespace-nowrap rounded bg-[#e6f0e0] px-1.5 text-[11px] text-[#3d7a3a]">可用</span>
 }
 
-function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolean; focus?: string }) {
+function BarcodeTable({ rows, showWh, focus, query = '', flash = false }: { rows: InvItem[]; showWh: boolean; focus?: string; query?: string; flash?: boolean }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-[#e8ddd0] bg-white">
       <table className="w-full text-[13px]">
@@ -90,8 +91,8 @@ function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolea
             const hl = !!focus && r.barcode === focus
             return (
               <tr key={r.warehouse + r.barcode} data-hl={hl || undefined}
-                className={`border-t border-[#f0e8de] ${hl ? 'barcode-hit' : ''}`}>
-                <td className="whitespace-nowrap px-2.5 py-1.5 font-mono">{r.barcode}</td>
+                className={`border-t border-[#f0e8de] ${hl ? `barcode-hit${flash ? ' barcode-row-flash' : ''}` : ''}`}>
+                <td className="whitespace-nowrap px-2.5 py-1.5 font-mono">{hl ? <HighlightText text={r.barcode} query={query} /> : r.barcode}</td>
                 {showWh && <td className="whitespace-nowrap px-2.5 py-1.5">{r.warehouse}</td>}
                 <td className="whitespace-nowrap px-2.5 py-1.5">{r.car}</td>
                 <td className="whitespace-nowrap px-2.5 py-1.5">{(r.crm_updated ?? '').slice(0, 10)}</td>
@@ -109,8 +110,9 @@ function BarcodeTable({ rows, showWh, focus }: { rows: InvItem[]; showWh: boolea
 }
 
 /** 一個倉（或全部倉）的條碼清單，往下載入更多 */
-function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
+function BarcodeList({ product, warehouse, showWh, focus, onFocusRow, query, flash }: {
   product: InvProduct; warehouse: string | null; showWh: boolean; focus?: string; onFocusRow?: (r: InvItem | null) => void
+  query?: string; flash?: boolean
 }) {
   const [page, setPage] = useState<Page>({ rows: [], total: 0 })
   const [err, setErr] = useState('')
@@ -131,7 +133,7 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow }: {
   if (err) return <p className="py-4 text-sm text-[#b5451b]">{err}</p>
   return (
     <div>
-      {page.rows.length > 0 && <BarcodeTable rows={focus && fr ? [fr, ...page.rows.filter(r => r.barcode !== focus)] : page.rows} showWh={showWh} focus={focus} />}
+      {page.rows.length > 0 && <BarcodeTable rows={focus && fr ? [fr, ...page.rows.filter(r => r.barcode !== focus)] : page.rows} showWh={showWh} focus={focus} query={query} flash={flash} />}
       <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#a08060]">
         {busy ? '讀取中…' : `顯示 ${page.rows.length.toLocaleString()} / ${page.total.toLocaleString()} 筆`}
         {!busy && page.rows.length < page.total && (
@@ -153,6 +155,8 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   const [seenAll, setSeenAll] = useState(false)
   const [sort, setSort] = useState<{ k: 'name' | 'ok' | 'bad' | 'total'; dir: 1 | -1 }>({ k: 'total', dir: -1 })   // 依倉庫表的排序（預設：合計多的在前）
   const [wq, setWq] = useState('')
+  // S07：亮一下只針對「這一個 target 物件」播一次；播完記下來，之後同一個 target 重新渲染不再亮
+  const [flashDone, setFlashDone] = useState<DrawerTarget | null>(null)
   useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null); setWq('') }, [target])
   // 開品項總覽時，背景先把「全部條碼」第一頁載好，切過去就是現成的
   useEffect(() => { if (target?.mode === 'item' && canBarcodes) prefetchBarcodes(target.product.key, null) }, [target, canBarcodes])
@@ -179,13 +183,17 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   let body: React.ReactNode = null
   if (target.mode === 'cell') {
     const [ok, bad] = cell(p, target.warehouse)
+    const cellTarget = target
+    const flash = !!target.focus && flashDone !== target
+    const hq = target.query ?? ''
     sub = <>{target.warehouse}・可使用 {ok.toLocaleString()}{bad ? <>・不可使用 <span className="text-[#b5451b]">{bad}</span></> : null}</>
     body = (
       <>
         {focusRow && (
-          <div className="mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5">
+          <div className={`mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5 ${flash ? 'barcode-card-flash' : ''}`}
+            onAnimationEnd={() => setFlashDone(cellTarget)}>
             <div className="mb-1 text-[11px] font-bold text-[#7a5230]">你搜尋的條碼</div>
-            <div className="font-mono text-[17px] font-bold">{focusRow.barcode}</div>
+            <div className="font-mono text-[17px] font-bold"><HighlightText text={focusRow.barcode} query={hq} /></div>
             <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
               {([['倉庫', focusRow.warehouse], ['車代', focusRow.car || '—'], ['更新', (focusRow.crm_updated ?? '').slice(0, 10)], ['操作', focusRow.op],
                 ['更新人', focusRow.who], ['備註', focusRow.note]] as const).filter(([, v]) => v).map(([k, v]) => (
@@ -198,7 +206,7 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
         {canBarcodes ? (
           <>
             <div className="mb-2 flex justify-end"><ExportBtn wh={target.warehouse} withWh={false} /></div>
-            <BarcodeList product={p} warehouse={target.warehouse} showWh={false} focus={target.focus} onFocusRow={setFocusRow} />
+            <BarcodeList product={p} warehouse={target.warehouse} showWh={false} focus={target.focus} onFocusRow={setFocusRow} query={hq} flash={flash} />
           </>
         ) : <p className="py-6 text-center text-sm text-[#a08060]">你的角色沒有看條碼明細的權限</p>}
       </>

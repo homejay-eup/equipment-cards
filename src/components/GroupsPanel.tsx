@@ -6,9 +6,21 @@ import { EquipmentCard, UserGroup } from '@/types/equipment'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
 import QuantityStepper from '@/components/QuantityStepper'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import UndoToast from '@/components/UndoToast'
 import { usePackages, EquipmentPackage } from '@/hooks/usePackages'
 import { getDropPosition, reorderByPosition, type DropPosition } from '@/lib/dragReorder'
 import { Star, ChevronDown, ChevronRight, Plus, Check, Pencil, Trash2, Search, Loader2, X, Folder, FolderPlus, GripVertical, Copy, RefreshCw, PackageCheck, List as ListIcon, LayoutGrid, ArrowLeftRight, CheckSquare } from 'lucide-react'
+
+// Step 55-07：組合內移除的「可復原」視窗長度與待送出資料
+const UNDO_WINDOW_MS = 5000
+interface PendingRemoval {
+  key: number
+  groupId: string
+  ids: string[]
+  removedItems: UserGroup['group_items']
+  prevUpdatedAt: UserGroup['updated_at']
+  timer: ReturnType<typeof setTimeout>
+}
 
 interface GroupsPanelProps {
   initialGroups: UserGroup[]
@@ -473,14 +485,14 @@ export default function GroupsPanel({
   const [aligningGroupId, setAligningGroupId] = useState<string | null>(null)
   const [alignConfirmGroup, setAlignConfirmGroup] = useState<UserGroup | null>(null)
 
-  // 組合內單筆移除確認（垃圾桶按鈕，取代原本一點就直接移除的 Minus 按鈕）
-  const [removeTarget, setRemoveTarget] = useState<{ card: EquipmentCard; groupId: string } | null>(null)
+  // Step 55-07：組合內移除改為「可復原」——不跳確認框，畫面立即移除，5 秒內按「復原」直接還原；
+  // 5 秒到才真的送 DELETE（延後送出）。連續移除時前一筆立即送出、toast 換成新的那一筆。
+  const pendingRemovalRef = useRef<PendingRemoval | null>(null)
+  const [undoToast, setUndoToast] = useState<{ key: number; message: string } | null>(null)
 
   // 組合內批次選取移除：比照全部料卡的批次選取模式，一次只允許一個組合進入批次模式
   const [batchGroupId, setBatchGroupId] = useState<string | null>(null)
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
-  const [batchRemoving, setBatchRemoving] = useState(false)
-  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!canManagePackages) return
@@ -714,24 +726,98 @@ export default function GroupsPanel({
     setReplaceTarget(null)
   }, [groups]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleRemoveCard(card: EquipmentCard, groupId: string) {
-    // 樂觀更新：立即從 UI 移除，不等 API 回應
-    // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
+  // 最新的 groups（計時器／pagehide 等非同步回呼讀不到最新 state，改讀這個 ref）
+  const latestGroupsRef = useRef<UserGroup[]>(groups)
+  latestGroupsRef.current = groups
+
+  // 真的送出 DELETE（延後送出到期、被下一筆移除擠掉、pagehide／隱藏分頁／卸載三條路徑共用）。
+  // 送出前先排除「目前畫面上又已經在該組合裡」的料卡：5 秒內從照片牆「加入組合」加回來時，
+  // POST 會因資料庫裡還在而被忽略，這時若照送 DELETE 就會把使用者剛加回的料卡刪掉
+  function sendPendingRemoval(p: PendingRemoval, keepalive = false) {
+    const current = latestGroupsRef.current.find(g => g.id === p.groupId)
+    const backInGroup = new Set(current?.group_items.map(i => i.equipment_id) ?? [])
+    for (const id of p.ids) {
+      if (backInGroup.has(id)) continue
+      fetch(`/api/groups/${p.groupId}/items/${id}`, { method: 'DELETE', keepalive })
+        .catch(() => { /* 比照原本單筆移除：失敗不另外提示 */ })
+    }
+  }
+
+  // 立即送出目前待送的移除（若有），並收掉 toast 計時
+  function flushPendingRemoval() {
+    const p = pendingRemovalRef.current
+    if (!p) return
+    clearTimeout(p.timer)
+    pendingRemovalRef.current = null
+    sendPendingRemoval(p)
+  }
+
+  function removeWithUndo(groupId: string, ids: string[], message: string) {
+    if (ids.length === 0) return
+    flushPendingRemoval()
+    const group = groups.find(g => g.id === groupId)
+    if (!group) return
+    const idSet = new Set(ids)
+    const removedItems = group.group_items.filter(i => idSet.has(i.equipment_id))
+    // 樂觀更新：立即從 UI 移除；同步更新 updated_at 讓「已對齊最新版本」徽章立即反映內容異動
     applyGroups(groups.map(g =>
-      g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => i.equipment_id !== card.equipment_id), updated_at: new Date().toISOString() }
+      g.id !== groupId ? g : { ...g, group_items: g.group_items.filter(i => !idSet.has(i.equipment_id)), updated_at: new Date().toISOString() }
     ))
-    await fetch(`/api/groups/${groupId}/items/${card.equipment_id}`, { method: 'DELETE' })
+    const key = Date.now()
+    const timer = setTimeout(() => {
+      const p = pendingRemovalRef.current
+      if (!p || p.key !== key) return
+      pendingRemovalRef.current = null
+      sendPendingRemoval(p)
+      setUndoToast(t => (t?.key === key ? null : t))
+    }, UNDO_WINDOW_MS)
+    pendingRemovalRef.current = { key, groupId, ids, removedItems, prevUpdatedAt: group.updated_at, timer }
+    setUndoToast({ key, message })
   }
 
-  function askRemoveCard(card: EquipmentCard, groupId: string) {
-    setRemoveTarget({ card, groupId })
+  function handleUndoRemoval() {
+    const p = pendingRemovalRef.current
+    setUndoToast(null)
+    if (!p) return
+    clearTimeout(p.timer)
+    pendingRemovalRef.current = null
+    // 還沒送出 DELETE：直接把原本的項目（含數量、排序）放回畫面即可
+    applyGroups(groups.map(g => {
+      if (g.id !== p.groupId) return g
+      const present = new Set(g.group_items.map(i => i.equipment_id))
+      return {
+        ...g,
+        group_items: [...g.group_items, ...p.removedItems.filter(i => !present.has(i.equipment_id))],
+        updated_at: p.prevUpdatedAt,
+      }
+    }))
   }
 
-  async function handleRemoveConfirm() {
-    if (!removeTarget) return
-    const { card, groupId } = removeTarget
-    setRemoveTarget(null)
-    await handleRemoveCard(card, groupId)
+  // 5 秒內關閉／重新整理頁面：用 keepalive 把待送的刪除送掉，避免「看起來刪了其實沒刪」
+  useEffect(() => {
+    const onPageHide = () => {
+      const p = pendingRemovalRef.current
+      if (!p) return
+      clearTimeout(p.timer)
+      pendingRemovalRef.current = null
+      sendPendingRemoval(p, true)
+      // 已經送出、不能再復原：一併收掉 toast，避免使用者切回分頁時按「復原」卻什麼都沒還原
+      setUndoToast(null)
+    }
+    // iOS 切到背景或關分頁時不一定觸發 pagehide，分頁被隱藏時也立即送出
+    const onVisibility = () => { if (document.visibilityState === 'hidden') onPageHide() }
+    window.addEventListener('pagehide', onPageHide)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      document.removeEventListener('visibilitychange', onVisibility)
+      onPageHide()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function removeCardWithUndo(card: EquipmentCard, group: UserGroup) {
+    removeWithUndo(group.id, [card.equipment_id], `已從「${group.name}」移除「${card.name}」`)
   }
 
   function toggleBatchMode(groupId: string) {
@@ -759,24 +845,12 @@ export default function GroupsPanel({
     )
   }
 
-  async function handleBatchRemoveConfirm() {
+  // Step 55-07：批次移除同樣不跳確認框，改為可復原（延後送出）
+  function handleBatchRemove() {
     if (!batchGroupId) return
-    setBatchConfirmOpen(false)
-    setBatchRemoving(true)
-    const groupId = batchGroupId
     const ids = Array.from(selectedItemIds)
-    // 樂觀更新：立即從 UI 移除，不等 API 回應（比照 handleRemoveCard 的寫法）
-    applyGroups(groups.map(g =>
-      g.id !== groupId ? g : {
-        ...g,
-        group_items: g.group_items.filter(i => !ids.includes(i.equipment_id)),
-        updated_at: new Date().toISOString(),
-      }
-    ))
-    await Promise.allSettled(
-      ids.map(id => fetch(`/api/groups/${groupId}/items/${id}`, { method: 'DELETE' }))
-    )
-    setBatchRemoving(false)
+    if (ids.length === 0) return
+    removeWithUndo(batchGroupId, ids, `已移除 ${ids.length} 張`)
     exitBatchMode()
   }
 
@@ -803,8 +877,29 @@ export default function GroupsPanel({
 
   const handleAddCards = useCallback(async (groupId: string, equipmentIds: string[]) => {
     const now = new Date().toISOString()
+    // Step 55-07：加回的料卡若正在「待刪除」（5 秒復原期內、資料庫裡其實還在），直接取消那筆待刪並放回原項目
+    // （數量、排序不變），不再送 POST（會因已存在而失敗）；其餘照常新增
+    const pending = pendingRemovalRef.current
+    let toPost = equipmentIds
+    let revived: UserGroup['group_items'] = []
+    if (pending && pending.groupId === groupId) {
+      const reviveSet = new Set(equipmentIds.filter(id => pending.ids.includes(id)))
+      if (reviveSet.size > 0) {
+        revived = pending.removedItems.filter(i => reviveSet.has(i.equipment_id))
+        toPost = equipmentIds.filter(id => !reviveSet.has(id))
+        const restIds = pending.ids.filter(id => !reviveSet.has(id))
+        if (restIds.length === 0) {
+          clearTimeout(pending.timer)
+          pendingRemovalRef.current = null
+          setUndoToast(t => (t?.key === pending.key ? null : t))
+        } else {
+          pending.ids = restIds
+          pending.removedItems = pending.removedItems.filter(i => !reviveSet.has(i.equipment_id))
+        }
+      }
+    }
     const results = await Promise.allSettled(
-      equipmentIds.map(id =>
+      toPost.map(id =>
         fetch(`/api/groups/${groupId}/items`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -812,19 +907,20 @@ export default function GroupsPanel({
         })
       )
     )
-    const successIds = equipmentIds.filter((_, i) => {
+    const successIds = toPost.filter((_, i) => {
       const r = results[i]
       return r.status === 'fulfilled' && r.value.ok
     })
-    if (successIds.length > 0) {
-      applyGroups(groups.map(g => {
+    if (successIds.length > 0 || revived.length > 0) {
+      applyGroups(latestGroupsRef.current.map(g => {
         if (g.id !== groupId) return g
         const baseSortOrder = Math.max(0, ...g.group_items.map(i => i.sort_order))
         const newItems = successIds
           .filter(id => !g.group_items.some(i => i.equipment_id === id))
           .map((id, idx) => ({ equipment_id: id, added_at: now, quantity: 1, sort_order: baseSortOrder + (idx + 1) * 1000 }))
+        const revivedItems = revived.filter(r => !g.group_items.some(i => i.equipment_id === r.equipment_id))
         // 同步更新 updated_at：讓「已對齊最新版本」徽章立即反映內容異動，不必等重新整理頁面
-        return { ...g, group_items: [...newItems, ...g.group_items], updated_at: now }
+        return { ...g, group_items: [...newItems, ...revivedItems, ...g.group_items], updated_at: now }
       }))
     }
     setAddTarget(null)
@@ -1216,7 +1312,7 @@ export default function GroupsPanel({
                               activeStatus={activeStatus}
                               isNew={card.is_new}
                               onReplace={!group.is_default ? () => setReplaceTarget({ card }) : undefined}
-                              onRemoveFromGroup={!group.is_default ? () => askRemoveCard(card, group.id) : undefined}
+                              onRemoveFromGroup={!group.is_default ? () => removeCardWithUndo(card, group) : undefined}
                               isBookmarked={group.is_default ? bookmarkedIds?.has(card.equipment_id) : undefined}
                               onToggleBookmark={group.is_default && onToggleBookmark ? () => onToggleBookmark(card) : undefined}
                               quantity={group.group_items.find(i => i.equipment_id === card.equipment_id)?.quantity}
@@ -1294,7 +1390,6 @@ export default function GroupsPanel({
                                       type="checkbox"
                                       checked={selectedItemIds.has(card.equipment_id)}
                                       onChange={() => toggleSelectItem(card.equipment_id)}
-                                      disabled={batchRemoving}
                                       className="accent-[#b5451b] h-3.5 w-3.5"
                                     />
                                   ) : (
@@ -1307,7 +1402,7 @@ export default function GroupsPanel({
                                         <ArrowLeftRight className="h-3.5 w-3.5" />
                                       </button>
                                       <button
-                                        onClick={() => askRemoveCard(card, group.id)}
+                                        onClick={() => removeCardWithUndo(card, group)}
                                         title="從組合移除"
                                         className="p-1 text-[#a08060] group-hover/row:text-[#b5451b] rounded transition-colors"
                                       >
@@ -1353,21 +1448,17 @@ export default function GroupsPanel({
                         <button
                           type="button"
                           onClick={exitBatchMode}
-                          disabled={batchRemoving}
                           className="px-2.5 py-1 text-[#a08060] border border-[rgba(122,82,48,.25)] rounded-lg hover:text-[#7a5230] hover:border-[rgba(122,82,48,.4)] disabled:opacity-40 transition-colors"
                         >
                           取消
                         </button>
                         <button
                           type="button"
-                          onClick={() => setBatchConfirmOpen(true)}
-                          disabled={batchRemoving || selectedItemIds.size === 0}
+                          onClick={handleBatchRemove}
+                          disabled={selectedItemIds.size === 0}
                           className="flex items-center gap-1.5 px-3 py-1 bg-[#b5451b] hover:bg-[#9a3a16] text-white font-semibold rounded-lg disabled:opacity-40 transition-colors"
                         >
-                          {batchRemoving
-                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            : <Trash2 className="h-3.5 w-3.5" />
-                          }
+                          <Trash2 className="h-3.5 w-3.5" />
                           移除（{selectedItemIds.size}）
                         </button>
                       </div>
@@ -1400,25 +1491,14 @@ export default function GroupsPanel({
         onCancel={() => setAlignConfirmGroup(null)}
       />
 
-      <ConfirmDialog
-        open={!!removeTarget}
-        title={`從組合移除「${removeTarget?.card.name ?? ''}」？`}
-        message="只是從這個組合移除，料卡本身不會被刪除。"
-        confirmLabel="移除"
-        danger
-        onConfirm={handleRemoveConfirm}
-        onCancel={() => setRemoveTarget(null)}
-      />
-
-      <ConfirmDialog
-        open={batchConfirmOpen}
-        title={`確定移除 ${selectedItemIds.size} 筆料卡？`}
-        message="只是從這個組合移除，料卡本身不會被刪除，此操作無法復原。"
-        confirmLabel="移除"
-        danger
-        onConfirm={handleBatchRemoveConfirm}
-        onCancel={() => setBatchConfirmOpen(false)}
-      />
+      {undoToast && (
+        <UndoToast
+          key={undoToast.key}
+          message={undoToast.message}
+          onUndo={handleUndoRemoval}
+          duration={UNDO_WINDOW_MS}
+        />
+      )}
 
       {replaceTarget && (
         <ReplaceDialog

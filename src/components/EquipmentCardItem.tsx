@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import { EquipmentCard } from '@/types/equipment'
-import { ImageOff, Pencil, Trash2, CheckSquare, Square, Star, ArrowLeftRight, FolderPlus } from 'lucide-react'
+import { ImageOff, Pencil, Trash2, CheckSquare, Square, ArrowLeftRight, FolderPlus } from 'lucide-react'
+import BookmarkStar from '@/components/BookmarkStar'
 
 interface Props {
   card: EquipmentCard
@@ -120,18 +121,17 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
       )}
 
       {/* 收藏星號：資訊區右下角，避免與圖片區按鈕及 NEW badge 衝突 */}
+      {/* Step 55-04：加入關注時星星彈一下並迸出小點（BookmarkStar 與清單列共用） */}
       {onToggleBookmark && !selectMode && (
-        <button
-          onClick={e => { e.stopPropagation(); onToggleBookmark() }}
+        <BookmarkStar
+          isBookmarked={!!isBookmarked}
+          onToggle={onToggleBookmark}
           className={`absolute bottom-1.5 right-1.5 z-10 p-1 rounded-md transition-colors ${
             isBookmarked
               ? 'flex text-amber-400'
               : 'hidden group-hover:flex [@media(hover:none)]:flex text-[#c49a72] hover:text-amber-400'
           }`}
-          title={isBookmarked ? '移除關注' : '加入關注'}
-        >
-          <Star className={`h-3.5 w-3.5 ${isBookmarked ? 'fill-amber-400' : ''}`} />
-        </button>
+        />
       )}
 
       {/* 選取模式：右上角 checkbox */}

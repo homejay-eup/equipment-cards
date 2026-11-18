@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Download, FileUp, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from 'lucide-react'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { HighlightText } from '@/components/maintenance/RuleContent'
 import { emailName, formatDateTime } from '@/components/standard-prices/standardPriceUtils'
 import { RESIDUAL_LIMITS } from '@/lib/residualValidation'
 import { fmt, formatVersion } from '@/lib/residualCalc'
@@ -262,8 +263,8 @@ export default function ResidualItemsPanel({ items, version, onChanged, onBack }
             <tbody>
               {filtered.map((it) => (
                 <tr key={it.id} className="hover:bg-[rgba(122,82,48,.03)]">
-                  <td className="py-1.5 px-2 border-b border-[#f0e8dc] font-mono text-[#6b4f38] whitespace-nowrap">{it.code}</td>
-                  <td className="py-1.5 px-2 border-b border-[#f0e8dc] text-[#2c1e12]">{it.name}</td>
+                  <td className="py-1.5 px-2 border-b border-[#f0e8dc] font-mono text-[#6b4f38] whitespace-nowrap"><HighlightText text={it.code} query={query} /></td>
+                  <td className="py-1.5 px-2 border-b border-[#f0e8dc] text-[#2c1e12]"><HighlightText text={it.name} query={query} /></td>
                   <td className="py-1.5 px-2 border-b border-[#f0e8dc] text-right font-mono tabular-nums">
                     {it.price == null ? <span className="text-xs text-[#a4570b] bg-[#fbf0e2] rounded px-1.5 py-0.5">報價無資料</span> : fmt(it.price)}
                   </td>

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Fuse from 'fuse.js'
 import { EquipmentCard, AppSettings, UserGroup, QuoteItem } from '@/types/equipment'
 import { Input } from '@/components/ui/input'
 import EquipmentCardItem from '@/components/EquipmentCardItem'
+import EquipmentCardRow from '@/components/EquipmentCardRow'
+import { useFlipAnimation, prefersReducedMotion } from '@/hooks/useFlipAnimation'
 import CardDetailDialog from '@/components/CardDetailDialog'
 import { printCards } from '@/components/print/printCards'
 import BoxLabelDialog from '@/components/print/BoxLabelDialog'
@@ -23,7 +25,7 @@ import SystemAdminClient from '@/components/admin/SystemAdminClient'
 import ResidualClient from '@/components/residual/ResidualClient'
 import StandardPriceSheetClient from '@/components/standard-prices/StandardPriceSheetClient'
 import InventoryHub from '@/components/inventory/InventoryHub'
-import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags, Calculator, Warehouse } from 'lucide-react'
+import { Search, X, ArrowUp, ArrowDown, Plus, Trash2, Loader2, CheckSquare, Printer, FileUp, FileDown, Users, ChevronDown, SlidersHorizontal, AlertTriangle, Star, Folder, Check, ClipboardList, Receipt, FileText, LayoutGrid, Package, Wrench, Settings, Tags, Calculator, Warehouse, List as ListIcon } from 'lucide-react'
 import TrackerClient from '@/app/tracker/TrackerClient'
 import type { Issue } from '@/app/tracker/page'
 import type { EquipmentPackage, SharedEquipmentPackage } from '@/hooks/usePackages'
@@ -66,6 +68,34 @@ const SORT_OPTIONS = [
   { value: 'name', label: '品名排序' },
   { value: 'date', label: '新增日期' },
 ]
+
+// Step 55-05：滾輪式數字（每一位數上下滾動換數字），只用在批次操作列的「已選 N 張」
+const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+function RollingNumber({ value }: { value: number }) {
+  const digits = String(value).split('')
+  const reduce = prefersReducedMotion()
+  return (
+    <span className="inline-flex align-bottom tabular-nums">
+      <span className="sr-only">{value}</span>
+      {digits.map((d, i) => {
+        const pos = digits.length - 1 - i // 以「個位數＝0」當 key，位數增減時其他位數不會重建
+        return (
+          <span key={pos} aria-hidden className="relative inline-block h-5 overflow-hidden leading-5">
+            <span
+              className="block"
+              style={{
+                transform: `translateY(-${Number(d) * 1.25}rem)`,
+                transition: reduce ? 'none' : 'transform .35s cubic-bezier(.2,.8,.2,1)',
+              }}
+            >
+              {DIGITS.map(n => <span key={n} className="block h-5 leading-5 text-center">{n}</span>)}
+            </span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
 
 export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, initialGroups, initialBookmarkNotes, permissions = [], userRole, trackerData, subfilterConfig, quoteItems = [], packagesData }: Props) {
   const router       = useRouter()
@@ -261,6 +291,44 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
   // 非預設組合（用於加入組合 popup）
   const nonDefaultGroups = useMemo(() => groups.filter(g => !g.is_default), [groups])
 
+  // Step 55-12：主分頁滑動底塊。依目前分頁按鈕的位置與寬高移動（換行時也能跨行），
+  // 視窗寬度、分頁按鈕數量（權限）、徽章數字改變時重新計算
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [tabPill, setTabPill] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [tabPillAnimate, setTabPillAnimate] = useState(false)
+  const measureTabPill = useCallback(() => {
+    const wrap = tabsRef.current
+    if (!wrap) return
+    const btn = wrap.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`)
+    if (!btn || btn.offsetWidth === 0) { setTabPill(null); return }
+    const next = { x: btn.offsetLeft, y: btn.offsetTop, w: btn.offsetWidth, h: btn.offsetHeight }
+    setTabPill(prev => (prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h ? prev : next))
+  }, [activeTab])
+  useLayoutEffect(() => {
+    measureTabPill()
+  }, [measureTabPill, permissions, trackerPendingCount, bookmarkedIds.size, documentsBusy])
+  useEffect(() => {
+    const wrap = tabsRef.current
+    if (!wrap || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => measureTabPill())
+    ro.observe(wrap)
+    return () => ro.disconnect()
+  }, [measureTabPill])
+  const tabPillReady = tabPill !== null
+  useEffect(() => {
+    // 第一次定位不播放滑動，之後切換才滑
+    if (!tabPillReady) { setTabPillAnimate(false); return }
+    const id = requestAnimationFrame(() => setTabPillAnimate(true))
+    return () => cancelAnimationFrame(id)
+  }, [tabPillReady])
+  const tabCls = (tab: string) => `relative z-[1] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+    activeTab === tab
+      ? (tabPillReady
+          ? 'bg-transparent text-white border-transparent'
+          : 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]')
+      : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
+  }`
+
   function askConfirm(cfg: typeof confirmConfig) {
     setConfirmConfig(cfg)
     setConfirmOpen(true)
@@ -325,35 +393,41 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
     minMatchCharLength: 2,
   }), [initialCards])
 
-  const filtered = useMemo(() => {
+  // Step 55-S01/S02：搜尋階段單獨算（還沒套分類／狀態等其他篩選），同時回報這次是否走模糊備援；
+  // S02「不限篩選有 N 筆」也直接用這份結果
+  const searchBase = useMemo((): { list: EquipmentCard[]; fuzzy: boolean } => {
     const q = query.trim()
-    let result: EquipmentCard[]
-    if (!q) {
-      result = [...initialCards]
-    } else if (/^\d+$/.test(q)) {
+    if (!q) return { list: initialCards, fuzzy: false }
+    if (/^\d+$/.test(q)) {
       // 純數字查詢：用精確包含比對，避免模糊算法造成不相關結果
-      result = initialCards.filter(c =>
-        c.equipment_id.includes(q) ||
-        c.name.includes(q)
-      )
-    } else {
-      // 兩階段搜尋：先精確比對（避免「MDVR-4G-4鏡」誤命中「HS 4G-DVR」這種
-      // 只是部分片段對得上、但整體不相關的料卡），只有完全沒有精確結果時
-      // 才 fallback 回 Fuse 模糊搜尋，保留給打錯字/記不清楚名稱的情境用
-      const exactMatches = initialCards.filter(c =>
-        c.equipment_id.includes(q) ||
-        c.name.includes(q) ||
-        c.tags.some(tag => tag.includes(q)) ||
-        (c.vendor ?? '').includes(q) ||
-        (c.category ?? '').includes(q)
-      )
-      if (exactMatches.length > 0) {
-        result = exactMatches
-      } else {
-        const fuseQ = q.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
-        result = fuseQ ? fuse.search(fuseQ).map(r => r.item) : [...initialCards]
+      return {
+        list: initialCards.filter(c =>
+          c.equipment_id.includes(q) ||
+          c.name.includes(q)
+        ),
+        fuzzy: false,
       }
     }
+    // 兩階段搜尋：先精確比對（避免「MDVR-4G-4鏡」誤命中「HS 4G-DVR」這種
+    // 只是部分片段對得上、但整體不相關的料卡），只有完全沒有精確結果時
+    // 才 fallback 回 Fuse 模糊搜尋，保留給打錯字/記不清楚名稱的情境用
+    const exactMatches = initialCards.filter(c =>
+      c.equipment_id.includes(q) ||
+      c.name.includes(q) ||
+      c.tags.some(tag => tag.includes(q)) ||
+      (c.vendor ?? '').includes(q) ||
+      (c.category ?? '').includes(q)
+    )
+    if (exactMatches.length > 0) return { list: exactMatches, fuzzy: false }
+    const fuseQ = q.replace(/[()[\]{}*+?\\^$|.]/g, '').trim()
+    return fuseQ
+      ? { list: fuse.search(fuseQ).map(r => r.item), fuzzy: true }
+      : { list: initialCards, fuzzy: false }
+  }, [initialCards, query, fuse])
+
+  const { filtered, usedFuzzyFallback } = useMemo(() => {
+    const q = query.trim()
+    let result: EquipmentCard[] = [...searchBase.list]
 
     if (selectedCats.size > 0)     result = result.filter(c => selectedCats.has(c.category ?? ''))
     if (selectedStatuses.size > 0) result = result.filter(c => selectedStatuses.has(c.status ?? ''))
@@ -393,11 +467,166 @@ export default function PhotoWall({ initialCards, isAdmin, settings, userEmail, 
         return sortDir === 'desc' ? -cmp : cmp
       })
     }
-    return result
-  }, [initialCards, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, changhuiFilter, fuse, selectedSubTags])
+    return { filtered: result, usedFuzzyFallback: searchBase.fuzzy }
+  }, [searchBase, query, selectedCats, selectedStatuses, sortBy, sortDir, isNewFilter, noPhotoFilter, changhuiFilter, selectedSubTags])
 
   const hasActiveFilters = !!(query || selectedCats.size > 0 || selectedStatuses.size > 0 || isNewFilter || noPhotoFilter || changhuiFilter || selectedSubTags.length > 0)
   const activeFilterCount = selectedCats.size + selectedStatuses.size + selectedSubTags.length + (isNewFilter ? 1 : 0) + (noPhotoFilter ? 1 : 0) + (changhuiFilter ? 1 : 0)
+
+  // Step 55-S02：有搜尋字＋有其他篩選＋結果 0 筆時，算出「只套搜尋字」的筆數與分類分布
+  const broaderMatch = useMemo(() => {
+    if (!query.trim() || activeFilterCount === 0 || filtered.length > 0) return null
+    const list = searchBase.list
+    if (list.length === 0) return null
+    const byCat = new Map<string, number>()
+    for (const c of list) {
+      const k = c.category || '未分類'
+      byCat.set(k, (byCat.get(k) ?? 0) + 1)
+    }
+    const parts = Array.from(byCat.entries()).sort((a, b) => b[1] - a[1])
+    return { total: list.length, parts }
+  }, [query, activeFilterCount, filtered.length, searchBase])
+
+  // Step 55-S02：保留搜尋字、清除其他篩選（不能用 clearFilters，它會連搜尋字一起清掉；排序不算篩選，保留）
+  function clearFiltersKeepQuery() {
+    setSelectedCats(new Set())
+    setSelectedStatuses(new Set())
+    setIsNewFilter(false)
+    setNoPhotoFilter(false)
+    setChanghuiFilter(false)
+    setSelectedSubTags([])
+  }
+
+  // Step 55-09：全部料卡網格／清單切換，記在 localStorage
+  const [display, setDisplayState] = useState<'grid' | 'list'>('grid')
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('photowall_display')
+      if (v === 'grid' || v === 'list') setDisplayState(v)
+    } catch { /* ignore */ }
+  }, [])
+  function setDisplay(v: 'grid' | 'list') {
+    setDisplayState(v)
+    try { localStorage.setItem('photowall_display', v) } catch { /* ignore */ }
+  }
+
+  // Step 55-03：篩選時卡片滑動補位。只有分類／次級篩選／狀態／NEW／無主圖／長輝／排序改變才播放，打字不播放
+  const gridRef = useRef<HTMLDivElement>(null)
+  const flipKeys = useMemo(() => filtered.map(c => c.equipment_id), [filtered])
+  const flipTrigger = [
+    Array.from(selectedCats).sort().join(','),
+    selectedSubTags.join(','),
+    Array.from(selectedStatuses).sort().join(','),
+    isNewFilter, noPhotoFilter, changhuiFilter, sortBy, sortDir,
+  ].join('|')
+  useFlipAnimation(gridRef, flipKeys, { trigger: flipTrigger, layoutKey: `${display}|${activeTab === 'all' ? 1 : 0}` })
+
+  // Step 55-10：全部料卡捲動後凍結列變矮（>160 收、<40 展，兩個門檻避免抖動）＋回到頂端鈕
+  // ⚠️ 捲動錨定（Chrome scroll anchoring）：凍結列在文件流裡，收起變矮 D px 時瀏覽器會把 scrollY 一起減 D
+  // 保持畫面內容不動。若收起門檻 < D + 展開門檻，收起後 scrollY 掉到展開門檻以下又展開，永遠捲不過去。
+  // 因此收起門檻改為 max(160, D + 80)（D＝實際會被收掉的高度，收起前即時量測），收起後 scrollY 仍 ≥ 80；
+  // 展開（<40）時瀏覽器反向加回 D，也一定低於收起門檻。沒有捲動錨定的瀏覽器（Safari）scrollY 不變，同樣不會來回切換。
+  const [headerCompact, setHeaderCompact] = useState(false)
+  const headerCompactRef = useRef(false)
+  headerCompactRef.current = headerCompact
+  const [showBackToTop, setShowBackToTop] = useState(false)
+  const collapsibleChipsRef = useRef<HTMLDivElement>(null)
+  const collapsibleFiltersRef = useRef<HTMLDivElement>(null)
+  // 使用者手動按「篩選」強制展開時記下當時位置；再往下捲超過 600px 才恢復自動收起
+  const forceExpandAtRef = useRef<number | null>(null)
+  useEffect(() => {
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const y = window.scrollY
+      setShowBackToTop(y > 1200)
+      if (y < 40) {
+        forceExpandAtRef.current = null
+        setHeaderCompact(false)
+        return
+      }
+      if (headerCompactRef.current || activeTab !== 'all') return
+      const collapseBy = (collapsibleChipsRef.current?.offsetHeight ?? 0) + (collapsibleFiltersRef.current?.offsetHeight ?? 0)
+      if (y > Math.max(160, collapseBy + 80)) {
+        const forcedAt = forceExpandAtRef.current
+        if (forcedAt !== null) {
+          if (y <= forcedAt + 600) return
+          forceExpandAtRef.current = null
+        }
+        // 收起後頁面變短 collapseBy；可捲動距離不夠時不收，避免捲動位置被瀏覽器夾回而來回切換
+        const room = document.documentElement.scrollHeight - window.innerHeight
+        if (room - collapseBy > Math.max(160, collapseBy + 80)) setHeaderCompact(true)
+      }
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update) }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    update()
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [activeTab])
+  // 只在全部料卡分頁收起：stickyHeaderHeight 也被我的關注／文件管理／設備組合當 stickyTop，其他分頁高度維持現狀
+  const headerCollapsed = activeTab === 'all' && headerCompact
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  }
+
+  // Step 55-S03：搜尋字改變、且已捲過凍結列高度時，捲回結果頂端（只在全部料卡分頁）
+  const queryEffectMountedRef = useRef(false)
+  useEffect(() => {
+    if (!queryEffectMountedRef.current) { queryEffectMountedRef.current = true; return }
+    if (activeTab !== 'all') return
+    if (window.scrollY > stickyHeaderHeight) scrollToTop()
+  }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 畫面上有可見的全螢幕固定遮罩（自製對話框）時回傳 true
+  function hasVisibleFullscreenOverlay(): boolean {
+    const nodes = document.querySelectorAll<HTMLElement>('.fixed.inset-0')
+    for (const n of Array.from(nodes)) {
+      if (n.getClientRects().length === 0) continue
+      const cs = window.getComputedStyle(n)
+      if (cs.visibility === 'hidden' || cs.pointerEvents === 'none' || Number(cs.opacity) === 0) continue
+      return true
+    }
+    return false
+  }
+
+  // Step 55-S04：全域「/」聚焦搜尋框；搜尋框內 Esc 清空、Enter 收鍵盤
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [searchFocused, setSearchFocused] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return
+      if (activeTab !== 'all' && activeTab !== 'bookmarks') return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || t.closest('input, textarea, select, [contenteditable]'))) return
+      // 有任何對話框／遮罩開著就不攔截：Radix 的 role=dialog，以及 ConfirmDialog、GroupsPanel 內
+      // 自製 modal（沒有 role，是 fixed inset-0 的全螢幕遮罩）
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return
+      if (hasVisibleFullscreenOverlay()) return
+      if (formOpen || importOpen) return
+      const input = searchInputRef.current
+      if (!input || input.offsetParent === null) return
+      e.preventDefault()
+      input.focus()
+      input.select()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeTab, formOpen, importOpen])
+
+  // Step 55-05：批次操作列從下方滑入
+  const selectBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = selectBarRef.current
+    if (!selectMode || !el || prefersReducedMotion() || typeof el.animate !== 'function') return
+    el.animate(
+      [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }],
+      { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' },
+    )
+  }, [selectMode])
 
   function toggleCat(cat: string) {
     if (cat === '全部') { setSelectedCats(new Set()); setSelectedSubTags([]); return }
@@ -657,7 +886,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         <div className="max-w-7xl mx-auto px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-baseline gap-2 min-w-0">
             <h1 className="text-xl font-bold text-[#7a5230] whitespace-nowrap">設備料卡管理系統</h1>
-            <p className="hidden sm:block text-xs text-[#a08060] whitespace-nowrap">共 {mainPhotosCount} 張主圖、{detailPhotosCount} 張細節</p>
+            <p className={`hidden ${headerCollapsed ? '' : 'sm:block'} text-xs text-[#a08060] whitespace-nowrap`}>共 {mainPhotosCount} 張主圖、{detailPhotosCount} 張細節</p>
           </div>
           <div className="flex items-center gap-3">
             {canManage ? (
@@ -690,15 +919,26 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
         </div>
         <div className="max-w-7xl mx-auto px-4 pt-0 pb-2">
           {/* Tab 切換：手機版只顯示圖示＋數字，桌面版（sm 以上）顯示完整文字 */}
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div ref={tabsRef} className="relative flex flex-wrap gap-1 mb-2">
+            {tabPill && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-0 z-0 rounded-full bg-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]"
+                style={{
+                  width: tabPill.w,
+                  height: tabPill.h,
+                  transform: `translate(${tabPill.x}px, ${tabPill.y}px)`,
+                  transition: tabPillAnimate && !prefersReducedMotion()
+                    ? 'transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1), height .3s cubic-bezier(.2,.8,.2,1)'
+                    : 'none',
+                }}
+              />
+            )}
             <button
               onClick={() => setActiveTab('all')}
               title="全部料卡"
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                activeTab === 'all'
-                  ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                  : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-              }`}
+              data-tab="all"
+              className={tabCls('all')}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">全部料卡</span>
@@ -707,11 +947,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => { logUsageEvent('quotes_tab_switch'); setActiveTab('quotes') }}
                 title="人為配件報價"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'quotes'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="quotes"
+              className={tabCls('quotes')}
               >
                 <Receipt className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">人為配件報價</span>
@@ -721,11 +958,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => setActiveTab('residual')}
                 title="設備殘值計算"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'residual'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="residual"
+              className={tabCls('residual')}
               >
                 <Calculator className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">設備殘值計算</span>
@@ -735,11 +969,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => setActiveTab('prices')}
                 title="標準售價"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'prices'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="prices"
+              className={tabCls('prices')}
               >
                 <Tags className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">標準售價</span>
@@ -749,11 +980,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => setActiveTab('bookmarks')}
                 title="我的關注"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'bookmarks'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="bookmarks"
+              className={tabCls('bookmarks')}
               >
                 <Star className={`h-3.5 w-3.5 ${activeTab === 'bookmarks' ? 'fill-white text-white' : bookmarkedIds.size > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
                 <span className="hidden sm:inline">我的關注</span>
@@ -766,11 +994,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => { logUsageEvent('tracker_tab_switch'); setActiveTab('tracker') }}
                 title="任務板"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'tracker'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="tracker"
+              className={tabCls('tracker')}
               >
                 <ClipboardList className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">任務板</span>
@@ -783,11 +1008,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => { logUsageEvent('documents_tab_switch'); setActiveTab('documents') }}
                 title="文件管理"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'documents'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="documents"
+              className={tabCls('documents')}
               >
                 <FileText className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">文件管理</span>
@@ -801,11 +1023,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => { logUsageEvent('packages_tab_switch'); setActiveTab('packages') }}
                 title="設備組合"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'packages'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="packages"
+              className={tabCls('packages')}
               >
                 <Package className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">設備組合</span>
@@ -815,11 +1034,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => setActiveTab('inventory')}
                 title="庫存"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'inventory'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="inventory"
+              className={tabCls('inventory')}
               >
                 <Warehouse className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">庫存</span>
@@ -829,11 +1045,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => { logUsageEvent('maintenance_tab_switch'); setActiveTab('maintenance') }}
                 title="維修資訊"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'maintenance'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="maintenance"
+              className={tabCls('maintenance')}
               >
                 <Wrench className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">維修資訊</span>
@@ -843,11 +1056,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
               <button
                 onClick={() => setActiveTab('admin')}
                 title="系統管理"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-                  activeTab === 'admin'
-                    ? 'bg-[#7a5230] text-white border-[#7a5230] shadow-[0_0_10px_rgba(122,82,48,.4)]'
-                    : 'bg-white text-[#6b4f38] border-[#e8ddd0] hover:border-[rgba(122,82,48,.3)] hover:text-[#7a5230]'
-                }`}
+                data-tab="admin"
+              className={tabCls('admin')}
               >
                 <Settings className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">系統管理</span>
@@ -860,8 +1070,29 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input className="pl-9 pr-9" placeholder="搜尋料號、品名、廠商、備註…（支援模糊比對）"
-                value={query} onChange={e => setQuery(e.target.value)} />
+              <Input ref={searchInputRef} className="pl-9 pr-9" placeholder="搜尋料號、品名、廠商、備註…（支援模糊比對）"
+                enterKeyHint="search"
+                value={query} onChange={e => setQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onKeyDown={e => {
+                  // 注音等輸入法選字中（macOS Safari 的 isComposing 不可靠，另判斷 keyCode 229）不處理
+                  if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+                  if (e.key === 'Escape') {
+                    if (query) { e.preventDefault(); setQuery('') }
+                  } else if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }} />
+              {!query && !searchFocused && (
+                <kbd
+                  aria-hidden
+                  className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 items-center justify-center h-5 min-w-[20px] px-1 rounded border border-[#e8ddd0] bg-white text-[11px] font-mono text-[#c0a890] pointer-events-none"
+                  title="按 / 快速搜尋"
+                >
+                  /
+                </kbd>
+              )}
               {query && (
                 <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   onClick={() => setQuery('')}>
@@ -872,7 +1103,16 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
             <div className="flex items-center gap-1">
               {/* 手機篩選切換按鈕 */}
               <button
-                onClick={() => setShowFilters(v => !v)}
+                onClick={() => {
+                  if (headerCollapsed) {
+                    // 收起狀態下按篩選：強制展開並顯示篩選列
+                    forceExpandAtRef.current = window.scrollY
+                    setHeaderCompact(false)
+                    setShowFilters(true)
+                  } else {
+                    setShowFilters(v => !v)
+                  }
+                }}
                 className={`flex items-center gap-1.5 h-9 px-2.5 border rounded-md bg-white transition-colors focus:outline-none ${
                   showFilters || hasActiveFilters
                     ? 'border-[#c49a72] text-[#7a5230] glow-wood'
@@ -925,8 +1165,8 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           </div>
 
           {/* 手機版：收合時顯示已選條件 chips */}
-          {!showFilters && hasActiveFilters && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
+          {!showFilters && hasActiveFilters && !headerCollapsed && (
+            <div ref={collapsibleChipsRef} className="flex flex-wrap gap-1.5 pb-1">
               {Array.from(selectedCats).map(cat => (
                 <button key={cat} onClick={() => toggleCat(cat)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[rgba(122,82,48,.1)] text-[#7a5230] border border-[#c8b89a]">
@@ -972,7 +1212,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           )}
 
           {/* 篩選列：桌面永遠顯示，手機按按鈕展開 */}
-          <div className={`${showFilters ? 'block' : 'hidden'} pb-1`}>
+          <div ref={collapsibleFiltersRef} className={`${showFilters && !headerCollapsed ? 'block' : 'hidden'} pb-1`}>
             {/* 類別 */}
             <div className="flex flex-wrap gap-2 items-center mb-2">
               <span className="block md:hidden text-xs font-medium text-[#a08060] mr-1">類別</span>
@@ -1121,42 +1361,113 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
       {/* 全部料卡網格 */}
       <div className={activeTab !== 'all' ? 'hidden' : ''}>
         <div className="max-w-7xl mx-auto px-4 pt-4 pb-6">
-          {/* 結果數量 */}
-          <p className="text-sm text-[#a08060] mb-4">
-            顯示 {filtered.length} / {initialCards.length} 筆
-            {query && <span className="ml-1.5 text-[#7a5230]">— 搜尋「{query}」</span>}
-          </p>
+          {/* 結果數量＋網格／清單切換（Step 55-S01：走模糊備援時改為虛線框明講） */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            {usedFuzzyFallback && filtered.length > 0 ? (
+              <p className="text-sm text-[#7a5230] border border-dashed border-[#c49a72] bg-[rgba(196,154,114,.08)] rounded-lg px-3 py-1.5">
+                沒有完全符合「{query.trim()}」的料卡，以下是相近的 {filtered.length} 筆
+              </p>
+            ) : (
+              <p className="text-sm text-[#a08060] py-0.5">
+                顯示 {filtered.length} / {initialCards.length} 筆
+                {query && <span className="ml-1.5 text-[#7a5230]">— 搜尋「{query}」</span>}
+              </p>
+            )}
+            <div className="flex flex-shrink-0 border border-[rgba(122,82,48,.25)] rounded-lg overflow-hidden text-xs bg-white">
+              <button
+                type="button"
+                onClick={() => setDisplay('grid')}
+                title="網格模式"
+                aria-pressed={display === 'grid'}
+                className={`p-1.5 transition-colors ${display === 'grid' ? 'bg-[#7a5230] text-white' : 'text-[#a08060] hover:bg-[rgba(122,82,48,.06)]'}`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplay('list')}
+                title="清單模式"
+                aria-pressed={display === 'list'}
+                className={`p-1.5 transition-colors ${display === 'list' ? 'bg-[#7a5230] text-white' : 'text-[#a08060] hover:bg-[rgba(122,82,48,.06)]'}`}
+              >
+                <ListIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
 
-          {/* 網格 */}
+          {/* 網格／清單 */}
           {filtered.length === 0 ? (
-            <div className="text-center py-20 text-gray-400">
-              <p className="text-lg">找不到符合的料卡</p>
-              <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
-                  清除所有篩選
+            broaderMatch ? (
+              /* Step 55-S02：目前篩選條件下找不到，但不限篩選有結果 */
+              <div className="text-center py-16 px-2">
+                <p className="text-base text-[#6b4f38]">目前篩選條件下找不到「{query.trim()}」</p>
+                <p className="text-sm text-[#a08060] mt-1.5">
+                  不限篩選有 {broaderMatch.total} 筆：
+                  {broaderMatch.parts.slice(0, 5).map(([cat, n]) => `${cat} ${n}`).join('、')}
+                  {broaderMatch.parts.length > 5 ? ' 等' : ''}
+                </p>
+                <button
+                  onClick={clearFiltersKeepQuery}
+                  className="mt-4 px-4 py-1.5 rounded-full text-sm font-medium bg-[#7a5230] text-white hover:bg-[#9c6b42] shadow-[0_0_10px_rgba(122,82,48,.35)] transition-colors"
+                >
+                  保留搜尋字，清除其他篩選
                 </button>
-              )}
+              </div>
+            ) : (
+              <div className="text-center py-20 text-gray-400">
+                <p className="text-lg">找不到符合的料卡</p>
+                <p className="text-sm mt-1">試著更換關鍵字或篩選條件</p>
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="mt-3 text-[#7a5230] text-sm underline hover:text-[#9c6b42]">
+                    清除所有篩選
+                  </button>
+                )}
+              </div>
+            )
+          ) : display === 'list' ? (
+            <div ref={gridRef} className="flex flex-col gap-1.5">
+              {filtered.map(card => (
+                <div key={card.equipment_id} data-flip-key={card.equipment_id}>
+                  <EquipmentCardRow
+                    card={card}
+                    onClick={() => setSelected(card)}
+                    isAdmin={isAdmin}
+                    onEdit={() => openEdit(card)}
+                    onDelete={() => handleDelete(card)}
+                    activeStatus={activeStatus}
+                    selectMode={selectMode}
+                    isSelected={selectedIds.has(card.equipment_id)}
+                    onSelect={() => toggleSelect(card.equipment_id)}
+                    isNew={card.is_new}
+                    isBookmarked={bookmarkedIds.has(card.equipment_id)}
+                    onToggleBookmark={canUseBookmarks ? () => toggleDefaultGroup(card) : undefined}
+                    onAddToGroup={canUseBookmarks && nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
+                    showVendor={permissions.includes('read_vendor')}
+                  />
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filtered.map(card => (
-                <EquipmentCardItem
-                  key={card.equipment_id}
-                  card={card}
-                  onClick={() => setSelected(card)}
-                  isAdmin={isAdmin}
-                  onEdit={() => openEdit(card)}
-                  onDelete={() => handleDelete(card)}
-                  activeStatus={activeStatus}
-                  selectMode={selectMode}
-                  isSelected={selectedIds.has(card.equipment_id)}
-                  onSelect={() => toggleSelect(card.equipment_id)}
-                  isNew={card.is_new}
-                  isBookmarked={bookmarkedIds.has(card.equipment_id)}
-                  onToggleBookmark={canUseBookmarks ? () => toggleDefaultGroup(card) : undefined}
-                  onAddToGroup={canUseBookmarks && nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
-                />
+                /* 包一層給 FLIP 動畫定位用；[&>div]:h-full 讓卡片維持跟原本一樣撐滿整列高度 */
+                <div key={card.equipment_id} data-flip-key={card.equipment_id} className="[&>div]:h-full">
+                  <EquipmentCardItem
+                    card={card}
+                    onClick={() => setSelected(card)}
+                    isAdmin={isAdmin}
+                    onEdit={() => openEdit(card)}
+                    onDelete={() => handleDelete(card)}
+                    activeStatus={activeStatus}
+                    selectMode={selectMode}
+                    isSelected={selectedIds.has(card.equipment_id)}
+                    onSelect={() => toggleSelect(card.equipment_id)}
+                    isNew={card.is_new}
+                    isBookmarked={bookmarkedIds.has(card.equipment_id)}
+                    onToggleBookmark={canUseBookmarks ? () => toggleDefaultGroup(card) : undefined}
+                    onAddToGroup={canUseBookmarks && nonDefaultGroups.length > 0 ? (rect) => handleOpenAddToGroupPopup(card, rect) : undefined}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -1326,7 +1637,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           )}
           {/* 批次選取 action bar：全寬固定底部 */}
           {selectMode && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#faf6f0] border-t border-[rgba(122,82,48,.2)] shadow-[0_-4px_16px_rgba(122,82,48,.1)] px-4 py-3 flex items-center gap-3">
+            <div ref={selectBarRef} className="fixed bottom-0 left-0 right-0 z-50 bg-[#faf6f0] border-t border-[rgba(122,82,48,.2)] shadow-[0_-4px_16px_rgba(122,82,48,.1)] px-4 py-3 flex items-center gap-3">
               <button
                 onClick={toggleSelectAll}
                 className="flex items-center gap-1.5 text-sm text-[#6b4f38] hover:text-[#7a5230] transition-colors whitespace-nowrap shrink-0"
@@ -1338,7 +1649,7 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
                 <span className="hidden sm:inline">{selectedIds.size === filtered.length ? '取消全選' : '全選'}</span>
               </button>
               <span className="flex-1 text-sm font-semibold text-[#7a5230] text-center">
-                已選 {selectedIds.size} 張
+                已選 <RollingNumber value={selectedIds.size} /> 張
               </span>
               <button
                 onClick={exitSelectMode}
@@ -1455,6 +1766,29 @@ const mainPhotosCount = initialCards.filter(c => c.main_photo).length
           )}
         </>
       )}
+
+      {/* Step 55-10：回到頂端（只在全部料卡；FAB 存在時放在 FAB 左邊，選取模式時跟著上移避開操作列） */}
+      {activeTab === 'all' && (() => {
+        const hasFab = (isAdmin && canEditCard) || canPrint
+        const pos = hasFab
+          ? `${selectMode ? 'bottom-[5.375rem]' : 'bottom-[1.875rem]'} right-[5.5rem] sm:right-[6.5rem]`
+          : 'bottom-6 right-4 sm:right-6'
+        return (
+          <button
+            type="button"
+            onClick={scrollToTop}
+            title="回到頂端"
+            aria-label="回到頂端"
+            aria-hidden={!showBackToTop}
+            tabIndex={showBackToTop ? 0 : -1}
+            className={`fixed ${pos} z-40 flex items-center justify-center h-11 w-11 rounded-full bg-white text-[#7a5230] border border-[rgba(122,82,48,.32)] shadow-lg hover:shadow-[0_0_10px_rgba(122,82,48,.3)] transition-all duration-200 motion-reduce:transition-none focus:outline-none ${
+              showBackToTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+            }`}
+          >
+            <ArrowUp className="h-5 w-5" />
+          </button>
+        )
+      })()}
 
       {/* 加入組合 popup（fixed，定位在按鈕上方） */}
       {addToGroupPopup && (
