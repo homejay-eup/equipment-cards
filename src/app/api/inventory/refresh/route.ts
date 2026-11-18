@@ -13,6 +13,7 @@ export async function POST() {
   if (!access || !access.permissions.includes('refresh_inventory')) return forbidden()
   const db = getServiceClient()
   const { data: live } = await db.from('inventory_refresh_requests').select(COLS)
+    .not('batch_keys', 'cs', '{dest}')   // 補查接收倉的請求（batch_keys=['dest']）不算刷新，不能被刷新按鈕「一起等」
     .in('status', ['queued', 'running']).order('created_at', { ascending: false }).limit(1)
   // 卡住超過 10 分鐘的不算（公司電腦可能關機），照樣新排一個
   const fresh = live?.[0] && Date.now() - new Date(live[0].created_at).getTime() < 10 * 60 * 1000

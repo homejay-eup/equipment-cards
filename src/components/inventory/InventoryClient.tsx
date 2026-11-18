@@ -41,7 +41,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // ---- 移交出去／待接收／持有過久（Step 55）：分頁、資料（切到分頁前先在背景載好，才能在分頁標籤上顯示件數）----
   type Tab = 'stock' | 'out' | 'in' | 'idle'
   const [tab, setTab] = useState<Tab>('stock')
-  const [transit, setTransit] = useState<{ items: TransferItem[]; destAsOf: string | null } | null>(null)
+  const [transit, setTransit] = useState<{ items: TransferItem[]; destAsOf: string | null; destAt?: string | null } | null>(null)
   const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
   const [xErr, setXErr] = useState({ transit: '', idle: '' })
   const xAsked = useRef({ transit: false, idle: false })
@@ -50,8 +50,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       const r = await fetch(`/api/inventory/transfers?kind=${kind}`, { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取失敗')
-      writeSwr(`inv-${kind}`, { items: d.items, destAsOf: d.destAsOf ?? null })
-      if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf })
+      writeSwr(`inv-${kind}`, { items: d.items, destAsOf: d.destAsOf ?? null, destAt: d.destAt ?? null })
+      if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf, destAt: d.destAt ?? null })
       else setIdle({ items: d.items })
       setXErr(e => ({ ...e, [kind]: '' }))
     } catch (e) { setXErr(x => ({ ...x, [kind]: (e as Error).message })) }
@@ -86,7 +86,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     loaded.current = true
     const c = readSwr<Data & { prefs?: InvPrefs | null }>('inv-main')
     if (c?.products && c.warehouses) applyData(c, false)
-    const t = readSwr<{ items: TransferItem[]; destAsOf: string | null }>('inv-transit'); if (t) setTransit(t)
+    const t = readSwr<{ items: TransferItem[]; destAsOf: string | null; destAt?: string | null }>('inv-transit'); if (t) setTransit(t)
     const i = readSwr<{ items: TransferItem[] }>('inv-idle'); if (i) setIdle(i)
     load()
   }, [load, applyData])
@@ -170,6 +170,32 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       if (d.joined) say('別人剛按了刷新，一起等這一輪')
     } catch { say('送出失敗，請再按一次') } finally { setSending(false) }
   }
+  // ---- 補查接收倉（待接收頁）：公司電腦用「補查專用」CRM 逐顆明細查詢，補上資料庫備份之後新移交的接收倉。每天 9:00、13:00 也會自動跑 ----
+  const [scanReq, setScanReq] = useState<{ id: number; status: string } | null>(null)
+  const startScan = async () => {
+    if (scanReq && (scanReq.status === 'queued' || scanReq.status === 'running')) return
+    try {
+      const r = await fetch('/api/inventory/dest-scan', { method: 'POST' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { say(d.error || '送出失敗'); return }
+      setScanReq(d.request)
+      if (d.joined) say('已經有一輪補查在跑，一起等')
+    } catch { say('送出失敗，請再按一次') }
+  }
+  useEffect(() => {
+    if (!scanReq || scanReq.status === 'done' || scanReq.status === 'failed') return
+    const t = setInterval(async () => {
+      const r = await fetch(`/api/inventory/dest-scan?id=${scanReq.id}`, { cache: 'no-store' })
+      const d = await r.json().catch(() => null)
+      if (d?.request) setScanReq(d.request)
+    }, 3000)
+    return () => clearInterval(t)
+  }, [scanReq])
+  useEffect(() => {
+    if (scanReq?.status === 'done') { loadX('transit'); say('接收倉補查完成'); setTimeout(() => setScanReq(null), 2500) }
+    else if (scanReq?.status === 'failed') { say('補查失敗，請稍後再試'); setTimeout(() => setScanReq(null), 2500) }
+  }, [scanReq?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  const scanning = scanReq?.status === 'queued' || scanReq?.status === 'running'
   const doneCount = req?.progress ? Object.values(req.progress).filter(v => v === 'ok' || v === 'failed').length : 0
   // 排隊超過 45 秒公司電腦都沒接手 → 多半是電腦休眠／關機或同步程式沒開；停止等待、告訴使用者（請求留著，電腦醒來會自己跑）
   const [stale, setStale] = useState(false)
@@ -287,7 +313,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           {([['stock', '庫存'], ['out', '移交出去'], ['in', '待接收'], ['idle', '持有過久']] as [Tab, string][])
             .filter(([k]) => k === 'stock' || (k === 'idle' ? data.can.idle : data.can.transfers)).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                className={`px-5 py-1.5 text-[14px] ${tab === k ? 'bg-[#7a5230] font-semibold text-white' : 'bg-white text-[#6b4f38] hover:bg-[#faf6f0] hover:text-[#7a5230]'}`}>
+                className={`whitespace-nowrap px-3 py-1.5 text-[14px] sm:px-5 ${tab === k ? 'bg-[#7a5230] font-semibold text-white' : 'bg-white text-[#6b4f38] hover:bg-[#faf6f0] hover:text-[#7a5230]'}`}>
                 {label}
               </button>
             ))}
@@ -369,7 +395,15 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
-          note={tab === 'in' ? <>接收倉為{transit?.destAsOf ? ` ${md(transit.destAsOf)} ` : ''}備份資料，無法刷新；新移交的歸在「接收倉未同步」，請至 CRM 查</> : undefined}
+          note={tab === 'in' ? <>
+            接收倉最後更新 {transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : '—'}（資料庫前一日備份＋CRM 畫面補查，每天 9:00、13:00 自動補查）；查不到的歸在「接收倉未同步」，請至 CRM 查
+            {data.can.refresh && (
+              <button type="button" onClick={startScan} disabled={scanning}
+                className="ml-2 rounded border border-[#c9a46c] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#8a5a1c] hover:bg-[#fff8ec] disabled:opacity-60">
+                {scanning ? (scanReq?.status === 'running' ? '補查中…' : '排隊中…') : '補查接收倉'}
+              </button>
+            )}
+          </> : undefined}
         />
       ) : searchingBarcode ? (
         <div className="rounded-xl border border-[#e8ddd0] bg-white py-12 text-center text-sm text-[#a08060]"><RefreshCw className="mr-1.5 inline h-4 w-4 animate-spin align-[-3px]" />搜尋中…</div>

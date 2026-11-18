@@ -42,12 +42,13 @@ export async function loadTransit(access: InventoryAccess) {
   const ops = [...TRANSIT_OPS, ...TRANSIT_OPS_MAYBE]
   const rawP = pageAll<Raw>(from => db.from('inventory_current_items').select(COLS).in('op', ops).order('barcode').range(from, from + 999))
   // 接收倉表還沒建／還沒載入時照樣能用（接收倉顯示「未知」）
-  const destP = pageAll<{ barcode: string; dest_warehouse: string; source_date: string }>(
-    from => db.from('inventory_transfer_dest').select('barcode, dest_warehouse, source_date').order('barcode').range(from, from + 999))
+  const destP = pageAll<{ barcode: string; dest_warehouse: string; source_date: string; loaded_at: string | null }>(
+    from => db.from('inventory_transfer_dest').select('barcode, dest_warehouse, source_date, loaded_at').order('barcode').range(from, from + 999))
     .catch((e: { code?: string }) => { if (tableMissing(e.code)) return []; throw e })
   const [raw, destRows] = await Promise.all([rawP, destP])
   const dest = new Map(destRows.map(d => [d.barcode, d.dest_warehouse]))
   const destAsOf = destRows.reduce<string | null>((m, d) => (!m || d.source_date > m ? d.source_date : m), null)
+  const destAt = destRows.reduce<string | null>((m, d) => (d.loaded_at && (!m || d.loaded_at > m) ? d.loaded_at : m), null)   // 接收倉資料最後寫入時間（備份載入或畫面補查）
   const items: TransferItem[] = []
   for (const r of raw) {
     const to = r.barcode ? dest.get(r.barcode) ?? null : null
@@ -55,7 +56,7 @@ export async function loadTransit(access: InventoryAccess) {
     if (!canSee(access, r.warehouse) && !(to && canSee(access, to))) continue
     items.push(toItem(r, to))
   }
-  return { items, destAsOf }
+  return { items, destAsOf, destAt }
 }
 
 /** 技師手上超過 30 天沒有任何異動的設備 */
