@@ -130,7 +130,9 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
   }
 
   /* ── Step 55-08：雙擊放大＋拖曳查看、手機下滑關閉 ──
-     縮放狀態放在本體（MobilePhotoArea 等是每次 render 重建的內部元件，狀態放裡面會一 re-render 就歸零）。
+     縮放狀態放在本體。MobilePhotoArea／DesktopPhotoArea／PhotoContent／ThumbnailStrip 一律用「函式呼叫」
+     （{MobilePhotoArea()}）而非 <MobilePhotoArea />：後者每次 render 都是新的元件型別，React 會整塊卸載重建，
+     手勢進行中若剛好重繪（例如開窗後維修資訊載入完成），觸控目標被拔掉、touchend 收不到，對話框就卡在拖到一半的位置。
      拖曳移動時直接改 DOM（不觸發 re-render），位置記在 zoomPanRef，重建時從 ref 讀回。 */
   const [zoomed, setZoomed] = useState(false)
   const zoomPanRef = useRef({ x: 0, y: 0 })
@@ -558,7 +560,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           onTouchEnd={onMobileGestureEnd}
           onTouchCancel={onMobileGestureCancel}
         >
-          <PhotoContent sizes="100vw" zoomLayerRef={mobileZoomLayerRef} />
+          {PhotoContent({ sizes: "100vw", zoomLayerRef: mobileZoomLayerRef })}
         </div>
         {allPhotos.length > 1 && (
           <>
@@ -601,7 +603,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         onPointerUp={onDesktopPointerUp}
         onPointerCancel={onDesktopPointerUp}
       >
-        <PhotoContent sizes="(max-width: 768px) 100vw, 500px" zoomLayerRef={desktopZoomLayerRef} />
+        {PhotoContent({ sizes: "(max-width: 768px) 100vw, 500px", zoomLayerRef: desktopZoomLayerRef })}
       </div>
     )
   }
@@ -687,7 +689,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
         {expanded ? (
           /* ── 放大模式 ── */
           <div className="bg-[#f2ebe0] flex flex-col" style={{ height: 'min(90vh, 90vw)' }}>
-            <DesktopPhotoArea />
+            {DesktopPhotoArea()}
             <div className="bg-[#e8ddd0] px-4 py-3 border-t border-[rgba(122,82,48,.2)] text-center flex-shrink-0">
               <p className="text-xs text-[#a08060] font-mono leading-none">{card.equipment_id}</p>
               <p className="text-base font-bold text-[#5a3820] mt-1 leading-snug">{card.name}</p>
@@ -697,7 +699,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
           <>
             {/* ── 手機版：上下流動 ── */}
             <div className="md:hidden flex flex-col">
-              <MobilePhotoArea />
+              {MobilePhotoArea()}
               <div className="px-4 pt-3 pb-2 border-b border-[rgba(122,82,48,.12)]">
                 <p className="text-xs text-[#a08060] font-mono">{card.equipment_id}</p>
                 <p className="text-sm font-bold text-[#5a3820] mt-0.5 leading-snug">{card.name}</p>
@@ -809,13 +811,13 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                   )}
                 </div>
               </div>
-              <ThumbnailStrip />
+              {ThumbnailStrip()}
             </div>
 
             {/* ── 桌機版：左右並排 ── */}
             <div className="hidden md:flex flex-row h-[min(85vh,680px)]">
               <div className="bg-[#f2ebe0] w-3/5 flex-shrink-0 flex flex-col">
-                <DesktopPhotoArea />
+                {DesktopPhotoArea()}
               </div>
               <div className="flex flex-col flex-1 overflow-hidden min-h-0">
                 <div className="flex-1 overflow-y-auto">
@@ -933,7 +935,7 @@ export default function CardDetailDialog({ card, open, onClose, activeStatus, is
                     </div>
                   </div>
                 </div>
-                <ThumbnailStrip />
+                {ThumbnailStrip()}
               </div>
             </div>
           </>
