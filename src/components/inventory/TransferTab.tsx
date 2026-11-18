@@ -358,7 +358,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
             <div className="flex-1 overflow-auto px-4 py-2">
               <table className="w-full text-[13px]">
                 <thead><tr className="text-left text-[11px] text-[#6b4f38]">
-                  <th className="py-1.5 font-medium">條碼</th>
+                  <th className="py-1.5 pl-2 font-medium">條碼</th>
                   {!detail.col && <th className="py-1.5 font-medium">{kind === 'in' ? '接收倉' : '倉'}</th>}
                   <th className="py-1.5 font-medium">{kind === 'out' ? '接收倉' : kind === 'in' ? '送出倉' : '最後動作'}</th>
                   {kind !== 'idle' && <th className="py-1.5 font-medium">移交人</th>}
@@ -369,7 +369,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
                   const d = daysOf(i.at)
                   return (
                     <tr key={i.barcode} className={`border-t border-[#f0e8de] ${detail.focus === i.barcode ? 'barcode-hit barcode-row-flash' : ''}`}>
-                      <td className="py-1 pr-2 font-mono">{i.barcode}</td>
+                      <td className="py-1 pl-2 pr-2 font-mono">{i.barcode}</td>
                       {!detail.col && <td className="py-1 pr-2">{kind === 'in' ? i.to ?? UNKNOWN : i.from}</td>}
                       <td className="py-1 pr-2">{kind === 'out' ? i.to ?? UNKNOWN : kind === 'in' ? i.from : opLabel(i.op)}</td>
                       {kind !== 'idle' && <td className="py-1 pr-2">{i.who}</td>}
