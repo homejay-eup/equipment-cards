@@ -78,8 +78,24 @@ interface SummaryRow {
 export async function loadProducts(access: InventoryAccess) {
   const db = getServiceClient()
   const SEL = 'product_id, category, name, warehouse, region, ok_count, bad_count'
+  // 彙總來源：預先算好的快取表（inventory_summary_cache，Step 56）只要「是以目前生效資料算的」就用它（快）；
+  // 沒建、沒更新到、或比目前生效資料舊 → 一律改讀原本的檢視 inventory_summary（慢一點，但一定是最新）。
+  const useCache = await (async () => {
+    try {
+      const [{ data: meta, error: e1 }, { data: cur, error: e2 }] = await Promise.all([
+        db.from('inventory_summary_meta').select('src_updated_at').eq('id', 1).maybeSingle(),
+        db.from('inventory_batch_current').select('updated_at').order('updated_at', { ascending: false }).limit(1),
+      ])
+      if (e1 || e2 || !meta?.src_updated_at || !cur?.[0]?.updated_at) return false
+      return new Date(meta.src_updated_at).getTime() >= new Date(cur[0].updated_at).getTime()
+    } catch { return false }
+  })()
   const page = async (from: number) => {
-    const { data, error } = await db.from('inventory_summary').select(SEL).range(from, from + 999)
+    // 分頁一定要有穩定排序，否則每頁之間順序可能不同，會重複或漏列
+    const q = useCache
+      ? db.from('inventory_summary_cache').select(SEL).order('id')
+      : db.from('inventory_summary').select(SEL).order('product_id', { nullsFirst: true }).order('category').order('name').order('warehouse').order('region').order('batch_key')
+    const { data, error } = await q.range(from, from + 999)
     if (error) throw error
     return (data ?? []) as SummaryRow[]
   }

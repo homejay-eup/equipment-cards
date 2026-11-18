@@ -260,7 +260,10 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   })
   const times = Object.values(data.batches).map(b => b.exportedAt).filter(Boolean) as string[]
   const oldest = times.sort()[0] ?? null
-  const running = sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
+  // 各批時間差超過 30 分鐘 → 某批沒跟上這一輪（例如那一批同步失敗），明講是哪幾批較舊，數字不要被當成同一時間
+  const newest = times[times.length - 1] ?? null
+  const lagging = newest ? Object.values(data.batches).filter(b => b.exportedAt && new Date(newest).getTime() - new Date(b.exportedAt).getTime() > 30 * 60000) : []
+  const running =sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
   const stepIdx = !req ? (sending ? 0 : -1) : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
   // 料號品名沒結果、正要去查條碼（還沒回來）：先顯示「搜尋中」，不要先閃一下「找不到」
@@ -292,6 +295,11 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
             ))}
             <span className="ml-1 h-1.5 w-28 overflow-hidden rounded bg-[#f0e8de]"><i className="block h-full bg-[#7a5230] transition-all" style={{ width: `${(doneCount / 7) * 100}%` }} /></span>
           </div>
+        )}
+        {!running && lagging.length > 0 && (
+          <span className="text-xs text-[#b5451b]">
+            {lagging.map(b => `${b.label} ${md(b.exportedAt!)} ${hm(b.exportedAt)}`).join('、')} 這幾批比其他批舊，數字可能不是最新，請按「刷新庫存」
+          </span>
         )}
         {stale && <span className="text-xs text-[#b5451b]">公司電腦沒有回應（可能休眠、關機或同步程式沒開），以下仍是 {hm(oldest)} 的資料；電腦恢復後會自動補做</span>}
         {req?.error && !running && <span className="text-xs text-[#b5451b]">部分失敗：{req.error.slice(0, 60)}</span>}
