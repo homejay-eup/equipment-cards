@@ -1,6 +1,6 @@
 'use client'
 // ERP（鼎新 Cosmos）品號庫存。和 CRM 庫存分開授權（view_erp_inventory）。
-// 資料由公司電腦在使用者登入 ERP 後背景匯出，不能即時刷新；預設只列「無條碼」品項（ERP 對這類最準），CRM 管有條碼的。
+// 資料由人工在 ERP 匯出 Excel 後上傳更新，沒有排程、不會自動更新；預設只列「無條碼」品項（ERP 對這類最準），CRM 管有條碼的。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, FileSpreadsheet, Info, Search, Upload } from 'lucide-react'
 import ErpStocktakeDialog from './ErpStocktakeDialog'
@@ -107,7 +107,7 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
   if (!items) return <div className="mx-auto max-w-5xl px-4 py-12 text-center text-sm text-[#a08060]">讀取 ERP 庫存中…</div>
   if (!run) return (
     <div className="mx-auto max-w-5xl px-4 py-12 text-center text-sm text-[#a08060]">
-      <p className="mb-3">還沒有 ERP 庫存資料（公司電腦登入 ERP 後會自動匯出）</p>
+      <p className="mb-3">還沒有 ERP 庫存資料（請上傳 ERP 匯出檔）</p>
       <div className="flex justify-center">{uploadBox}</div>
       <div className="mt-3">{msgs}</div>
     </div>
@@ -135,7 +135,7 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
           </h2>
           {help && (
             <div role="dialog" className="absolute left-0 top-full z-30 mt-1 w-[min(420px,90vw)] rounded-lg border border-[#e8ddd0] bg-white p-3 text-xs leading-relaxed text-[#6b4f38] shadow-lg">
-              <p>數量來自鼎新 ERP「品號資料建立作業」；公司電腦在登入 ERP 後自動匯出，不能即時刷新。有條碼的品項請看 CRM 庫存（較準）。</p>
+              <p>數量來自鼎新 ERP「品號資料建立作業」；由人工匯出 Excel 後上傳更新，不會自動更新。有條碼的品項請看 CRM 庫存（較準）。</p>
               {canUpload && <p className="mt-2">手動更新：在 ERP「品號資料建立作業」查詢、把資料捲到最後一筆後匯出 Excel，再把檔案按「上傳匯出檔更新」選取（或直接拖進來）。</p>}
             </div>
           )}
@@ -145,7 +145,7 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
       <div className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-[#e8ddd0] bg-white px-3 py-2.5 text-[13px] text-[#6b4f38]">
         <span className={`h-2 w-2 rounded-full ${old ? 'bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
         <span>資料時間 <b className="text-[#2c1e12]">{fmt(run.exportedAt)}</b>（{ageText(run.exportedAt)}）・共 {run.rows.toLocaleString()} 個品號</span>
-        {old && <span className="text-xs text-[#b5451b]">資料偏舊：ERP 要登入後才會更新</span>}
+        {old && <span className="text-xs text-[#b5451b]">資料偏舊：請上傳新的 ERP 匯出檔</span>}
         <div className="ml-auto flex items-center gap-2">
           {canStocktake && (
             <button type="button" onClick={() => setStDlg(true)}
