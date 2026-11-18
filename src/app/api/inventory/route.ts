@@ -7,7 +7,9 @@ import { getInventoryAccess, forbidden, tableMissing, MISSING_MSG, BATCH_LABELS,
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const tStart = Date.now()
   const access = await getInventoryAccess()
+  const tAccess = Date.now() - tStart
   if (!access) return forbidden()
   const db = getServiceClient()
 
@@ -26,14 +28,16 @@ export async function GET() {
     const err = e as { code?: string; message: string }
     return NextResponse.json({ error: tableMissing(err.code) ? MISSING_MSG : err.message }, { status: 500 })
   }
-  const { products, warehouses } = loaded
+  const { products, warehouses, timing } = loaded
+  const tProducts = Date.now() - tStart
   const [snaps, { data: pref }] = await Promise.all([metaP, prefP])
+  const tAll = Date.now() - tStart
 
   const batches: Record<string, { label: string; exportedAt: string | null }> = {}
   for (const k of Object.keys(BATCH_LABELS)) batches[k] = { label: BATCH_LABELS[k], exportedAt: null }
   for (const s of snaps ?? []) if (batches[s.batch_key]) batches[s.batch_key].exportedAt = s.exported_at
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     products,
     warehouses,
     batches,
@@ -46,4 +50,6 @@ export async function GET() {
       idle: access.permissions.includes('view_inventory_idle_tech'),
     },
   })
+  res.headers.set('Server-Timing', [`access;dur=${tAccess}`, `products;dur=${tProducts}`, `total;dur=${tAll}`, ...Object.entries(timing).map(([k, v]) => `${k};dur=${v}`)].join(', '))
+  return res
 }
