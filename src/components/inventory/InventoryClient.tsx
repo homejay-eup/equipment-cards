@@ -471,15 +471,24 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         }}
         onMoveGroup={(f, t) => { update(p => ({ ...p, gorder: moveIn(p.gorder, f, t) })); say('分組順序已記住') }}
         onCell={(p, w) => {
-          // 搜尋條碼後手動點表格裡的格子：同樣標出搜尋到的那顆（和按 Enter 一致）；同格有多筆命中時優先用目前選的那筆
-          const inCell = liveHits?.filter(h => hitKey(h) === p.key && h.warehouse === w) ?? []
+          // 搜尋條碼後手動點表格裡的格子：這格有搜尋到的條碼 → 標出那顆；沒有但別的倉有 → 提示它在哪個倉
+          const mine = liveHits?.filter(h => hitKey(h) === p.key) ?? []
+          const inCell = mine.filter(h => h.warehouse === w)
           const h = inCell.find(x => x === liveHits?.[pickIdx]) ?? inCell[0]
-          setDrawer(h ? { mode: 'cell', product: p, warehouse: w, focus: h.barcode, query: qTrim } : { mode: 'cell', product: p, warehouse: w })
+          const other = mine.find(x => x === liveHits?.[pickIdx]) ?? mine[0]
+          setDrawer(h ? { mode: 'cell', product: p, warehouse: w, focus: h.barcode, query: qTrim }
+            : other ? { mode: 'cell', product: p, warehouse: w, query: qTrim, elsewhere: { barcode: other.barcode, warehouse: other.warehouse } }
+            : { mode: 'cell', product: p, warehouse: w })
         }}
-        onItem={p => setDrawer({ mode: 'item', product: p })}
+        onItem={p => {
+          // 點品名開品項總覽：搜尋到的條碼所在倉自動展開、標色閃爍
+          const mine = liveHits?.filter(h => hitKey(h) === p.key) ?? []
+          const h = mine.find(x => x === liveHits?.[pickIdx]) ?? mine[0]
+          setDrawer(h ? { mode: 'item', product: p, focus: h.barcode, focusWh: h.warehouse, query: qTrim } : { mode: 'item', product: p })
+        }}
       />}
 
-      <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
+      <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} onJump={setDrawer} />
       {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : (scopeList ?? [])} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
         onApply={wh => { if (tab === 'stock') update(p => ({ ...p, wh })); else setScope(wh.length ? wh : null); setWhDlg(false) }} />}
       {stkDlg && <StocktakeDialog products={data.products} selected={sel} onClose={() => setStkDlg(false)} />}

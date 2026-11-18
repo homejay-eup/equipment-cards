@@ -9,8 +9,9 @@ import { cell } from './types'
 import { HighlightText } from '@/components/maintenance/RuleContent'
 
 export type DrawerTarget =
-  | { mode: 'cell'; product: InvProduct; warehouse: string; focus?: string; /** 從搜尋點進來時的原始搜尋字（標螢光筆用） */ query?: string }
-  | { mode: 'item'; product: InvProduct }
+  | { mode: 'cell'; product: InvProduct; warehouse: string; focus?: string; /** 從搜尋點進來時的原始搜尋字（標螢光筆用） */ query?: string
+      /** 搜尋到的條碼不在這個倉、而在別的倉：顯示提示並可一鍵跳過去 */ elsewhere?: { barcode: string; warehouse: string } }
+  | { mode: 'item'; product: InvProduct; /** 搜尋到的條碼與它所在倉：自動展開那個倉、標色閃爍 */ focus?: string; focusWh?: string; query?: string }
 
 interface Page { rows: InvItem[]; total: number }
 
@@ -144,8 +145,8 @@ function BarcodeList({ product, warehouse, showWh, focus, onFocusRow, query, fla
   )
 }
 
-export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, onClose }: {
-  target: DrawerTarget | null; allowedWarehouses: string[]; canBarcodes: boolean; onClose: () => void
+export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, onClose, onJump }: {
+  target: DrawerTarget | null; allowedWarehouses: string[]; canBarcodes: boolean; onClose: () => void; onJump?: (t: DrawerTarget) => void
 }) {
   const [tab, setTab] = useState<'wh' | 'all'>('wh')
   const [open, setOpen] = useState<Record<string, boolean>>({})
@@ -157,7 +158,7 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   const [wq, setWq] = useState('')
   // S07：亮一下只針對「這一個 target 物件」播一次；播完記下來，之後同一個 target 重新渲染不再亮
   const [flashDone, setFlashDone] = useState<DrawerTarget | null>(null)
-  useEffect(() => { setTab('wh'); setSeenAll(false); setOpen({}); setFocusRow(null); setWq('') }, [target])
+  useEffect(() => { setTab('wh'); setSeenAll(false); setOpen(target?.mode === 'item' && target.focusWh ? { [target.focusWh]: true } : {}); setFocusRow(null); setWq('') }, [target])
   // 開品項總覽時，背景先把「全部條碼」第一頁載好，切過去就是現成的
   useEffect(() => { if (target?.mode === 'item' && canBarcodes) prefetchBarcodes(target.product.key, null) }, [target, canBarcodes])
   useEffect(() => {
@@ -189,6 +190,16 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
     sub = <>{target.warehouse}・可使用 {ok.toLocaleString()}{bad ? <>・不可使用 <span className="text-[#b5451b]">{bad}</span></> : null}</>
     body = (
       <>
+        {!target.focus && target.elsewhere && onJump && (
+          <div className="mb-3 rounded-lg border-[1.5px] border-dashed border-[#7a5230] bg-[#fff8ee] px-3 py-2.5 text-xs">
+            <div className="mb-0.5 text-[11px] font-bold text-[#7a5230]">你搜尋的條碼不在這個倉</div>
+            <div className="font-mono text-[15px] font-bold"><HighlightText text={target.elsewhere.barcode} query={hq} /></div>
+            <div className="mt-1">它在「{target.elsewhere.warehouse}」
+              <button type="button" onClick={() => onJump({ mode: 'cell', product: p, warehouse: target.elsewhere!.warehouse, focus: target.elsewhere!.barcode, query: hq })}
+                className="ml-2 rounded border border-[#c9a46c] bg-white px-2 py-0.5 font-semibold text-[#8a5a1c] hover:bg-[#fff8ec]">看它所在的倉</button>
+            </div>
+          </div>
+        )}
         {focusRow && (
           <div className={`mb-3 rounded-lg border-[1.5px] border-[#7a5230] bg-[#fff8ee] px-3 py-2.5 ${flash ? 'barcode-card-flash' : ''}`}
             onAnimationEnd={() => setFlashDone(cellTarget)}>
@@ -214,8 +225,9 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
   } else {
     const val = (w: string) => sort.k === 'ok' ? cell(p, w)[0] : sort.k === 'bad' ? cell(p, w)[1] : cell(p, w)[0] + cell(p, w)[1]
     const all = allowedWarehouses.filter(w => cell(p, w)[0] + cell(p, w)[1])
+    const fWh = target.focusWh
     const ws = all.filter(w => !wq.trim() || w.includes(wq.trim()))
-      .sort((a, b) => sort.k === 'name' ? sort.dir * a.localeCompare(b, 'zh-Hant') : sort.dir * (val(a) - val(b)) || a.localeCompare(b, 'zh-Hant'))
+      .sort((a, b) => (fWh ? Number(b === fWh) - Number(a === fWh) : 0) || (sort.k === 'name' ? sort.dir * a.localeCompare(b, 'zh-Hant') : sort.dir * (val(a) - val(b)) || a.localeCompare(b, 'zh-Hant')))
     const ok = all.reduce((s, w) => s + cell(p, w)[0], 0)
     const bad = all.reduce((s, w) => s + cell(p, w)[1], 0)
     const th = (k: typeof sort.k, label: string, right: boolean) => (
@@ -261,7 +273,7 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
                       </tr>
                       {open[w] && (
                         <tr><td colSpan={5} className="bg-[#fffdfa] p-2">
-                          <BarcodeList product={p} warehouse={w} showWh={false} />
+                          <BarcodeList product={p} warehouse={w} showWh={false} focus={w === fWh ? target.focus : undefined} query={target.query ?? ''} flash={w === fWh && !!target.focus} />
                         </td></tr>
                       )}
                     </FragmentRow>
@@ -274,7 +286,7 @@ export default function BarcodeDrawer({ target, allowedWarehouses, canBarcodes, 
         {(tab === 'all' || seenAll) && (
           <div className={tab === 'all' ? '' : 'hidden'}>
             <div className="mb-2 flex justify-end"><ExportBtn wh={null} withWh /></div>
-            <BarcodeList product={p} warehouse={null} showWh />
+            <BarcodeList product={p} warehouse={null} showWh focus={target.focus} query={target.query ?? ''} flash={!!target.focus} />
           </div>
         )}
       </>
