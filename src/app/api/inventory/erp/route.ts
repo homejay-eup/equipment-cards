@@ -22,7 +22,7 @@ export async function GET() {
   const { data: run, error: re } = await db.from('erp_stock_runs').select('id, exported_at, uploaded_at, rows')
     .eq('status', 'ok').order('exported_at', { ascending: false }).limit(1).maybeSingle()
   if (re) return NextResponse.json({ error: tableMissing(re.code) ? MISSING_MSG : re.message }, { status: 500 })
-  const can = { upload: permissions.includes('upload_erp_inventory') }
+  const can = { upload: permissions.includes('upload_erp_inventory'), stocktake: permissions.includes('export_stocktake') }
   if (!run) return NextResponse.json({ run: null, items: [], can })
   const SEL = 'product_id, name, qty, main_wh, vendor, has_serial, own_barcode, serial_prefix, warranty_months'
   const pages = await Promise.all([0, 1, 2, 3].map(i => db.from('erp_stock_items').select(SEL).eq('run_id', run.id).order('product_id').range(i * 1000, i * 1000 + 999)))

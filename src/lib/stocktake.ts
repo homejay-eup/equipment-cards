@@ -87,11 +87,11 @@ export function buildPivotRows(products: InvProductRow[], whs: string[], opt: St
 }
 
 /** 建立試算表並套好格式；回傳 { id, url, name } */
-export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; whCols?: string[] }[]) {
+export async function createStocktakeSheet(tabs: { title: string; rows: Row[]; whCols?: string[] }[], fileBase?: string) {
   if (!STOCKTAKE_FOLDER_ID) throw new Error('伺服器尚未設定盤點表資料夾（GOOGLE_DRIVE_STOCKTAKE_FOLDER_ID）')
   const drive = await getDriveClient()
   const sheets = await getSheetsClient()
-  const { file } = stocktakeNames()
+  const file = fileBase ?? stocktakeNames().file   // ERP 盤點表傳自己的檔名；CRM 不傳＝照舊
   // 同一天已有同名檔 → 加 (2)、(3)…
   const existing = await drive.files.list({
     q: `'${STOCKTAKE_FOLDER_ID}' in parents and name contains '${file}' and trashed=false`,

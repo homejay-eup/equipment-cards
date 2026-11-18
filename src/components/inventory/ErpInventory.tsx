@@ -2,7 +2,8 @@
 // ERP（鼎新 Cosmos）品號庫存。和 CRM 庫存分開授權（view_erp_inventory）。
 // 資料由公司電腦在使用者登入 ERP 後背景匯出，不能即時刷新；預設只列「無條碼」品項（ERP 對這類最準），CRM 管有條碼的。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Info, Search, Upload } from 'lucide-react'
+import { ChevronDown, ChevronUp, FileSpreadsheet, Info, Search, Upload } from 'lucide-react'
+import ErpStocktakeDialog from './ErpStocktakeDialog'
 import { readSwr, writeSwr } from '@/lib/swrCache'
 
 interface ErpItem { pid: string; name: string; qty: number; wh: string | null; vendor: string | null; hasSerial: boolean; ownBarcode: boolean; prefix: string | null; warranty: number | null }
@@ -26,6 +27,8 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: 'pid', dir: 1 })
 
   const [canUpload, setCanUpload] = useState(false)
+  const [canStocktake, setCanStocktake] = useState(false)
+  const [stDlg, setStDlg] = useState(false)
   const [upMsg, setUpMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [drag, setDrag] = useState(false)
@@ -46,12 +49,12 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '讀取 ERP 庫存失敗')
       writeSwr('erp-main', d)
-      setItems(d.items); setRun(d.run); setCanUpload(!!d.can?.upload); setErr('')
+      setItems(d.items); setRun(d.run); setCanUpload(!!d.can?.upload); setCanStocktake(!!d.can?.stocktake); setErr('')
     } catch (e) { setErr((e as Error).message) }
   }, [])
   useEffect(() => {
-    const c = readSwr<{ items: ErpItem[]; run: Run | null; can?: { upload?: boolean } }>('erp-main')   // 先秀上次的資料
-    if (c?.items) { setItems(c.items); setRun(c.run); setCanUpload(!!c.can?.upload) }
+    const c = readSwr<{ items: ErpItem[]; run: Run | null; can?: { upload?: boolean; stocktake?: boolean } }>('erp-main')   // 先秀上次的資料
+    if (c?.items) { setItems(c.items); setRun(c.run); setCanUpload(!!c.can?.upload); setCanStocktake(!!c.can?.stocktake) }
     load()
   }, [load])
 
@@ -143,8 +146,17 @@ export default function ErpInventory({ switcher }: { switcher?: React.ReactNode 
         <span className={`h-2 w-2 rounded-full ${old ? 'bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
         <span>資料時間 <b className="text-[#2c1e12]">{fmt(run.exportedAt)}</b>（{ageText(run.exportedAt)}）・共 {run.rows.toLocaleString()} 個品號</span>
         {old && <span className="text-xs text-[#b5451b]">資料偏舊：ERP 要登入後才會更新</span>}
-        {uploadBox}
+        <div className="ml-auto flex items-center gap-2">
+          {canStocktake && (
+            <button type="button" onClick={() => setStDlg(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[13px] text-[#7a5230] hover:bg-[#faf6f0]">
+              <FileSpreadsheet className="h-3.5 w-3.5" />匯出盤點表
+            </button>
+          )}
+          {uploadBox}
+        </div>
       </div>
+      {stDlg && <ErpStocktakeDialog items={items} onClose={() => setStDlg(false)} />}
       {upMsg && <p className={`mb-3 -mt-1 text-xs ${upMsg.ok ? 'text-[#3d7a3a]' : 'text-[#b5451b]'}`}>{upMsg.text}</p>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
