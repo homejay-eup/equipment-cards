@@ -77,6 +77,7 @@ interface SummaryRow {
 /** 產品 × 倉庫 數量（只含角色看得到的倉）；庫存頁與盤點表共用。錯誤會丟出 { code, message } */
 export async function loadProducts(access: InventoryAccess) {
   const db = getServiceClient()
+  const T0 = Date.now(); const timing: Record<string, number> = {}   // 分段計時（回應標頭 Server-Timing 看得到）
   const SEL = 'product_id, category, name, warehouse, region, ok_count, bad_count'
   // 彙總來源：預先算好的快取表（inventory_summary_cache，Step 56）只要「是以目前生效資料算的」就用它（快）；
   // 沒建、沒更新到、或比目前生效資料舊 → 一律改讀原本的檢視 inventory_summary（慢一點，但一定是最新）。
@@ -90,6 +91,7 @@ export async function loadProducts(access: InventoryAccess) {
       return new Date(meta.src_updated_at).getTime() >= new Date(cur[0].updated_at).getTime()
     } catch { return false }
   })()
+  timing.cacheCheck = Date.now() - T0; timing.useCache = useCache ? 1 : 0
   const page = async (from: number) => {
     // 分頁一定要有穩定排序，否則每頁之間順序可能不同，會重複或漏列
     const q = useCache
@@ -116,7 +118,9 @@ export async function loadProducts(access: InventoryAccess) {
     for (const c of chunk) rows.push(...c)
     if (chunk[3].length < 1000) break
   }
+  timing.summary = Date.now() - T0
   const cardName = await cardsP
+  timing.cards = Date.now() - T0
   const products = new Map<string, InvProductRow>()
   const whs = new Map<string, string>()   // 倉 → 區域
   for (const r of rows) {
@@ -135,6 +139,7 @@ export async function loadProducts(access: InventoryAccess) {
     p.cells[r.warehouse] = [c[0] + Number(r.ok_count), c[1] + Number(r.bad_count)]
   }
   return {
+    timing,
     products: Array.from(products.values()),
     warehouses: Array.from(whs.entries()).map(([name, region]) => ({ name, region })),
   }
