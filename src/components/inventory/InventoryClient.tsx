@@ -2,7 +2,7 @@
 // Step 54：CRM 庫存頁（資料由公司電腦同步 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可按刷新）
 // 畫面各自獨立：別人刷新或排程跑完，你的畫面不動；只有你自己按刷新或重新進頁面才拿新數字。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
+import { FileSpreadsheet, RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
 import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse, TransferItem } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
@@ -271,7 +271,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         {req?.error && !running && <span className="text-xs text-[#b5451b]">部分失敗：{req.error.slice(0, 60)}</span>}
         {data.can.stocktake && tab === 'stock' && (
           <button onClick={() => setStkDlg(true)}
-            className="ml-auto rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[#7a5230] hover:bg-[#faf6f0]">匯出盤點表</button>
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[#7a5230] hover:bg-[#faf6f0]"><FileSpreadsheet className="h-3.5 w-3.5" />匯出盤點表</button>
         )}
         {data.can.refresh && (
           <button onClick={startRefresh} disabled={running}
