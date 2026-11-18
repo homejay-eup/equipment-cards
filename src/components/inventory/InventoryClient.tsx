@@ -467,7 +467,12 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           say('順序已記住（我的排序）')
         }}
         onMoveGroup={(f, t) => { update(p => ({ ...p, gorder: moveIn(p.gorder, f, t) })); say('分組順序已記住') }}
-        onCell={(p, w) => setDrawer({ mode: 'cell', product: p, warehouse: w })}
+        onCell={(p, w) => {
+          // 搜尋條碼後手動點表格裡的格子：同樣標出搜尋到的那顆（和按 Enter 一致）；同格有多筆命中時優先用目前選的那筆
+          const inCell = liveHits?.filter(h => hitKey(h) === p.key && h.warehouse === w) ?? []
+          const h = inCell.find(x => x === liveHits?.[pickIdx]) ?? inCell[0]
+          setDrawer(h ? { mode: 'cell', product: p, warehouse: w, focus: h.barcode, query: qTrim } : { mode: 'cell', product: p, warehouse: w })
+        }}
         onItem={p => setDrawer({ mode: 'item', product: p })}
       />}
 
