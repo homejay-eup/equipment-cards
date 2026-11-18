@@ -21,12 +21,12 @@ interface Raw {
 const COLS = 'barcode, warehouse, region, category, name, product_id, crm_updated, op, who'
 
 async function pageAll<T>(fetchPage: (from: number) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>): Promise<T[]> {
+  // 每輪同時抓 4 頁（呼叫端的排序是穩定的，頁與頁接得起來），不足一頁就停：比一頁一頁等快很多
   const out: T[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await fetchPage(from)
-    if (error) throw error
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+  for (let from = 0; ; from += 4000) {
+    const chunk = await Promise.all([0, 1, 2, 3].map(i => fetchPage(from + i * 1000)))
+    for (const { data, error } of chunk) { if (error) throw error; out.push(...(data ?? [])) }
+    if ((chunk[3].data?.length ?? 0) < 1000) break
   }
   return out
 }

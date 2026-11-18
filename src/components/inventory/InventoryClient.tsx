@@ -47,11 +47,12 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
   const [xErr, setXErr] = useState({ transit: '', idle: '' })
   const xAsked = useRef({ transit: false, idle: false })
-  const loadX = useCallback(async (kind: 'transit' | 'idle') => {
+  const loadX = useCallback(async (kind: 'transit' | 'idle', early = false) => {
+    if (early) xAsked.current[kind] = true
     try {
       const r = await fetch(`/api/inventory/transfers?kind=${kind}`, { cache: 'no-store' })
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error || '讀取失敗')
+      if (!r.ok) { if (early && r.status === 403) return; throw new Error(d.error || '讀取失敗') }
       writeSwr(`inv-${kind}`, { items: d.items, destAsOf: d.destAsOf ?? null, destAt: d.destAt ?? null })
       if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf, destAt: d.destAt ?? null })
       else setIdle({ items: d.items })
@@ -91,7 +92,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     const t = readSwr<{ items: TransferItem[]; destAsOf: string | null; destAt?: string | null }>('inv-transit'); if (t) setTransit(t)
     const i = readSwr<{ items: TransferItem[] }>('inv-idle'); if (i) setIdle(i)
     load()
-  }, [load, applyData])
+    // 移交／持有過久清單也同時開始載（不用等庫存主資料回來）；沒權限的話伺服器回 403，靜默略過，之後照權限判斷
+    loadX('transit', true); loadX('idle', true)
+  }, [load, applyData, loadX])
 
   useEffect(() => {
     if (!data) return

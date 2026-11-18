@@ -54,7 +54,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const [withSim, setWithSim] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const [detail, setDetail] = useState<{ row: Row; col: string | null } | null>(null)
+  const [detail, setDetail] = useState<{ row: Row; col: string | null; focus?: string } | null>(null)   // focus＝從「找到 N 筆條碼」點進來的那顆（標色、閃一下、排第一）
 
   const pmap = useMemo(() => new Map(products.map(p => [p.key, p])), [products])
   const regionOf = useMemo(() => new Map(warehouses.map(w => [w.name, w.region || '其他'])), [warehouses])
@@ -108,8 +108,13 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const detailItems = useMemo(() => {
     if (!detail) return []
     const base = detail.col ? detail.row.cells.get(detail.col) ?? [] : detail.row.all
-    return [...base].sort((a, b) => daysOf(b.at) - daysOf(a.at))
+    return [...base].sort((a, b) => (detail.focus ? Number(b.barcode === detail.focus) - Number(a.barcode === detail.focus) : 0) || daysOf(b.at) - daysOf(a.at))
   }, [detail])
+
+  // 搜尋條碼（4 碼以上）：和庫存分頁一樣列出「找到 N 筆條碼」，點一筆打開它所在倉的明細並標出那顆
+  const qq = q.trim().toLowerCase()
+  const allHits = useMemo(() => (qq.length >= 4 ? rows.flatMap(r => r.all.filter(i => i.barcode.toLowerCase().includes(qq)).map(i => ({ r, i }))) : []), [rows, qq])
+  const hits = allHits.slice(0, 30)
 
   const badge = (n: number) => (n ? <span title={kind === 'idle' ? `超過 ${thr} 天` : `等超過 ${thr} 天`} className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{n}</span> : null)
   const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
@@ -165,6 +170,24 @@ export default function TransferTab({ kind, items, loading, error, products, war
   return (
     <div>
       {toggleBar}
+      {hits.length > 0 && (
+        <div className="mb-3 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2.5 text-[13px]">
+          <b>找到 {allHits.length}{allHits.length > 30 ? '（只列前 30）' : ''} 筆條碼</b>，點一筆打開它所在倉的明細：
+          <table className="mt-1.5 w-full text-xs">
+            <tbody>{hits.map(({ r, i }) => {
+              const d = daysOf(i.at)
+              return (
+                <tr key={i.barcode} onClick={() => setDetail({ row: r, col: colOf(i), focus: i.barcode })} className="cursor-pointer border-t border-[#f0e8de] hover:bg-[#f6efe4]">
+                  <td className="py-1 pr-2 font-mono">{i.barcode}</td><td className="py-1 pr-2">{r.name}</td>
+                  <td className="py-1 pr-2">{kind === 'idle' ? i.from : `${i.from} → ${i.to ?? UNKNOWN}`}</td>
+                  <td className="py-1 pr-2 tabular-nums">{day(i.at)}</td>
+                  <td className={`py-1 text-right tabular-nums ${d > thr ? 'font-semibold text-[#b5451b]' : ''}`}>{d} 天</td>
+                </tr>
+              )
+            })}</tbody>
+          </table>
+        </div>
+      )}
       {!rows.length ? empty : view === 'pivot' && transposed ? (
         <div className="max-h-[70vh] overflow-auto rounded-xl border border-[rgba(122,82,48,.15)] bg-white shadow-sm">
           <table className="min-w-full border-separate border-spacing-0">
@@ -340,7 +363,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
                 <tbody>{detailItems.map(i => {
                   const d = daysOf(i.at)
                   return (
-                    <tr key={i.barcode} className="border-t border-[#f0e8de]">
+                    <tr key={i.barcode} className={`border-t border-[#f0e8de] ${detail.focus === i.barcode ? 'barcode-hit barcode-row-flash' : ''}`}>
                       <td className="py-1 pr-2 font-mono">{i.barcode}</td>
                       {!detail.col && <td className="py-1 pr-2">{kind === 'in' ? i.to ?? UNKNOWN : i.from}</td>}
                       <td className="py-1 pr-2">{kind === 'out' ? i.to ?? UNKNOWN : kind === 'in' ? i.from : opLabel(i.op)}</td>
