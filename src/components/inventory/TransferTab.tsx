@@ -115,6 +115,11 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const qq = q.trim().toLowerCase()
   const allHits = useMemo(() => (qq.length >= 4 ? rows.flatMap(r => r.all.filter(i => i.barcode.toLowerCase().includes(qq)).map(i => ({ r, i }))) : []), [rows, qq])
   const hits = allHits.slice(0, 30)
+  // 從樞紐表／列表的數字或品名點開：若這格含有搜尋到的條碼，同樣標出那顆（和點「找到 N 筆條碼」一致）
+  const openDetail = (row: Row, col: string | null) => {
+    const h = allHits.find(x => x.r === row && (col === null || colOf(x.i) === col))
+    setDetail({ row, col, focus: h?.i.barcode })
+  }
 
   const badge = (n: number) => (n ? <span title={kind === 'idle' ? `超過 ${thr} 天` : `等超過 ${thr} 天`} className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{n}</span> : null)
   const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
@@ -201,7 +206,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
                 {rows.map(r => (
                   <th key={r.key} className={`${th} min-w-[96px] max-w-[150px] whitespace-normal text-right align-bottom`}>
                     <div className="font-mono text-[11px] font-normal text-[#a08060]">{r.pid ?? '—'}</div>
-                    <button type="button" onClick={() => setDetail({ row: r, col: null })} className="text-right font-medium hover:text-[#7a5230] hover:underline">{r.name}</button>
+                    <button type="button" onClick={() => openDetail(r, null)} className="text-right font-medium hover:text-[#7a5230] hover:underline">{r.name}</button>
                   </th>
                 ))}
                 <th className={`${th} bg-[#efe5d6] text-right`}>總計</th>
@@ -217,7 +222,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
                       const n = cnt(r, c)
                       return (
                         <td key={r.key} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">
-                          {n ? <><button onClick={() => setDetail({ row: r, col: c })} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{n}</button>{badge(over(r.cells.get(c)!))}</> : null}
+                          {n ? <><button onClick={() => openDetail(r, c)} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{n}</button>{badge(over(r.cells.get(c)!))}</> : null}
                         </td>
                       )
                     })}
@@ -265,13 +270,13 @@ export default function TransferTab({ kind, items, loading, error, products, war
                   <tr key={r.key} className="group border-t border-[#f0e8de] hover:bg-[#fdf8f2]">
                     <td className="sticky left-0 z-[1] w-[128px] min-w-[128px] max-w-[128px] truncate bg-white px-2.5 py-1.5 font-mono text-[12px] text-[#6b4f38] group-hover:bg-[#fdf8f2]">{r.pid ?? '—'}</td>
                     <td className="sticky left-[128px] z-[1] min-w-[180px] whitespace-nowrap bg-white px-2.5 py-1.5 shadow-[1px_0_0_#e8ddd0] group-hover:bg-[#fdf8f2]">
-                      <button onClick={() => setDetail({ row: r, col: null })} className="text-left text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{r.name}</button>
+                      <button onClick={() => openDetail(r, null)} className="text-left text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{r.name}</button>
                     </td>
                     {cols.map(c => {
                       const n = cnt(r, c)
                       return (
                         <td key={c} className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">
-                          {n ? <><button onClick={() => setDetail({ row: r, col: c })} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{n}</button>{badge(over(r.cells.get(c)!))}</> : null}
+                          {n ? <><button onClick={() => openDetail(r, c)} className="text-[13px] text-[#2c1e12] hover:text-[#7a5230] hover:underline">{n}</button>{badge(over(r.cells.get(c)!))}</> : null}
                         </td>
                       )
                     })}
@@ -324,7 +329,7 @@ export default function TransferTab({ kind, items, loading, error, products, war
                           {prods.filter(r => r.type === t).map(r => (
                             <div key={r.key} className="flex items-center justify-between border-t border-[#f0e8de] py-1">
                               <span><span className="mr-2 font-mono text-[11px] text-[#a08060]">{r.pid ?? '—'}</span>{r.name}</span>
-                              <span><button onClick={() => setDetail({ row: r, col: c })} className="tabular-nums hover:text-[#7a5230] hover:underline">{cnt(r, c)}</button>{badge(over(r.cells.get(c)!))}</span>
+                              <span><button onClick={() => openDetail(r, c)} className="tabular-nums hover:text-[#7a5230] hover:underline">{cnt(r, c)}</button>{badge(over(r.cells.get(c)!))}</span>
                             </div>
                           ))}
                         </div>
