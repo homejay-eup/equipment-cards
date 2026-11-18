@@ -47,6 +47,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
   const [xErr, setXErr] = useState({ transit: '', idle: '' })
   const xAsked = useRef({ transit: false, idle: false })
+  const xKeyRef = useRef<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>(null)
   const loadX = useCallback(async (kind: 'transit' | 'idle', early = false) => {
     if (early) xAsked.current[kind] = true
     try {
@@ -296,7 +297,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const searchingBarcode = !!data.can.barcodes && qTrim.length >= 4 && rows.length === 0 && hitsFor !== qTrim
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (tab !== 'stock' || drawer || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (tab !== 'stock') { xKeyRef.current?.(e); return }   // 移交／持有過久分頁：交給分頁自己處理（↑↓、Enter）
+    if (drawer) return
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && liveHits?.length) {
       e.preventDefault()
       const n = liveHits.length
@@ -439,7 +442,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       {tab !== 'stock' ? (
         <TransferTab
-          key={tab} kind={tab} transposed={!!prefs.tp?.[tab]} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, [tab]: !p.tp?.[tab] } }))}
+          key={tab} kind={tab} keyRef={xKeyRef} transposed={!!prefs.tp?.[tab]} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, [tab]: !p.tp?.[tab] } }))}
           products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}

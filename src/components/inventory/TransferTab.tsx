@@ -3,7 +3,7 @@
 //   out：A 倉移交出去、對方還沒接收（欄／列＝送出倉）；in：B 倉待接收（欄／列＝接收倉）；idle：技師手上超過 30 天沒異動（欄／列＝技師倉）
 //   樞紐表：品項 × 倉庫；列表：一個倉庫（技師）一列，展開看他持有哪些品項。
 // 搜尋、倉庫範圍（編輯倉庫）、樞紐表／列表、分組由上層共用。
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeftRight, ChevronDown, ChevronRight, Copy, Download, X } from 'lucide-react'
 import type { InvProduct, InvWarehouse, TransferItem } from './types'
 import { TYPE_ORDER } from './types'
@@ -36,6 +36,8 @@ interface Props {
   transposed?: boolean       // 樞紐表列欄交換（倉庫在左、品項在上）
   onTranspose?: () => void
   onCopied: (msg: string) => void
+  /** 上層搜尋框的鍵盤事件交給這裡處理（↑↓ 選條碼、Enter 打開明細） */
+  keyRef?: React.MutableRefObject<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>
 }
 
 function Switch({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
@@ -48,7 +50,7 @@ function Switch({ checked, onChange, children }: { checked: boolean; onChange: (
   )
 }
 
-export default function TransferTab({ kind, items, loading, error, products, warehouses, scope, q, view, grp, note, transposed, onTranspose, onCopied }: Props) {
+export default function TransferTab({ kind, items, loading, error, products, warehouses, scope, q, view, grp, note, transposed, onTranspose, onCopied, keyRef }: Props) {
   const thr = THRESH[kind]
   const [overdueOnly, setOverdueOnly] = useState(kind !== 'idle')   // 移交出去／待接收：預設只看等超過 7 天
   const [withSim, setWithSim] = useState(false)
@@ -116,6 +118,11 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const allHits = useMemo(() => (qq.length >= 4 ? rows.flatMap(r => r.all.filter(i => i.barcode.toLowerCase().includes(qq)).map(i => ({ r, i }))) : []), [rows, qq])
   const hits = allHits.slice(0, 30)
   // 從樞紐表／列表的數字或品名點開：若這格含有搜尋到的條碼，同樣標出那顆（和點「找到 N 筆條碼」一致）
+  // ↑↓ 選、Enter 打開：和庫存分頁一致；預設選「完全符合」的那筆，沒有就第一筆
+  const defaultPick = Math.max(0, hits.findIndex(h => h.i.barcode.toLowerCase() === qq))
+  const [pick, setPick] = useState<{ q: string; i: number }>({ q: '', i: 0 })
+  const pickIdx = Math.min(pick.q === qq ? pick.i : defaultPick, Math.max(0, hits.length - 1))
+  const openHit = (h: { r: Row; i: TransferItem }) => setDetail({ row: h.r, col: colOf(h.i), focus: h.i.barcode })
   const openDetail = (row: Row, col: string | null) => {
     const h = allHits.find(x => x.r === row && (col === null || colOf(x.i) === col))
     setDetail({ row, col, focus: h?.i.barcode })
@@ -145,6 +152,17 @@ export default function TransferTab({ kind, items, loading, error, products, war
     const title = kind === 'out' ? '移交中_移交出去' : kind === 'in' ? '移交中_待接收' : '持有過久_技師'
     XLSX.writeFile(wb, `${title}_${d}.xlsx`)
   }
+
+  useEffect(() => {
+    if (!keyRef) return
+    keyRef.current = e => {
+      if (detail) return
+      if (!hits.length) { if (e.key === 'Enter' && qq && rows.length === 1) { e.preventDefault(); openDetail(rows[0], null) }; return }   // 搜品名只剩一個品項：Enter 直接開它的明細
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setPick({ q: qq, i: (pickIdx + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length }) }
+      else if (e.key === 'Enter') { e.preventDefault(); openHit(hits[pickIdx]) }
+    }
+    return () => { keyRef.current = null }
+  })
 
   const copyText = (text: string, msg: string) => { navigator.clipboard?.writeText(text).then(() => onCopied(msg), () => onCopied('複製失敗')) }
   const copyBarcodes = (list: TransferItem[]) => copyText(list.map(i => i.barcode).join('\n'), `已複製 ${list.length} 個條碼`)
@@ -177,12 +195,12 @@ export default function TransferTab({ kind, items, loading, error, products, war
       {toggleBar}
       {hits.length > 0 && (
         <div className="mb-3 rounded-lg border border-[#e8ddd0] border-l-[3px] border-l-[#7a5230] bg-white px-3 py-2.5 text-[13px]">
-          <b>找到 {allHits.length}{allHits.length > 30 ? '（只列前 30）' : ''} 筆條碼</b>，點一筆打開它所在倉的明細：
+          <b>找到 {allHits.length}{allHits.length > 30 ? '（只列前 30）' : ''} 筆條碼</b>，點一筆打開它所在倉的明細：<span className="ml-1 hidden rounded border border-[#e8ddd0] bg-[#faf6f0] px-1.5 text-[11px] font-normal text-[#a08060] md:inline">按 Enter 開啟</span>
           <table className="mt-1.5 w-full text-xs">
-            <tbody>{hits.map(({ r, i }) => {
+            <tbody>{hits.map(({ r, i }, n) => {
               const d = daysOf(i.at)
               return (
-                <tr key={i.barcode} onClick={() => setDetail({ row: r, col: colOf(i), focus: i.barcode })} className="cursor-pointer border-t border-[#f0e8de] hover:bg-[#f6efe4]">
+                <tr key={i.barcode} onClick={() => openHit({ r, i })} aria-selected={n === pickIdx} className={`cursor-pointer border-t border-[#f0e8de] hover:bg-[#f6efe4] ${n === pickIdx ? 'bg-[#f6efe4]' : ''}`}>
                   <td className="py-1 pr-2 font-mono">{i.barcode}</td><td className="py-1 pr-2">{r.name}</td>
                   <td className="py-1 pr-2">{kind === 'idle' ? i.from : `${i.from} → ${i.to ?? UNKNOWN}`}</td>
                   <td className="py-1 pr-2 tabular-nums">{day(i.at)}</td>
