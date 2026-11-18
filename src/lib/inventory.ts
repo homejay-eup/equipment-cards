@@ -109,10 +109,11 @@ export async function loadProducts(access: InventoryAccess) {
   // 料卡名稱（有對到料卡就用料卡名稱顯示）：一次全抓，跟庫存彙總同時進行
   const cardsP = (async () => {
     const m = new Map<string, string>()
-    for (let from = 0; ; from += 1000) {
-      const { data } = await db.from('equipment_cards').select('equipment_id, name').range(from, from + 999)
-      for (const c of data ?? []) m.set(c.equipment_id, c.name)
-      if (!data || data.length < 1000) break
+    // 每輪同時抓 4 頁（穩定排序，頁與頁接得起來），不足一頁就停
+    for (let from = 0; ; from += 4000) {
+      const chunk = await Promise.all([0, 1, 2, 3].map(i => db.from('equipment_cards').select('equipment_id, name').order('equipment_id').range(from + i * 1000, from + i * 1000 + 999)))
+      for (const { data } of chunk) for (const c of data ?? []) m.set(c.equipment_id, c.name)
+      if ((chunk[3].data?.length ?? 0) < 1000) break
     }
     return m
   })()
