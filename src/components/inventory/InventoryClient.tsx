@@ -2,7 +2,7 @@
 // Step 54：CRM 庫存頁（資料由公司電腦同步 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可按刷新）
 // 畫面各自獨立：別人刷新或排程跑完，你的畫面不動；只有你自己按刷新或重新進頁面才拿新數字。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileSpreadsheet, RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
+import { FileSpreadsheet, Info, RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
 import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse, TransferItem } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
@@ -198,6 +198,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   }
   // ---- 補查接收倉（待接收頁）：公司電腦用「補查專用」CRM 逐顆明細查詢，補上資料庫備份之後新移交的接收倉。每天 9:00、13:00 也會自動跑 ----
   const [scanReq, setScanReq] = useState<{ id: number; status: string } | null>(null)
+  const [scanHelp, setScanHelp] = useState(false)
   const startScan = async () => {
     if (scanReq && (scanReq.status === 'queued' || scanReq.status === 'running')) return
     try {
@@ -290,6 +291,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // 各批時間差超過 30 分鐘 → 某批沒跟上這一輪（例如那一批同步失敗），明講是哪幾批較舊，數字不要被當成同一時間
   const newest = times[times.length - 1] ?? null
   const lagging = newest ? Object.values(data.batches).filter(b => b.exportedAt && new Date(newest).getTime() - new Date(b.exportedAt).getTime() > 30 * 60000) : []
+  const destTime = transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : transit ? '—' : null   // 待接收頁的資料時間＝接收倉最後寫入
   const running =sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
   const stepIdx = !req ? (sending ? 0 : -1) : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
@@ -332,7 +334,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         <span className={`h-2 w-2 rounded-full ${running ? 'animate-pulse bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
         {running
           ? <span>{sending && !req ? '已按下，正在通知公司電腦…' : `全部庫存更新中（${doneCount}/7 批），預計約 1 分鐘`}・先顯示 {hm(oldest)} 的數字</span>
-          : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
+          : tab === 'in'
+            ? <span>接收倉資料時間 <b className="text-[#2c1e12]">{destTime ?? '讀取中…'}</b>{scanning && <span className="ml-1.5 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 text-xs text-[#8a5a1c]"><RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '同步中' : '排隊中'}</span>}</span>
+            : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
         {(req || sending) && (
           <div className="flex items-center gap-1">
             {STEPS.map((s, i) => (
@@ -448,12 +452,16 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>
-            {scanning && (
-              <span className="mr-2 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 font-semibold text-[#8a5a1c]">
-                <RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '正在同步接收倉…完成後這頁自動更新，期間可照常使用' : '接收倉同步排隊中，完成後這頁自動更新，期間可照常使用'}
-              </span>
-            )}
-            接收倉最後更新 {transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : '—'}（資料庫前一日備份＋CRM 畫面補查，每天 9:00、13:00 自動補查）；查不到的歸在「接收倉未同步」，請至 CRM 查
+            接收倉說明
+            <span className="relative ml-1 inline-block align-middle">
+              <button type="button" aria-label="說明" onClick={() => setScanHelp(v => !v)} onBlur={() => setScanHelp(false)}
+                className="rounded-full p-0.5 text-[#8a5a1c] hover:bg-[#fff1d6]"><Info className="h-3.5 w-3.5" /></button>
+              {scanHelp && (
+                <span className="absolute left-0 top-6 z-20 w-72 rounded-lg border border-[#e8ddd0] bg-white p-3 text-left text-[12px] font-normal leading-relaxed text-[#5a4630] shadow-lg">
+                  接收倉資料＝資料庫前一日備份＋CRM 畫面補查。每天 9:00、13:00 與每次刷新庫存後會自動補查；補查中可照常使用，完成後這頁自動更新。查不到的歸在「接收倉未同步」，請至 CRM 查。
+                </span>
+              )}
+            </span>
             {data.can.refresh && (
               <button type="button" onClick={startScan} disabled={scanning}
                 className="ml-2 rounded border border-[#c9a46c] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#8a5a1c] hover:bg-[#fff8ec] disabled:opacity-60">
