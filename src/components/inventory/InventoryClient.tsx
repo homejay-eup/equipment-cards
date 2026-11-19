@@ -252,6 +252,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     const prev = before.current; before.current = null
     if (xAsked.current.transit) loadX('transit')   // 移交／持有過久也跟著重抓（CRM 部分是剛同步的新資料）
     if (xAsked.current.idle) loadX('idle')
+    if (req.status === 'done' && data?.can.refresh) startScan()   // 刷新完自動接著補查接收倉（背景進行，四個分頁照常可用；待接收頁會顯示「補查中」）
     const wh = prefs?.wh ?? []
     load(true).then(products => {
       const d: Record<string, number> = {}
@@ -447,6 +448,11 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>
+            {scanning && (
+              <span className="mr-2 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 font-semibold text-[#8a5a1c]">
+                <RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '正在同步接收倉…完成後這頁自動更新，期間可照常使用' : '接收倉同步排隊中，完成後這頁自動更新，期間可照常使用'}
+              </span>
+            )}
             接收倉最後更新 {transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : '—'}（資料庫前一日備份＋CRM 畫面補查，每天 9:00、13:00 自動補查）；查不到的歸在「接收倉未同步」，請至 CRM 查
             {data.can.refresh && (
               <button type="button" onClick={startScan} disabled={scanning}
