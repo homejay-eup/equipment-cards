@@ -27,7 +27,12 @@ export async function GET(req: NextRequest) {
   const access = await getInventoryAccess()
   if (!access) return forbidden()
   const id = Number(req.nextUrl.searchParams.get('id'))
-  if (!id) return NextResponse.json({ error: '缺少 id' }, { status: 400 })
+  if (!id) {   // 沒帶 id：回傳目前排隊中／執行中的補查（30 分鐘內），讓重整後的頁面接著顯示進度；沒有就回 null
+    const { data: live } = await getServiceClient().from('inventory_refresh_requests').select(COLS)
+      .contains('batch_keys', ['dest']).in('status', ['queued', 'running']).order('created_at', { ascending: false }).limit(1)
+    const cur = live?.[0] && Date.now() - new Date(live[0].created_at).getTime() < 30 * 60 * 1000 ? live[0] : null
+    return NextResponse.json({ request: cur })
+  }
   const { data, error } = await getServiceClient().from('inventory_refresh_requests').select(COLS).eq('id', id).contains('batch_keys', ['dest']).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: '找不到這個請求' }, { status: 404 })

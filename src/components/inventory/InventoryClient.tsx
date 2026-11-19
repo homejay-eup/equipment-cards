@@ -199,6 +199,10 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // ---- 補查接收倉（待接收頁）：公司電腦用「補查專用」CRM 逐顆明細查詢，補上資料庫備份之後新移交的接收倉。每天 9:00、13:00 也會自動跑 ----
   const [scanReq, setScanReq] = useState<{ id: number; status: string } | null>(null)
   const [scanHelp, setScanHelp] = useState(false)
+  // 進頁面（含重整）時：如果已有補查在跑，接著顯示進度，跑完自動更新
+  useEffect(() => {
+    fetch('/api/inventory/dest-scan', { cache: 'no-store' }).then(r => r.json()).then(d => { if (d?.request) setScanReq(cur => cur ?? d.request) }).catch(() => {})
+  }, [])
   const startScan = async () => {
     if (scanReq && (scanReq.status === 'queued' || scanReq.status === 'running')) return
     try {
@@ -292,6 +296,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const newest = times[times.length - 1] ?? null
   const lagging = newest ? Object.values(data.batches).filter(b => b.exportedAt && new Date(newest).getTime() - new Date(b.exportedAt).getTime() > 30 * 60000) : []
   const destTime = transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : transit ? '—' : null   // 待接收頁的資料時間＝接收倉最後寫入
+  const unsynced = transit ? transit.items.filter(i => !i.to).length : -1   // 接收倉還查不到的移交中設備數
   const running =sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
   const stepIdx = !req ? (sending ? 0 : -1) : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
@@ -452,13 +457,15 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>
-            接收倉說明
+            {unsynced === 0
+              ? <span className="mr-1.5 text-[#3d7a3a]">✓ 接收倉全部已同步，數字都準</span>
+              : unsynced > 0 && <span className="mr-1.5">只有「接收倉未同步」那 {unsynced} 顆的接收倉不確定（請至 CRM 查），其餘數字都準</span>}
             <span className="relative ml-1 inline-block align-middle">
               <button type="button" aria-label="說明" onClick={() => setScanHelp(v => !v)} onBlur={() => setScanHelp(false)}
                 className="rounded-full p-0.5 text-[#8a5a1c] hover:bg-[#fff1d6]"><Info className="h-3.5 w-3.5" /></button>
               {scanHelp && (
                 <span className="absolute left-0 top-6 z-20 w-72 rounded-lg border border-[#e8ddd0] bg-white p-3 text-left text-[12px] font-normal leading-relaxed text-[#5a4630] shadow-lg">
-                  接收倉資料＝資料庫前一日備份＋CRM 畫面補查。每天 9:00、13:00 與每次刷新庫存後會自動補查；補查中可照常使用，完成後這頁自動更新。查不到的歸在「接收倉未同步」，請至 CRM 查。
+                  接收倉資料＝資料庫前一日備份＋CRM 畫面補查。每天 9:00、13:00 與每次刷新庫存後會自動補查；補查中可照常使用，完成後這頁自動更新。只有歸在「接收倉未同步」的設備（備份日之後才移交、接收倉還查不到）不確定接收倉，請至 CRM 查；其他設備的接收倉與數量都是準的。
                 </span>
               )}
             </span>
