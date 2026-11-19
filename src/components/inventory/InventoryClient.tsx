@@ -340,7 +340,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         {running
           ? <span>{sending && !req ? '已按下，正在通知公司電腦…' : `全部庫存更新中（${doneCount}/7 批），預計約 1 分鐘`}・先顯示 {hm(oldest)} 的數字</span>
           : tab === 'in'
-            ? <span>接收倉資料時間 <b className="text-[#2c1e12]">{destTime ?? '讀取中…'}</b>{scanning && <span className="ml-1.5 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 text-xs text-[#8a5a1c]"><RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '同步中' : '排隊中'}</span>}</span>
+            ? <span>資料時間 <b className="text-[#2c1e12]">{destTime ?? '讀取中…'}</b> (待接收){scanning && <span className="ml-1.5 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 text-xs text-[#8a5a1c]"><RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '同步中' : '排隊中'}</span>}</span>
             : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
         {(req || sending) && (
           <div className="flex items-center gap-1">
@@ -458,8 +458,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>
             {unsynced === 0
-              ? <span className="mr-1.5 text-[#3d7a3a]">✓ 接收倉全部已同步，數字都準</span>
-              : unsynced > 0 && <span className="mr-1.5">只有「接收倉未同步」那 {unsynced} 顆的接收倉不確定（請至 CRM 查），其餘數字都準</span>}
+              ? <span className="mr-1.5 text-[#3d7a3a]">✓ 接收倉全部已同步，資料正確一致</span>
+              : unsynced > 0 && <span className="mr-1.5">只有「接收倉未同步」那 {unsynced} 顆的接收倉不確定（請至 CRM 查），其餘資料正確一致</span>}
             <span className="relative ml-1 inline-block align-middle">
               <button type="button" aria-label="說明" onClick={() => setScanHelp(v => !v)} onBlur={() => setScanHelp(false)}
                 className="rounded-full p-0.5 text-[#8a5a1c] hover:bg-[#fff1d6]"><Info className="h-3.5 w-3.5" /></button>
