@@ -84,12 +84,12 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
           )}
           {card.detail_photos.length > 0 && (
             <span
-              className="absolute bottom-1.5 right-1.5 flex items-center gap-[3px] bg-[rgba(255,249,244,.88)] border border-[rgba(122,82,48,.25)] px-1.5 py-[5px] rounded-full"
+              className="absolute bottom-1.5 right-1.5 flex items-center gap-[3px] bg-[rgba(255,249,244,.55)] px-1 py-[3px] rounded-full"
               title={`另有 ${card.detail_photos.length} 張細節照片`}
               aria-label={`另有 ${card.detail_photos.length} 張細節照片`}
             >
               {Array.from({ length: Math.min(card.detail_photos.length, 3) }).map((_, i) => (
-                <i key={i} className="block h-1.5 w-1.5 rounded-full bg-[#7a5230]" />
+                <i key={i} className="block h-1 w-1 rounded-full bg-[#7a5230]/55" />
               ))}
             </span>
           )}
