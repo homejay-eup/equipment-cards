@@ -81,17 +81,22 @@ export async function loadProducts(access: InventoryAccess) {
   const SEL = 'product_id, category, name, warehouse, region, ok_count, bad_count'
   // 彙總來源：預先算好的快取表（inventory_summary_cache，Step 56）只要「是以目前生效資料算的」就用它（快）；
   // 沒建、沒更新到、或比目前生效資料舊 → 一律改讀原本的檢視 inventory_summary（慢一點，但一定是最新）。
+  let packed: SummaryRow[] | null = null   // 整份彙總打包成一筆（Step 57）：一次來回就拿完
   const useCache = await (async () => {
     try {
       const [{ data: meta, error: e1 }, { data: cur, error: e2 }] = await Promise.all([
-        db.from('inventory_summary_meta').select('src_updated_at').eq('id', 1).maybeSingle(),
+        db.from('inventory_summary_meta').select('src_updated_at, payload').eq('id', 1).maybeSingle(),
         db.from('inventory_batch_current').select('updated_at').order('updated_at', { ascending: false }).limit(1),
       ])
       if (e1 || e2 || !meta?.src_updated_at || !cur?.[0]?.updated_at) return false
-      return new Date(meta.src_updated_at).getTime() >= new Date(cur[0].updated_at).getTime()
+      const fresh = new Date(meta.src_updated_at).getTime() >= new Date(cur[0].updated_at).getTime()
+      if (fresh && Array.isArray(meta.payload)) {
+        packed = (meta.payload as unknown[][]).map(a => ({ product_id: a[0] as string | null, category: a[1] as string | null, name: a[2] as string, warehouse: a[3] as string, region: a[4] as string | null, ok_count: Number(a[5]), bad_count: Number(a[6]) }))
+      }
+      return fresh
     } catch { return false }
   })()
-  timing.cacheCheck = Date.now() - T0; timing.useCache = useCache ? 1 : 0
+  timing.cacheCheck = Date.now() - T0; timing.useCache = useCache ? (packed ? 2 : 1) : 0
   const page = async (from: number) => {
     // 分頁一定要有穩定排序，否則每頁之間順序可能不同，會重複或漏列
     const q = useCache
@@ -104,16 +109,17 @@ export async function loadProducts(access: InventoryAccess) {
   // 料卡名稱（有對到料卡就用料卡名稱顯示）：一次全抓，跟庫存彙總同時進行
   const cardsP = (async () => {
     const m = new Map<string, string>()
-    for (let from = 0; ; from += 1000) {
-      const { data } = await db.from('equipment_cards').select('equipment_id, name').range(from, from + 999)
-      for (const c of data ?? []) m.set(c.equipment_id, c.name)
-      if (!data || data.length < 1000) break
+    // 每輪同時抓 4 頁（穩定排序，頁與頁接得起來），不足一頁就停
+    for (let from = 0; ; from += 4000) {
+      const chunk = await Promise.all([0, 1, 2, 3].map(i => db.from('equipment_cards').select('equipment_id, name').order('equipment_id').range(from + i * 1000, from + i * 1000 + 999)))
+      for (const { data } of chunk) for (const c of data ?? []) m.set(c.equipment_id, c.name)
+      if ((chunk[3].data?.length ?? 0) < 1000) break
     }
     return m
   })()
   // 庫存彙總分頁：先抓第一頁，滿頁就一次並行抓後面幾頁（每輪 4 頁，不足一頁就停）
-  const rows: SummaryRow[] = await page(0)
-  for (let from = 1000; rows.length >= from; from += 4000) {
+  const rows: SummaryRow[] = packed ?? await page(0)
+  for (let from = 1000; !packed && rows.length >= from; from += 4000) {
     const chunk = await Promise.all([0, 1, 2, 3].map(i => page(from + i * 1000)))
     for (const c of chunk) rows.push(...c)
     if (chunk[3].length < 1000) break

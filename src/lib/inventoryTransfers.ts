@@ -21,12 +21,12 @@ interface Raw {
 const COLS = 'barcode, warehouse, region, category, name, product_id, crm_updated, op, who'
 
 async function pageAll<T>(fetchPage: (from: number) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>): Promise<T[]> {
+  // 每輪同時抓 4 頁（呼叫端的排序是穩定的，頁與頁接得起來），不足一頁就停：比一頁一頁等快很多
   const out: T[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await fetchPage(from)
-    if (error) throw error
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+  for (let from = 0; ; from += 4000) {
+    const chunk = await Promise.all([0, 1, 2, 3].map(i => fetchPage(from + i * 1000)))
+    for (const { data, error } of chunk) { if (error) throw error; out.push(...(data ?? [])) }
+    if ((chunk[3].data?.length ?? 0) < 1000) break
   }
   return out
 }
@@ -46,13 +46,16 @@ export async function loadTransit(access: InventoryAccess) {
     from => db.from('inventory_transfer_dest').select('barcode, dest_warehouse, source_date, loaded_at').order('barcode').range(from, from + 999))
     .catch((e: { code?: string }) => { if (tableMissing(e.code)) return []; throw e })
   const [raw, destRows] = await Promise.all([rawP, destP])
-  const dest = new Map(destRows.map(d => [d.barcode, d.dest_warehouse]))
+  const dest = new Map(destRows.map(d => [d.barcode, d]))
   const destAsOf = destRows.reduce<string | null>((m, d) => (!m || d.source_date > m ? d.source_date : m), null)
   const destAt = destRows.reduce<string | null>((m, d) => (d.loaded_at && (!m || d.loaded_at > m) ? d.loaded_at : m), null)   // 接收倉資料最後寫入時間（備份載入或畫面補查）
   const items: TransferItem[] = []
   for (const r of raw) {
-    const to = r.barcode ? dest.get(r.barcode) ?? null : null
-    if (TRANSIT_OPS_MAYBE.includes(r.op ?? '') && !to) continue
+    const d = r.barcode ? dest.get(r.barcode) : undefined
+    if (TRANSIT_OPS_MAYBE.includes(r.op ?? '') && !d) continue
+    // 接收倉資料日（備份日／補查日）早於這顆最後一次移交的日期＝那筆接收倉是上一次移交的，已過期 → 當作「接收倉未同步」，不顯示可能是錯的接收倉（2026-11-19 對資料庫實測有 214 顆）
+    const stale = !!d && !!r.crm_updated && r.crm_updated.slice(0, 10) > d.source_date
+    const to = d && !stale ? d.dest_warehouse : null
     if (!canSee(access, r.warehouse) && !(to && canSee(access, to))) continue
     items.push(toItem(r, to))
   }

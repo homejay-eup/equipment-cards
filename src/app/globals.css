@@ -156,17 +156,17 @@
 /* 庫存條碼明細：搜尋到的那顆條碼——淡色底＋左側深色邊（不閃爍） */
 tr.barcode-hit { background-color: #f7e3c8; font-weight: 600; box-shadow: inset 4px 0 0 #7a5230; }
 
-/* Step 55 S07：從搜尋打開條碼明細時亮一下（1 秒、只一次、不捲動）；減少動態效果時不亮 */
+/* 從搜尋打開條碼明細時，搜尋到的那顆持續閃爍（淡入淡出，不停；關掉明細就停）；減少動態效果時不閃 */
 @keyframes barcode-card-glow {
-  0% { box-shadow: 0 0 0 4px rgba(196, 154, 114, 0.55); }
-  100% { box-shadow: 0 0 0 0 rgba(196, 154, 114, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(196, 154, 114, 0); }
+  100% { box-shadow: 0 0 0 5px rgba(196, 154, 114, 0.6); }
 }
 @keyframes barcode-row-glow {
-  0% { background-color: #ecc894; }
-  100% { background-color: #f7e3c8; }
+  0% { background-color: #f7e3c8; }
+  100% { background-color: #e8b877; }
 }
-.barcode-card-flash { animation: barcode-card-glow 1s ease-out 1; }
-tr.barcode-hit.barcode-row-flash { animation: barcode-row-glow 1s ease-out 1; }
+.barcode-card-flash { animation: barcode-card-glow 0.9s ease-in-out infinite alternate; }
+tr.barcode-hit.barcode-row-flash { animation: barcode-row-glow 0.9s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) {
   .barcode-card-flash, tr.barcode-hit.barcode-row-flash { animation: none; }
 }

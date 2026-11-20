@@ -2,7 +2,7 @@
 // Step 54：CRM 庫存頁（資料由公司電腦同步 CRM「庫存總表查詢」；每天 9:00、13:00 自動同步，也可按刷新）
 // 畫面各自獨立：別人刷新或排程跑完，你的畫面不動；只有你自己按刷新或重新進頁面才拿新數字。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileSpreadsheet, RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
+import { FileSpreadsheet, Info, RefreshCw, Search, Table2, List as ListIcon, Warehouse } from 'lucide-react'
 import type { InvBatch, InvCan, InvItem, InvPrefs, InvProduct, InvWarehouse, TransferItem } from './types'
 import { cell, defaultPrefs, TYPE_ORDER } from './types'
 import InventoryTable from './InventoryTable'
@@ -47,11 +47,13 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const [idle, setIdle] = useState<{ items: TransferItem[] } | null>(null)
   const [xErr, setXErr] = useState({ transit: '', idle: '' })
   const xAsked = useRef({ transit: false, idle: false })
-  const loadX = useCallback(async (kind: 'transit' | 'idle') => {
+  const xKeyRef = useRef<((e: React.KeyboardEvent<HTMLInputElement>) => void) | null>(null)
+  const loadX = useCallback(async (kind: 'transit' | 'idle', early = false) => {
+    if (early) xAsked.current[kind] = true
     try {
       const r = await fetch(`/api/inventory/transfers?kind=${kind}`, { cache: 'no-store' })
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error || '讀取失敗')
+      if (!r.ok) { if (early && r.status === 403) return; throw new Error(d.error || '讀取失敗') }
       writeSwr(`inv-${kind}`, { items: d.items, destAsOf: d.destAsOf ?? null, destAt: d.destAt ?? null })
       if (kind === 'transit') setTransit({ items: d.items, destAsOf: d.destAsOf, destAt: d.destAt ?? null })
       else setIdle({ items: d.items })
@@ -91,7 +93,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     const t = readSwr<{ items: TransferItem[]; destAsOf: string | null; destAt?: string | null }>('inv-transit'); if (t) setTransit(t)
     const i = readSwr<{ items: TransferItem[] }>('inv-idle'); if (i) setIdle(i)
     load()
-  }, [load, applyData])
+    // 移交／持有過久清單也同時開始載（不用等庫存主資料回來）；沒權限的話伺服器回 403，靜默略過，之後照權限判斷
+    loadX('transit', true); loadX('idle', true)
+  }, [load, applyData, loadX])
 
   useEffect(() => {
     if (!data) return
@@ -194,6 +198,11 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   }
   // ---- 補查接收倉（待接收頁）：公司電腦用「補查專用」CRM 逐顆明細查詢，補上資料庫備份之後新移交的接收倉。每天 9:00、13:00 也會自動跑 ----
   const [scanReq, setScanReq] = useState<{ id: number; status: string } | null>(null)
+  const [scanHelp, setScanHelp] = useState(false)
+  // 進頁面（含重整）時：如果已有補查在跑，接著顯示進度，跑完自動更新
+  useEffect(() => {
+    fetch('/api/inventory/dest-scan', { cache: 'no-store' }).then(r => r.json()).then(d => { if (d?.request) setScanReq(cur => cur ?? d.request) }).catch(() => {})
+  }, [])
   const startScan = async () => {
     if (scanReq && (scanReq.status === 'queued' || scanReq.status === 'running')) return
     try {
@@ -248,6 +257,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
     const prev = before.current; before.current = null
     if (xAsked.current.transit) loadX('transit')   // 移交／持有過久也跟著重抓（CRM 部分是剛同步的新資料）
     if (xAsked.current.idle) loadX('idle')
+    if (req.status === 'done' && data?.can.refresh) startScan()   // 刷新完自動接著補查接收倉（背景進行，四個分頁照常可用；待接收頁會顯示「補查中」）
     const wh = prefs?.wh ?? []
     load(true).then(products => {
       const d: Record<string, number> = {}
@@ -285,6 +295,8 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   // 各批時間差超過 30 分鐘 → 某批沒跟上這一輪（例如那一批同步失敗），明講是哪幾批較舊，數字不要被當成同一時間
   const newest = times[times.length - 1] ?? null
   const lagging = newest ? Object.values(data.batches).filter(b => b.exportedAt && new Date(newest).getTime() - new Date(b.exportedAt).getTime() > 30 * 60000) : []
+  const destTime = transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : transit ? '—' : null   // 待接收頁的資料時間＝接收倉最後寫入
+  const unsynced = transit ? transit.items.filter(i => !i.to).length : -1   // 接收倉還查不到的移交中設備數
   const running =sending || (!!req && req.status !== 'done' && req.status !== 'failed' && !stale)
   const stepIdx = !req ? (sending ? 0 : -1) : req.status === 'queued' ? 0 : req.status === 'running' ? (doneCount ? 2 : 1) : 3
   const shown = hitRows ?? rows
@@ -293,7 +305,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
   const searchingBarcode = !!data.can.barcodes && qTrim.length >= 4 && rows.length === 0 && hitsFor !== qTrim
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (tab !== 'stock' || drawer || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (tab !== 'stock') { xKeyRef.current?.(e); return }   // 移交／持有過久分頁：交給分頁自己處理（↑↓、Enter）
+    if (drawer) return
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && liveHits?.length) {
       e.preventDefault()
       const n = liveHits.length
@@ -325,7 +339,9 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         <span className={`h-2 w-2 rounded-full ${running ? 'animate-pulse bg-[#c98a2b]' : 'bg-[#3d7a3a]'}`} />
         {running
           ? <span>{sending && !req ? '已按下，正在通知公司電腦…' : `全部庫存更新中（${doneCount}/7 批），預計約 1 分鐘`}・先顯示 {hm(oldest)} 的數字</span>
-          : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
+          : tab === 'in'
+            ? <span>資料時間 <b className="text-[#2c1e12]">{destTime ?? '讀取中…'}</b> (待接收){scanning && <span className="ml-1.5 inline-flex items-center gap-1 rounded bg-[#fff1d6] px-1.5 py-0.5 text-xs text-[#8a5a1c]"><RefreshCw className="h-3 w-3 animate-spin" />{scanReq?.status === 'running' ? '同步中' : '排隊中'}</span>}</span>
+            : <span>資料時間 <b className="text-[#2c1e12]">{oldest ? `${md(oldest)} ${hm(oldest)}` : '尚無資料'}</b></span>}
         {(req || sending) && (
           <div className="flex items-center gap-1">
             {STEPS.map((s, i) => (
@@ -436,12 +452,23 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
 
       {tab !== 'stock' ? (
         <TransferTab
-          key={tab} kind={tab} transposed={!!prefs.tp?.[tab]} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, [tab]: !p.tp?.[tab] } }))}
+          key={tab} kind={tab} keyRef={xKeyRef} transposed={!!prefs.tp?.[tab]} onTranspose={() => update(p => ({ ...p, tp: { ...p.tp, [tab]: !p.tp?.[tab] } }))}
           products={data.products} warehouses={data.warehouses} scope={scopeList} q={q} view={prefs.view} grp={prefs.grp} onCopied={say}
           items={(tab === 'idle' ? idle : transit)?.items ?? null} loading={!(tab === 'idle' ? idle : transit) && !xErr[tab === 'idle' ? 'idle' : 'transit']}
           error={xErr[tab === 'idle' ? 'idle' : 'transit']}
           note={tab === 'in' ? <>
-            接收倉最後更新 {transit?.destAt ? `${md(transit.destAt)} ${hm(transit.destAt)}` : transit?.destAsOf ? md(transit.destAsOf) : '—'}（資料庫前一日備份＋CRM 畫面補查，每天 9:00、13:00 自動補查）；查不到的歸在「接收倉未同步」，請至 CRM 查
+            {unsynced === 0
+              ? <span className="mr-1.5 text-[#3d7a3a]">✓ 接收倉全部已同步，資料正確一致</span>
+              : unsynced > 0 && <span className="mr-1.5">只有「接收倉未同步」那 {unsynced} 顆的接收倉不確定（請至 CRM 查），其餘資料正確一致</span>}
+            <span className="relative ml-1 inline-block align-middle">
+              <button type="button" aria-label="說明" onClick={() => setScanHelp(v => !v)} onBlur={() => setScanHelp(false)}
+                className="rounded-full p-0.5 text-[#8a5a1c] hover:bg-[#fff1d6]"><Info className="h-3.5 w-3.5" /></button>
+              {scanHelp && (
+                <span className="absolute left-0 top-6 z-20 w-72 rounded-lg border border-[#e8ddd0] bg-white p-3 text-left text-[12px] font-normal leading-relaxed text-[#5a4630] shadow-lg">
+                  接收倉資料＝資料庫前一日備份＋CRM 畫面補查。每天 9:00、13:00 與每次刷新庫存後會自動補查；補查中可照常使用，完成後這頁自動更新。只有歸在「接收倉未同步」的設備（備份日之後才移交、接收倉還查不到）不確定接收倉，請至 CRM 查；其他設備的接收倉與數量都是準的。
+                </span>
+              )}
+            </span>
             {data.can.refresh && (
               <button type="button" onClick={startScan} disabled={scanning}
                 className="ml-2 rounded border border-[#c9a46c] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#8a5a1c] hover:bg-[#fff8ec] disabled:opacity-60">
@@ -467,11 +494,25 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
           say('順序已記住（我的排序）')
         }}
         onMoveGroup={(f, t) => { update(p => ({ ...p, gorder: moveIn(p.gorder, f, t) })); say('分組順序已記住') }}
-        onCell={(p, w) => setDrawer({ mode: 'cell', product: p, warehouse: w })}
-        onItem={p => setDrawer({ mode: 'item', product: p })}
+        onCell={(p, w) => {
+          // 搜尋條碼後手動點表格裡的格子：這格有搜尋到的條碼 → 標出那顆；沒有但別的倉有 → 提示它在哪個倉
+          const mine = liveHits?.filter(h => hitKey(h) === p.key) ?? []
+          const inCell = mine.filter(h => h.warehouse === w)
+          const h = inCell.find(x => x === liveHits?.[pickIdx]) ?? inCell[0]
+          const other = mine.find(x => x === liveHits?.[pickIdx]) ?? mine[0]
+          setDrawer(h ? { mode: 'cell', product: p, warehouse: w, focus: h.barcode, query: qTrim }
+            : other ? { mode: 'cell', product: p, warehouse: w, query: qTrim, elsewhere: { barcode: other.barcode, warehouse: other.warehouse } }
+            : { mode: 'cell', product: p, warehouse: w })
+        }}
+        onItem={p => {
+          // 點品名開品項總覽：搜尋到的條碼所在倉自動展開、標色閃爍
+          const mine = liveHits?.filter(h => hitKey(h) === p.key) ?? []
+          const h = mine.find(x => x === liveHits?.[pickIdx]) ?? mine[0]
+          setDrawer(h ? { mode: 'item', product: p, focus: h.barcode, focusWh: h.warehouse, query: qTrim } : { mode: 'item', product: p })
+        }}
       />}
 
-      <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
+      <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} onJump={setDrawer} />
       {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : (scopeList ?? [])} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
         onApply={wh => { if (tab === 'stock') update(p => ({ ...p, wh })); else setScope(wh.length ? wh : null); setWhDlg(false) }} />}
       {stkDlg && <StocktakeDialog products={data.products} selected={sel} fromOtherTab={tab !== 'stock'} onClose={() => setStkDlg(false)} />}
