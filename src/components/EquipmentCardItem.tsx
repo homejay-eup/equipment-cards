@@ -83,11 +83,17 @@ export default function EquipmentCardItem({ card, onClick, isAdmin, onEdit, onDe
             </span>
           )}
           {card.detail_photos.length > 0 && (
-            <span className="absolute bottom-1.5 right-1.5 bg-[rgba(255,249,244,.88)] text-[#7a5230] border border-[rgba(122,82,48,.25)] text-[10px] px-1.5 py-0.5 rounded-full">
-              +{card.detail_photos.length}
+            <span
+              className="absolute bottom-1.5 right-1.5 flex items-center gap-[3px] bg-[rgba(255,249,244,.88)] border border-[rgba(122,82,48,.25)] px-1.5 py-[5px] rounded-full"
+              title={`另有 ${card.detail_photos.length} 張細節照片`}
+              aria-label={`另有 ${card.detail_photos.length} 張細節照片`}
+            >
+              {Array.from({ length: Math.min(card.detail_photos.length, 3) }).map((_, i) => (
+                <i key={i} className="block h-1.5 w-1.5 rounded-full bg-[#7a5230]" />
+              ))}
             </span>
           )}
-          {/* 加入組合：與 +N 同在圖片 div 內，位置完全對稱 */}
+          {/* 加入組合：與細節照片圓點同在圖片 div 內，位置完全對稱 */}
           {onAddToGroup && !selectMode && (
             <button
               onClick={e => { e.stopPropagation(); onAddToGroup((e.currentTarget as HTMLButtonElement).getBoundingClientRect()) }}
