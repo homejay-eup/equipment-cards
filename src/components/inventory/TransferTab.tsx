@@ -4,7 +4,7 @@
 //   樞紐表：品項 × 倉庫；列表：一個倉庫（技師）一列，展開看他持有哪些品項。
 // 搜尋、倉庫範圍（編輯倉庫）、樞紐表／列表、分組由上層共用。
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, ChevronDown, ChevronRight, Copy, Download, X } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, ChevronRight, ChevronsDownUp, Copy, Download, X } from 'lucide-react'
 import type { InvProduct, InvWarehouse, TransferItem } from './types'
 import { TYPE_ORDER } from './types'
 
@@ -56,7 +56,9 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const [withSim, setWithSim] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const [detail, setDetail] = useState<{ row: Row; col: string | null; focus?: string } | null>(null)   // focus＝從「找到 N 筆條碼」點進來的那顆（標色、閃一下、排第一）
+  const [detail, setDetail] = useState<{ row: Row; col: string | null; focus?: string } | null>(null)   // 樞紐表用的側欄；focus＝從「找到 N 筆條碼」點進來的那顆（標色、閃一下、排第一）
+  const [ex, setEx] = useState<Record<string, boolean>>({})   // 列表：哪些「倉庫＋品項」已展開條碼（key＝exKey）
+  const [focusCode, setFocusCode] = useState<string | null>(null)   // 列表：搜尋命中的那顆條碼，展開後持續閃爍直到改搜尋字
 
   const pmap = useMemo(() => new Map(products.map(p => [p.key, p])), [products])
   const regionOf = useMemo(() => new Map(warehouses.map(w => [w.name, w.region || '其他'])), [warehouses])
@@ -122,11 +124,28 @@ export default function TransferTab({ kind, items, loading, error, products, war
   const defaultPick = Math.max(0, hits.findIndex(h => h.i.barcode.toLowerCase() === qq))
   const [pick, setPick] = useState<{ q: string; i: number }>({ q: '', i: 0 })
   const pickIdx = Math.min(pick.q === qq ? pick.i : defaultPick, Math.max(0, hits.length - 1))
-  const openHit = (h: { r: Row; i: TransferItem }) => setDetail({ row: h.r, col: colOf(h.i), focus: h.i.barcode })
+  const exKey = (c: string, key: string) => `${c}\u0001${key}`
+  const regionName = (c: string) => (c === UNKNOWN ? '' : regionOf.get(c) || '其他')
+  // 列表：把該品項在這幾個倉的條碼表展開（連同區域、技師列），並標出搜尋命中的那顆
+  const revealInList = (row: Row, cs: string[], focus?: string) => {
+    setCollapsed(s => { const n = { ...s }; cs.forEach(c => { if (regionName(c)) delete n[`region:${regionName(c)}`] }); return n })
+    setOpen(s => ({ ...s, ...Object.fromEntries(cs.map(c => [c, true])) }))
+    setEx(s => ({ ...s, ...Object.fromEntries(cs.map(c => [exKey(c, row.key), true])) }))
+    setFocusCode(focus ?? null)
+  }
+  const openHit = (h: { r: Row; i: TransferItem }) => (view === 'list' ? revealInList(h.r, [colOf(h.i)], h.i.barcode) : setDetail({ row: h.r, col: colOf(h.i), focus: h.i.barcode }))
   const openDetail = (row: Row, col: string | null) => {
     const h = allHits.find(x => x.r === row && (col === null || colOf(x.i) === col))
-    setDetail({ row, col, focus: h?.i.barcode })
+    if (view === 'list') revealInList(row, col ? [col] : Array.from(row.cells.keys()), h?.i.barcode)
+    else setDetail({ row, col, focus: h?.i.barcode })
   }
+  useEffect(() => { setFocusCode(null) }, [qq])
+  useEffect(() => {
+    if (!focusCode) return
+    document.querySelector(`[data-bc="${CSS.escape(focusCode)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusCode])
+  const anyExpanded = Object.values(open).some(Boolean) || Object.values(ex).some(Boolean)
+  const collapseAll = () => { setOpen({}); setEx({}); setFocusCode(null) }
 
   const badge = (n: number) => (n ? <span title={kind === 'idle' ? `超過 ${thr} 天` : `等超過 ${thr} 天`} className="ml-1 rounded bg-[#f8e4dc] px-1 text-[10px] text-[#b5451b]">{n}</span> : null)
   const th = 'whitespace-nowrap px-2.5 py-2 text-[12px] font-medium text-[#6b4f38]'
@@ -179,7 +198,12 @@ export default function TransferTab({ kind, items, loading, error, products, war
         ? <Switch checked={overdueOnly} onChange={setOverdueOnly}>只看等超過 {thr} 天</Switch>
         : <Switch checked={withSim} onChange={setWithSim}>含 Sim 卡</Switch>}
       {note && <span className="rounded-md bg-[#fdf3e3] px-2 py-1 text-[13px] font-semibold text-[#8a5a1c]">{note}</span>}
-      <button onClick={exportXlsx} disabled={!matched} className="ml-auto inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Download className="h-3.5 w-3.5" />匯出</button>
+      <div className="ml-auto flex items-center gap-2">
+        {view === 'list' && anyExpanded && (
+          <button onClick={collapseAll} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0]"><ChevronsDownUp className="h-3.5 w-3.5" />全部收合</button>
+        )}
+        <button onClick={exportXlsx} disabled={!matched} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2.5 py-1 text-[#7a5230] hover:bg-[#faf6f0] disabled:opacity-50"><Download className="h-3.5 w-3.5" />匯出</button>
+      </div>
     </div>
   )
 
@@ -365,12 +389,47 @@ export default function TransferTab({ kind, items, loading, error, products, war
                       {types.map(t => (
                         <div key={t}>
                           <div className="pt-1.5 text-[11px] text-[#a08060]">{t}（{typeCount(t)}）</div>
-                          {prods.filter(r => r.type === t).map(r => (
-                            <div key={r.key} className="flex items-center justify-between border-t border-[#f0e8de] py-1">
-                              <span><span className="mr-2 font-mono text-[11px] text-[#a08060]">{r.pid ?? '—'}</span>{r.name}</span>
-                              <span><button onClick={() => openDetail(r, c)} className="tabular-nums hover:text-[#7a5230] hover:underline">{cnt(r, c)}</button>{badge(over(r.cells.get(c)!))}</span>
-                            </div>
-                          ))}
+                          {prods.filter(r => r.type === t).map(r => {
+                            const k = exKey(c, r.key)
+                            const codes = [...(r.cells.get(c) ?? [])].sort((a, b) => daysOf(b.at) - daysOf(a.at))
+                            return (
+                              <div key={r.key} className="border-t border-[#f0e8de]">
+                                <div className="flex cursor-pointer items-center gap-1.5 py-1 hover:bg-[#fdf8f2]" onClick={() => setEx(s => ({ ...s, [k]: !s[k] }))}>
+                                  {ex[k] ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#a08060]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#a08060]" />}
+                                  <span className="min-w-0 flex-1"><span className="mr-2 font-mono text-[11px] text-[#a08060]">{r.pid ?? '—'}</span>{r.name}</span>
+                                  <span><span className="tabular-nums">{cnt(r, c)}</span>{badge(over(r.cells.get(c)!))}</span>
+                                </div>
+                                {ex[k] && (
+                                  <div className="mb-1.5 ml-5 rounded-md bg-[#fdfaf5] px-2 py-1">
+                                    <div className="flex justify-end">
+                                      <button onClick={() => copyBarcodes(codes)} className="inline-flex items-center gap-1 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-2 py-0.5 text-[11px] text-[#7a5230] hover:bg-[#faf6f0]"><Copy className="h-3 w-3" />複製這 {codes.length} 個條碼</button>
+                                    </div>
+                                    <table className="w-full text-[12px]">
+                                      <thead><tr className="text-left text-[11px] text-[#6b4f38]">
+                                        <th className="py-1 pl-1 font-medium">條碼</th>
+                                        <th className="py-1 font-medium">{kind === 'out' ? '接收倉' : kind === 'in' ? '送出倉' : '最後動作'}</th>
+                                        {kind !== 'idle' && <th className="py-1 font-medium">移交人</th>}
+                                        <th className="py-1 font-medium">{kind === 'idle' ? '最後異動' : '移交日'}</th>
+                                        <th className="py-1 text-right font-medium">{kind === 'idle' ? '放了' : '等了'}</th>
+                                      </tr></thead>
+                                      <tbody>{codes.map(i => {
+                                        const d = daysOf(i.at)
+                                        return (
+                                          <tr key={i.barcode} data-bc={i.barcode} className={`border-t border-[#f0e8de] ${focusCode === i.barcode ? 'barcode-hit barcode-row-flash' : ''}`}>
+                                            <td className="py-0.5 pl-1 pr-2 font-mono">{i.barcode}</td>
+                                            <td className="py-0.5 pr-2">{kind === 'out' ? i.to ?? UNKNOWN : kind === 'in' ? i.from : opLabel(i.op)}</td>
+                                            {kind !== 'idle' && <td className="py-0.5 pr-2">{i.who}</td>}
+                                            <td className="py-0.5 pr-2 tabular-nums">{day(i.at)}</td>
+                                            <td className={`py-0.5 text-right tabular-nums ${d > thr ? 'font-semibold text-[#b5451b]' : ''}`}>{d} 天</td>
+                                          </tr>
+                                        )
+                                      })}</tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       ))}
                     </div>
