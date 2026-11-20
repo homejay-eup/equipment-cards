@@ -341,13 +341,13 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
         )}
         {stale && <span className="text-xs text-[#b5451b]">公司電腦沒有回應（可能休眠、關機或同步程式沒開），以下仍是 {hm(oldest)} 的資料；電腦恢復後會自動補做</span>}
         {req?.error && !running && <span className="text-xs text-[#b5451b]">部分失敗：{req.error.slice(0, 60)}</span>}
-        {data.can.stocktake && tab === 'stock' && (
+        {data.can.stocktake && (
           <button onClick={() => setStkDlg(true)}
             className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[rgba(122,82,48,.35)] bg-white px-3 py-1.5 text-[#7a5230] hover:bg-[#faf6f0]"><FileSpreadsheet className="h-3.5 w-3.5" />匯出盤點表</button>
         )}
         {data.can.refresh && (
           <button onClick={startRefresh} disabled={running}
-            className={`${data.can.stocktake && tab === 'stock' ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80`}>
+            className={`${data.can.stocktake ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md bg-[#7a5230] px-3 py-1.5 text-white shadow-[0_0_10px_rgba(122,82,48,.3)] hover:bg-[#9c6b42] disabled:opacity-80`}>
             <RefreshCw className={`h-3.5 w-3.5 ${running ? 'animate-spin' : ''}`} />
             {running ? `${STEPS[Math.max(0, stepIdx)]}…` : req?.status === 'done' ? '完成' : '刷新庫存'}
           </button>
@@ -474,7 +474,7 @@ export default function InventoryClient({ switcher }: { switcher?: React.ReactNo
       <BarcodeDrawer target={drawer} allowedWarehouses={allowed} canBarcodes={data.can.barcodes} onClose={() => setDrawer(null)} />
       {whDlg && <WarehouseDialog all={data.warehouses} selected={tab === 'stock' ? sel : (scopeList ?? [])} onClose={() => setWhDlg(false)} emptyMeansAll={tab !== 'stock'}
         onApply={wh => { if (tab === 'stock') update(p => ({ ...p, wh })); else setScope(wh.length ? wh : null); setWhDlg(false) }} />}
-      {stkDlg && <StocktakeDialog products={data.products} selected={sel} onClose={() => setStkDlg(false)} />}
+      {stkDlg && <StocktakeDialog products={data.products} selected={sel} fromOtherTab={tab !== 'stock'} onClose={() => setStkDlg(false)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#2c1e12] px-4 py-2 text-sm text-white shadow-lg">{toast}</div>}
     </div>
   )

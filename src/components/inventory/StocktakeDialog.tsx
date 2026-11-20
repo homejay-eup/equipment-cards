@@ -7,7 +7,7 @@ import { cell } from './types'
 
 const locKey = (p: InvProduct) => p.pid ?? `名稱:${p.name}`
 
-export default function StocktakeDialog({ products, selected, onClose }: { products: InvProduct[]; selected: string[]; onClose: () => void }) {
+export default function StocktakeDialog({ products, selected, onClose, fromOtherTab = false }: { products: InvProduct[]; selected: string[]; onClose: () => void; fromOtherTab?: boolean }) {
   const [mode, setMode] = useState<'merge' | 'each' | 'pivot'>('merge')
   const [qty, setQty] = useState<'all' | 'ok'>('all')
   const [zero, setZero] = useState(false)
@@ -78,6 +78,11 @@ export default function StocktakeDialog({ products, selected, onClose }: { produ
           </p>
         )}
         <div className="flex-1 overflow-auto px-4 pb-2 text-[13px]">
+          {fromOtherTab && (
+            <p className="mb-2 rounded-md bg-[#fdf3e3] px-3 py-1.5 text-xs text-[#8a5a1c]">
+              匯出的是「庫存」分頁選的倉庫（{selected.length ? selected.join('、') : '全部倉庫'}），不是目前這個分頁的清單。
+            </p>
+          )}
           {selected.length > 1 && (
             <div className="mb-1.5">
               <div className="flex flex-wrap items-center gap-4">
