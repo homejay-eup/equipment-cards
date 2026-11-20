@@ -189,7 +189,17 @@ export default function TransferTab({ kind, items, loading, error, products, war
     </div>
   )
 
-  let lastRegion = ''
+  // 列表：同一區域的技師排在一起（不管倉庫範圍是自選還是預設，區域內保留範圍裡原本的順序）
+  const listGroups = (() => {
+    const g = new Map<string, { c: string; list: TransferItem[] }[]>()
+    for (const c of [...cols].sort((a, b) => rank(a) - rank(b))) {
+      const list = itemsOfCol(c)
+      if (!list.length) continue
+      const region = c === UNKNOWN ? '' : regionOf.get(c) || '其他'
+      g.set(region, [...(g.get(region) ?? []), { c, list }])
+    }
+    return Array.from(g, ([region, cs]) => ({ region, cs }))
+  })()
   return (
     <div>
       {toggleBar}
@@ -314,24 +324,35 @@ export default function TransferTab({ kind, items, loading, error, products, war
         </div>
       ) : (
         // 列表：一個倉庫（技師）一列，依區域、倉名排列；展開看他持有的品項（車機、配件分組）
-        <div className="space-y-1.5">
-          {cols.map(c => {
-            const list = itemsOfCol(c)
-            if (!list.length) return null
-            const region = c === UNKNOWN ? '' : regionOf.get(c) ?? ''
-            const heading = region !== lastRegion ? region : ''
-            lastRegion = region
+        <div className="space-y-2">
+          {listGroups.map(({ region, cs }) => {
+            const rKey = `region:${region}`
+            const folded = !!region && !!collapsed[rKey]
+            const rTotal = cs.reduce((a, x) => a + x.list.length, 0)
+            const rOver = cs.reduce((a, x) => a + over(x.list), 0)
+            return (
+              <div key={region || UNKNOWN}>
+                {region && (
+                  <div className="flex cursor-pointer select-none items-center gap-2 rounded-lg bg-[#efe4d6] px-2.5 py-1.5" onClick={() => setCollapsed(s => ({ ...s, [rKey]: !s[rKey] }))}>
+                    {folded ? <ChevronRight className="h-3.5 w-3.5 text-[#7a5230]" /> : <ChevronDown className="h-3.5 w-3.5 text-[#7a5230]" />}
+                    <b className="text-[13px] font-medium text-[#5c3d22]">{region}</b>
+                    <span className="text-xs text-[#8a7058]">{cs.length} 位</span>
+                    <span className="ml-auto text-xs text-[#6b4f38]">合計 <b className="text-[15px] font-medium tabular-nums text-[#2c1e12]">{rTotal}</b>{badge(rOver)}</span>
+                  </div>
+                )}
+                {!folded && (
+                  <div className={`space-y-1.5 ${region ? 'ml-3.5 mt-1.5' : ''}`}>
+          {cs.map(({ c, list }) => {
             const prods = rows.filter(r => cnt(r, c))
             const typeCount = (t: string) => prods.filter(r => r.type === t).reduce((a, r) => a + cnt(r, c), 0)
             const types = [...TYPE_ORDER, ...Array.from(new Set(prods.map(r => r.type))).filter(t => !TYPE_ORDER.includes(t))].filter(t => typeCount(t))
             return (
               <div key={c}>
-                {heading && <div className="px-1 pb-0.5 pt-2 text-xs font-medium text-[#a08060]">{heading}</div>}
                 <div className="rounded-lg border border-[#e8ddd0] bg-white">
                   <div className="flex cursor-pointer items-center gap-2.5 px-3 py-2" onClick={() => setOpen(s => ({ ...s, [c]: !s[c] }))}>
                     {open[c] ? <ChevronDown className="h-4 w-4 text-[#a08060]" /> : <ChevronRight className="h-4 w-4 text-[#a08060]" />}
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-[#2c1e12]">{colHead(c)}{region && <span className="ml-1.5 text-[11px] text-[#a08060]">{region}</span>}</div>
+                      <div className="text-sm text-[#2c1e12]">{colHead(c)}</div>
                       <div className="text-xs text-[#8a7058]">{types.map(t => `${t} ${typeCount(t)}`).join('・')}</div>
                     </div>
                     <div className="text-right"><b className="text-lg tabular-nums">{list.length}</b>{badge(over(list))}</div>
@@ -355,6 +376,11 @@ export default function TransferTab({ kind, items, loading, error, products, war
                     </div>
                   )}
                 </div>
+              </div>
+            )
+          })}
+                  </div>
+                )}
               </div>
             )
           })}
